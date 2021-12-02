@@ -1,3 +1,3 @@
-# generators
+# experiments
 
-Generating random data, fairly
+A variety of coding, algorithm, and math experiments
