@@ -1,8 +1,8 @@
 use crate::engine::{Engine, Image};
 use crate::world::Block;
+use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DrawOrder {
@@ -76,11 +76,24 @@ impl TileKey {
         }
         let stem = path.file_stem().unwrap().to_str().unwrap();
         let stem_parts = stem.split('_').collect::<Vec<_>>();
-        assert_eq!(stem_parts.len(), 2, "Wrong number of _-sep parts in tile filename");
+        assert_eq!(
+            stem_parts.len(),
+            2,
+            "Wrong number of _-sep parts in tile filename"
+        );
         let (tileset_name, links_str) = (stem_parts[0], stem_parts[1]);
-        assert_eq!(links_str.chars().count(), 4, "Wrong length of links in tile filename");
+        assert_eq!(
+            links_str.chars().count(),
+            4,
+            "Wrong length of links in tile filename"
+        );
         let mut links = links_str.chars().map(Link::from_char);
-        let links = [links.next().unwrap(), links.next().unwrap(), links.next().unwrap(), links.next().unwrap()];
+        let links = [
+            links.next().unwrap(),
+            links.next().unwrap(),
+            links.next().unwrap(),
+            links.next().unwrap(),
+        ];
         Some(TileKey {
             // TODO: efficiency
             block: Block::block_names()[tileset_name],
@@ -94,14 +107,17 @@ impl TileKey {
 
     pub fn matches(self, other: TileKey) -> bool {
         self.block == other.block
-            && self.links[0].matches(other.links[0]) && self.links[1].matches(other.links[1])
-            && self.links[2].matches(other.links[2]) && self.links[3].matches(other.links[3])
+            && self.links[0].matches(other.links[0])
+            && self.links[1].matches(other.links[1])
+            && self.links[2].matches(other.links[2])
+            && self.links[3].matches(other.links[3])
     }
 
     pub fn draw_order(self) -> DrawOrder {
         use Link::*;
         if (self.links[0] == Full && self.links[3] != Full)
-            || (self.links[1] == Full && self.links[2] != Full) {
+            || (self.links[1] == Full && self.links[2] != Full)
+        {
             DrawOrder::First
         } else {
             DrawOrder::Last

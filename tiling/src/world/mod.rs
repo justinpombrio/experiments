@@ -141,7 +141,7 @@ impl World {
         World {
             radius: radius as u32,
             squares,
-            out_of_bounds_square, 
+            out_of_bounds_square,
         }
     }
 
@@ -159,10 +159,12 @@ impl World {
     }
 
     pub fn get_squares_around_tile(&self, [p, q]: SqCoord) -> [&Square; 4] {
-        [self.get_square([p + 1, q + 1]),
-         self.get_square([p, q + 1]),
-         self.get_square([p, q]),
-         self.get_square([p + 1, q])]
+        [
+            self.get_square([p + 1, q + 1]),
+            self.get_square([p, q + 1]),
+            self.get_square([p, q]),
+            self.get_square([p + 1, q]),
+        ]
     }
 
     pub fn get_square_mut(&mut self, [p, q]: SqCoord) -> Option<&mut Square> {
@@ -181,7 +183,7 @@ impl World {
 
     pub fn all_tile_coords(&self) -> impl Iterator<Item = SqCoord> + 'static {
         let radius = self.radius as i32;
-        SqCoordIter::new((-radius-1, radius), (-radius-1, radius))
+        SqCoordIter::new((-radius - 1, radius), (-radius - 1, radius))
     }
 }
 

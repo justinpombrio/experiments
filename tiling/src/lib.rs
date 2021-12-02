@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 pub mod engine;
-pub mod world;
 pub mod tiling;
 pub mod transforms;
+pub mod world;
 
 use engine::{Application, Canvas, Color, Engine, EngineSettings, Image, Key, MouseButton};
-use tiling::{Link, Tiles, TileKey};
+use tiling::{Link, TileKey, Tiles};
 use transforms::{compute_transforms, TransformArgs, Transforms};
-use world::{demo_world, Block, World, SqCoord, Square, Layer};
+use world::{demo_world, Block, Layer, SqCoord, Square, World};
 
 const BACKGROUND_COLOR: &str = "222222";
 const GUI_BACKGROUND_COLOR_1: &str = "333333";
@@ -225,11 +225,13 @@ impl App {
         let [a, b, c, d] = squares;
         let mut keys = vec![];
         for &block in blocks {
-            let links = [link(block, a), link(block, b), link(block, c), link(block, d)];
-            keys.push(TileKey {
-                block,
-                links,
-            });
+            let links = [
+                link(block, a),
+                link(block, b),
+                link(block, c),
+                link(block, d),
+            ];
+            keys.push(TileKey { block, links });
         }
         self.tiles.get_tiles(&keys)
     }
