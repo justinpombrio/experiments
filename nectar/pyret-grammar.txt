@@ -1,0 +1,102 @@
+ImportSpecial		import	_	(	_	)
+ImportName	100	import	_
+Provide 		provide	_	end
+ProvideStar		provide	*
+Let    		binop	shadow?	
+
+
+import _ as ~
+import _ from _
+
+provide _ end
+provide *
+provide-types _
+provide-types *
+
+type ~ = _
+newtype ~ as ~
+_ = _     // val, type
+shadow ~ [:: _]
+_ : _     // arg, obj-field, ann-field
+let _ : _ end
+letrec _ : _ end
+let-type _ : _ end
+_ , _     // args, lets, imports
+_ ( _ )   // import-special
+
+fun ~ [< _ >] ( _ ) [-> _] : [doc: ~] _ [where: _] end
+check [~] : _ end
+
+data ~ [< _ >] [deriving: _] : _ [sharing: _] [where: _] end
+| ~( _ ) [with: _]
+~ [with: _]
+
+datatype ~ [< _ >] : _ [where: _] end
+~( _ ) with constructor ( ~ ) : _ end
+| ~( _ ) with constructor ( ~ ) : _ end
+
+var _ = _
+rec _ = _
+~ := _
+
+when _ : _ end
+
+_ + _
+_ - _
+_ * _
+_ < _
+_ and _
+...
+
+_ is _
+_ is%( _ ) _
+...
+
+ ( _ )
+true
+false
+
+lam [< _ >] ( _ ) [-> _] : [doc: ~] _ [where: _] end
+method [< _ >] ( _ ) [-> _] : [doc: ~] _ [where: _] end
+
+_( _ )
+_ < _ > // inst-expr, app-ann
+{ _ } // obj literal, record ann
+{ }
+ref ~ [:: _] : _
+~ [< _ >] ( _ ) [-> _] : [doc: ~] _ [where: _] end
+
+\[ [lazy] _ : _ \]
+_ . ~   // dot-expr, dot-ann
+_ . \[ _ \]
+_ ! ~
+_ . { _ }
+_ ! { _ }
+
+if _ : _ end
+elseif _ : _
+else: _
+// above is unpleasant; better if * supported:
+if _ : [elseif _ : _]* [else: _] end
+
+ref _
+cases ( _ ) _ : _ [| else => _] end
+| ~ [( _ )] => _
+
+_ from _
+for _ ( _ ) [-> _] : _ end
+
+block _ end
+
+~ :: _ // contract-stmt, ann-field
+_ % ( _ )
+
+// datatype variants may begin with optional `|`.
+// object fields terminated with optional `,`.
+
+
+ATOMIC LITERALS:
+  identifier
+  number
+  rational
+  string

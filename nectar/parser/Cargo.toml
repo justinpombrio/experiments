@@ -1,0 +1,7 @@
+[package]
+name = "parser2"
+version = "0.1.0"
+authors = ["justinpombrio <zallambo@gmail.com>"]
+
+[dependencies]
+regex = "0.1.60"
