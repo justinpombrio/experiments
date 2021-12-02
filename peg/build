@@ -1,0 +1,2 @@
+ghc --make -fwarn-incomplete-patterns -Werror \
+  PEG.hs PEG/Test.hs
