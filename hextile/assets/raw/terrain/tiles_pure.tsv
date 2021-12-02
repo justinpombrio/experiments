@@ -1,0 +1,9 @@
+Bottom	Left	Top	Right	Color	Pt0	Pt1	Pt2	Pt3	Pt4	Pt5	Offset
+s	s	s	s	#aa3333	d	d	d	d	d	d	0
+s	o	o	o	#aaaa33	a	c	f	g	e	b	0
+s	o	s	o	#33aa33	m	j	m	j	m	j	0
+s	s	o	s	#33aaaa	j	m	j	m	j	m	0
+s	o	s	s	#3333aa	e	b	a	c	f	g	0
+s	s	s	o	#3333aa	f	g	e	b	a	c	3
+s	s	o	o	#aa33aa	c	f	g	e	b	a	0
+s	o	o	s	#aa6633	b	a	c	f	g	e	0
