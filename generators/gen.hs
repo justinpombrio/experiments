@@ -47,7 +47,7 @@ infixl 2 <||>
 -- |Increase the size of the values of a generator.
 gSize :: Int -> Gen a -> Gen a
 gSize m (Gen g cs) | m >= 0 =
-  Gen (\n -> g (n - m))
+  Gen (\n -> if n < 0 then [] else g (n - m))
       (replicate m 0 ++ cs)
 
 -- |Modify the values produces by a generator.
@@ -69,7 +69,6 @@ gNat = Gen (\n -> [n]) (repeat 1)
 -- A (possibly infinite) list of all generated values, in order of size.
 qAll :: Gen a -> [a]
 qAll (Gen g _) = concatMap g [0..]
-
 
 -- List all values of the given size
 qList :: Int -> Gen a -> [a]
