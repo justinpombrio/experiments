@@ -1,12 +1,13 @@
 mod bytecode;
 mod compiler;
 mod expr;
+mod sexpr;
 mod source;
 
-use bytecode::{Code, Instr, Value};
+use bytecode::{Instr, Value};
 use compiler::{Compiler, Registry, TypeError};
 use expr::{Compiled, Expr, Type};
-use source::{Src, Srcloc};
+use source::Src;
 use Type::Int;
 
 macro_rules! type_err {
@@ -48,16 +49,17 @@ fn compile_add<'s>(comp: &mut Compiler, src: Src<'s>) -> Result<Compiled<'s>, Ty
 fn std_registry() -> Registry {
     let mut registry = Registry::new();
     registry.add_fragment("int", compile_int);
-    registry.add_fragment("add", compile_add);
+    registry.add_fragment("+", compile_add);
     registry
 }
 
 fn main() {
-    let source = "1 + 2";
-    let one_expr = Src::new(source, 0, 1, "int", &[]);
-    let two_expr = Src::new(source, 4, 5, "int", &[]);
-    let args = [one_expr, two_expr];
-    let add_expr = Src::new(source, 0, 5, "add", &args);
+    use sexpr::parse_sexpr;
+    use typed_arena::Arena;
+
+    let arena = Arena::new();
+    let source = "(+ (+ 1 2) 3)";
+    let add_expr = parse_sexpr(&arena, source).unwrap();
 
     let registry = std_registry();
     let mut compiler = Compiler::new(&registry);

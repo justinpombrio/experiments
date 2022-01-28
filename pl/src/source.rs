@@ -1,18 +1,19 @@
 #[derive(Debug, Clone, Copy)]
 pub struct Srcloc<'s> {
-    line: usize,
-    column: usize,
-    source: &'s str,
+    pub line: usize,
+    pub column: usize,
+    pub source: &'s str,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Src<'s> {
-    loc: Srcloc<'s>,
-    construct: &'s str,
-    args: &'s [Src<'s>],
+    pub loc: Srcloc<'s>,
+    pub construct: &'s str,
+    pub args: &'s [Src<'s>],
 }
 
 impl<'s> Srcloc<'s> {
+    // TODO: delete
     /// Inefficient! Just for testing.
     fn new(source: &'s str, start: usize, end: usize) -> Srcloc<'s> {
         Srcloc {

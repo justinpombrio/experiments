@@ -1,4 +1,4 @@
-use super::expr::{Compiled, Expr, Type};
+use super::expr::Compiled;
 use super::source::Src;
 use std::collections::HashMap;
 
@@ -39,7 +39,7 @@ impl<'r> Compiler<'r> {
     pub fn compile<'s>(&mut self, src: Src<'s>) -> Result<Compiled<'s>, TypeError> {
         let fragment = match self.registry.get_fragment(src.construct()) {
             Some(fragment) => fragment,
-            None => panic!("missing fragment for {}", src.construct()),
+            None => panic!("missing compiler fragment for {}", src.construct()),
         };
         let mut args = vec![];
         for arg in src.args() {
