@@ -3,7 +3,7 @@ use std::fmt;
 const SIZE: usize = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Coloring([Color; SIZE]);
+pub struct Coloring(pub [Color; SIZE]);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Word([u8; SIZE]);
@@ -120,9 +120,9 @@ fn test_coloring() {
         color(Word::from_str(guess), Word::from_str(answer))
     }
 
-    assert_eq!(run_color("paint", "lolly"), [W, W, W, W, W]);
-    assert_eq!(run_color("plain", "lolly"), [W, Y, W, W, W]);
-    assert_eq!(run_color("golly", "lolly"), [W, G, G, G, G]);
-    assert_eq!(run_color("loose", "lolly"), [G, G, W, W, W]);
-    assert_eq!(run_color("olles", "lolly"), [Y, Y, G, W, W]);
+    assert_eq!(run_color("paint", "lolly"), Coloring([W, W, W, W, W]));
+    assert_eq!(run_color("plain", "lolly"), Coloring([W, Y, W, W, W]));
+    assert_eq!(run_color("golly", "lolly"), Coloring([W, G, G, G, G]));
+    assert_eq!(run_color("loose", "lolly"), Coloring([G, G, W, W, W]));
+    assert_eq!(run_color("olles", "lolly"), Coloring([Y, Y, G, W, W]));
 }

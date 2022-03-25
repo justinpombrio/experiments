@@ -54,19 +54,27 @@ impl GameState {
     fn best_guess(&self) -> Word {
         // Optimization: hard code the best first guess for Wordle
         if self.guesses.is_empty() {
-            return Word::from_str("SERAI");
+            // Best guess for worst_case_score
+            // return Word::from_str("ARISE");
+
+            // Best guess for entropy
+            return Word::from_str("SOARE");
         }
 
-        let mut best_score = 1000000000;
+        let mut best_score = 0.0;
         let mut best_guess = Word::from_str("_____");
-        for guess in &self.allowed_guesses {
+        let guesses = self
+            .remaining_words
+            .iter()
+            .chain(self.allowed_guesses.iter());
+        for guess in guesses {
             let mut partition = Partition::new();
             for solution in &self.remaining_words {
                 let coloring = color(*guess, *solution);
                 partition.insert(*solution, coloring);
             }
-            let score = partition.worst_case_score();
-            if score < best_score {
+            let score = partition.entropy();
+            if score > best_score {
                 best_score = score;
                 best_guess = *guess;
             }
@@ -115,7 +123,7 @@ fn main() {
                 println!("The solution is {}!", game.remaining_words.remove(0));
                 std::process::exit(0);
             }
-            2 | 3 | 4 | 5 => {
+            n if n <= 15 => {
                 print!("Possible words:");
                 for word in &game.remaining_words {
                     print!(" {}", word);
