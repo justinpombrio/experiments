@@ -13,37 +13,12 @@ pub struct Src<'s> {
 }
 
 impl<'s> Srcloc<'s> {
-    // TODO: delete
-    /// Inefficient! Just for testing.
-    fn new(source: &'s str, start: usize, end: usize) -> Srcloc<'s> {
-        Srcloc {
-            line: source[start..].lines().count(),
-            column: source[start..].lines().last().unwrap().len(),
-            source: &source[start..end],
-        }
-    }
-
     pub fn as_str(&self) -> &str {
         self.source
     }
 }
 
 impl<'s> Src<'s> {
-    /// Inefficient! Just for testing.
-    pub fn new(
-        source: &'s str,
-        start: usize,
-        end: usize,
-        construct: &'s str,
-        args: &'s [Src<'s>],
-    ) -> Src<'s> {
-        Src {
-            loc: Srcloc::new(source, start, end),
-            construct,
-            args,
-        }
-    }
-
     pub fn loc(&self) -> Srcloc<'s> {
         self.loc
     }
@@ -56,7 +31,7 @@ impl<'s> Src<'s> {
         self.construct
     }
 
-    pub fn args(&self) -> &[Src] {
+    pub fn args(&self) -> &'s [Src<'s>] {
         self.args
     }
 }

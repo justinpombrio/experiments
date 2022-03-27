@@ -3,11 +3,18 @@ use super::source::Srcloc;
 
 #[derive(Debug)]
 pub enum Compiled<'s> {
-    Type,
+    Id(&'s str),
     Expr(Expr<'s>),
 }
 
 impl<'s> Compiled<'s> {
+    pub fn into_id(self) -> &'s str {
+        match self {
+            Compiled::Id(s) => s,
+            _ => panic!("not an id"),
+        }
+    }
+
     pub fn into_expr(self) -> Expr<'s> {
         match self {
             Compiled::Expr(expr) => expr,
@@ -16,7 +23,7 @@ impl<'s> Compiled<'s> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Type {
     Int,
 }

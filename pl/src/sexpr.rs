@@ -26,7 +26,6 @@ struct SExprParser<'s> {
     remaining: &'s str,
     line: usize,
     column: usize,
-    stack: Vec<Src<'s>>,
 }
 
 impl<'s> SExprParser<'s> {
@@ -37,7 +36,6 @@ impl<'s> SExprParser<'s> {
             remaining: source,
             line: 0,
             column: 0,
-            stack: vec![],
         }
     }
 
@@ -146,7 +144,7 @@ impl<'s> SExprParser<'s> {
         let loc = self.srcloc_end(start_loc);
         Ok(Src {
             loc,
-            construct: "Id",
+            construct: "id",
             args: &[],
         })
     }
@@ -159,7 +157,7 @@ impl<'s> SExprParser<'s> {
         if construct.is_empty() {
             return Err(ParseError::MissingConstruct);
         }
-        let mut args = self.arena.alloc(vec![]);
+        let args = self.arena.alloc(vec![]);
         loop {
             self.consume_whitespace();
             if let Some(ch) = self.peek_char() {
