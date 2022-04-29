@@ -8,21 +8,26 @@
 //! ```
 //! use lexer::line_and_col_indexer::LineAndColIndexer;
 //!
-//! //                                    0123 4 567
-//! let counter = LineAndColIndexer::new("abc\r\ndef");
+//! //                                    012345 6 7890
+//! let counter = LineAndColIndexer::new("abc d\r\n ef\n");
 //!
 //! // There are two lines
 //! assert_eq!(counter.num_lines(), 2);
 //!
-//! // "c" is at line 0, col 3
-//! assert_eq!(counter.line_col(3), (0, 3));
+//! // "c" is at line 0, col 2
+//! assert_eq!(counter.line_col(2), (0, 2));
+//!
+//! // "d" is at line 0, col 4
+//! assert_eq!(counter.line_col(4), (0, 4));
 //!
 //! // "e" is at line 1, col 1
-//! assert_eq!(counter.line_col(6), (1, 1));
+//! assert_eq!(counter.line_col(8), (1, 1));
 //!
 //! // View all of "e"s line
-//! assert_eq!(counter.line_contents(1), "def");
+//! assert_eq!(counter.line_contents(1), " ef");
 //! ```
+
+use std::fmt;
 
 /// A store of newline locations within a source text, for the purpose of quickly computing line
 /// and column positions.
@@ -38,6 +43,12 @@ pub struct Pos {
     pub col: usize,
 }
 
+impl fmt::Display for Pos {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.col)
+    }
+}
+
 impl<'s> LineAndColIndexer<'s> {
     /// Construct a line counter for the source file. This will scan the file for newlines, to
     /// allow all further operations to be O(1).
@@ -45,7 +56,7 @@ impl<'s> LineAndColIndexer<'s> {
         let mut pos = 0;
         let mut newline_positions = vec![0];
         for ch in source.chars() {
-            pos += 1;
+            pos += ch.len_utf8();
             if ch == '\n' {
                 newline_positions.push(pos);
             }
@@ -63,7 +74,7 @@ impl<'s> LineAndColIndexer<'s> {
 
     /// Get the total number of lines in the source.
     pub fn num_lines(&self) -> usize {
-        self.newline_positions.len()
+        self.newline_positions.len() - 1
     }
 
     /// Lookup the position (line&col) of the start of a substring within the source string.
@@ -75,6 +86,28 @@ impl<'s> LineAndColIndexer<'s> {
             line,
             col,
         }
+    }
+
+    /// For best-case speed testing
+    pub fn start_col(&self, lexeme: &str) -> usize {
+        let pos = self.offset(lexeme);
+        let line = match self.newline_positions.binary_search(&pos) {
+            Ok(line) => line,
+            Err(line) => line - 1,
+        };
+        pos - self.newline_positions[line]
+    }
+
+    /// For best-case speed testing
+    pub fn end_utf8_col(&self, lexeme: &str) -> usize {
+        let pos = self.offset(lexeme) + lexeme.len();
+        let line = match self.newline_positions.binary_search(&pos) {
+            Ok(line) => line,
+            Err(line) => line - 1,
+        };
+        self.source[self.newline_positions[line]..pos]
+            .chars()
+            .count()
     }
 
     /// Lookup the position (line&col) of the end of a substring within the source string.
@@ -89,7 +122,7 @@ impl<'s> LineAndColIndexer<'s> {
         }
     }
 
-    fn offset(&self, lexeme: &str) -> usize {
+    pub fn offset(&self, lexeme: &str) -> usize {
         let source_ptr = self.source as *const str as *const u8 as usize;
         let start_ptr = lexeme as *const str as *const u8 as usize;
         start_ptr - source_ptr
@@ -110,7 +143,8 @@ impl<'s> LineAndColIndexer<'s> {
             Ok(line) => line,
             Err(line) => line - 1,
         };
-        let col = pos - self.newline_positions[line];
+        let start_pos = self.newline_positions[line];
+        let col = pos - start_pos;
         (line, col)
     }
 

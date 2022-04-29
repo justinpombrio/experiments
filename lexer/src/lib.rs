@@ -177,7 +177,8 @@ pub struct Position {
 
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.utf8_col)
+        // TODO: col -> utf8_col
+        write!(f, "{}:{}", self.line, self.col)
     }
 }
 
