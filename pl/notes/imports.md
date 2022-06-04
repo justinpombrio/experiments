@@ -1,6 +1,6 @@
-# Modules
+# Imports
 
-Thoughts on how I would design a module system. A few very simple systems:
+Thoughts on how I would design a module/import system. A few very simple systems:
 
 - `dependency` declares an external dependency, saying where to load from.
 - `import` loads an internal or external dependency as a module. It converts
@@ -19,8 +19,8 @@ Dependencies are declared in a package file:
     package CatCaptions;
 
     dependency std;
-    dependency git "github.com/zz-regex" as regex;
     dependency file "~/myRegex/" as myRegex;
+    dependency git "github.com/zz-regex" as regex;
 
 These mean:
 
@@ -44,17 +44,17 @@ To import an external dependency:
 To import a sibiling file:
 
     import "foo.zz" 
-    -> curmod.foo = cachedImport(curPath.pop().append("foo.zz"))
+    -> curmod.foo = cachedImport(curPath.parent().append("foo.zz"))
 
 To import a submodule, from file "foo.zz":
 
     import "foo/fooImpl.zz"
-    -> curmod.fooImpl = cachedImport(curPath.pop().append("foo").append("fooImpl.zz")
+    -> curmod.fooImpl = cachedImport(curPath.parent().append("foo").append("fooImpl.zz")
 
 To import a helper module from above:
 
     import "../../helpers.zz"
-    -> curmod.helpers = cachedImport(curPath.pop().pop().pop().append("helpers.zz")
+    -> curmod.helpers = cachedImport(curPath.parent().parent().parent().append("helpers.zz")
 
     import "root/helpers.zz"
     -> curmod.helpers = cachedImport("$package/src/helpers.zz")
@@ -77,7 +77,10 @@ It may contain submodules within that:
     }
     -> curmod.foo = new Module()
     -> curmod = curmod.foo
-    -> ...
+    ->   curmod.fooImpl = new Module()
+    ->   curmod = curmod.fooImpl
+    ->     ...
+    ->   curmod = curmod.parent()
     -> curmod = curmod.parent()
 
 ## Uses

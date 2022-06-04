@@ -83,10 +83,22 @@ Error messages on all of these functions?
 
     ∃T: I. Vec<T> -> (sizeof T, *impl I for T, Vec<T>)
 
-(In the first case, the size of `T` is unknown so it can't be stored directly.
-But in the second case, the size of `Vec<T>` is fixed regardless of `T`, so it
-can be stored?)
+## Compund Types
 
+    Owned, Shared ref, Mutable ref
+    T, &T, *T  -- may be user-defined fat pointers
 
+    Tuples
+    (A, B, C)
 
+    Structs
+    { a: A, b: B, c: C}
+
+    Fixed-length array
+     [A; 3]  -- repr *A
+    &[A; 3]  -- repr *A
+
+    Variable-length array
+     [A]     -- repr (*A, usize)
+    &[A]     -- repr (*A, usize)
 
