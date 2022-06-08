@@ -1,44 +1,8 @@
-//! A lexer (a.k.a. tokenizer) that produces an iterator of (token, lexeme) pairs.
-//!
-//! Usage:
-//!
-//! ```
-//! use lexer::{LexerBuilder, Lexer, LEX_ERROR};
-//!
-//! let whitespace_regex = r#"[ \t\r\n]+"#;
-//! let mut builder = LexerBuilder::new(whitespace_regex).unwrap();
-//! let tok_plus = builder.string("+").unwrap();
-//! let tok_var = builder.regex("[a-zA-Z_]+").unwrap();
-//! let lexer = builder.finish().unwrap();
-//!
-//! let mut lexemes = lexer.lex("x + y");
-//! assert_eq!(lexemes.next().unwrap().token, tok_var);
-//! assert_eq!(lexemes.next().unwrap().token, tok_plus);
-//! assert_eq!(lexemes.next().unwrap().token, tok_var);
-//! assert_eq!(lexemes.next(), None);
-//!
-//! let mut lexemes = lexer.lex("x @$!");
-//! assert_eq!(lexemes.next().unwrap().token, tok_var);
-//! assert_eq!(lexemes.next().unwrap().token, LEX_ERROR);
-//! ```
-//!
-//! Whitespace is skipped. If there is a lexing error, it is represented as an item in the iterator
-//! whose `token` is `LEX_ERROR`.
-//!
-//! If there are multiple possible matches:
-//!
-//! - The longest match is used.
-//! - If there is a tie, whichever token is a 'string' pattern instead of a 'regex' pattern will be
-//! used.
-//! - If there is _still_ a tie, the regex that's first in the list provided to `Lexer::new()` will
-//! be used.
+//! A worse version of the lexer that doesn't include line/col info. Don't use me.
 
-pub mod indexing_lexer;
-pub mod lexer_without_line_col;
-pub mod line_and_col_indexer;
-
+use crate::line_and_col_indexer::LineAndColIndexer;
+use crate::line_and_col_indexer::{Col, Line, Offset, Pos, Span};
 use regex::{escape, Error as RegexError, Regex, RegexSet};
-use std::fmt;
 
 /// A category of lexeme, such as "INTEGER" or "VARIABLE" or "OPEN_PAREN". The special Token called
 /// [`LEX_ERROR`] represents a lexing error.
@@ -139,110 +103,96 @@ pub struct Lexer {
 impl Lexer {
     /// Split `source` into a stream of lexemes. It is frequently useful to wrap this in
     /// [`iter::Peekable`](https://doc.rust-lang.org/stable/std/iter/struct.Peekable.html).
-    pub fn lex<'l, 's: 'l>(&'l self, source: &'s str) -> impl Iterator<Item = Lexeme<'s>> + 'l {
-        LexemeIter {
-            source,
-            lexer: self,
-            position: Position {
-                pos: 0,
-                line: 0,
-                col: 0,
-                utf8_col: 0,
-            },
-        }
-    }
-}
-
-/// One "word" in the stream returned by the lexer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Lexeme<'s> {
-    pub token: Token,
-    pub lexeme: &'s str,
-    /// The position just before the first character in the lexeme.
-    pub start: Position,
-    /// The position just after the last character in the lexeme.
-    pub end: Position,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Position {
-    /// Byte offset from the beginning of the source string.
-    pub pos: usize,
-    /// Line number.
-    pub line: usize,
-    /// Column number, counted in bytes.
-    pub col: usize,
-    /// Column number, counted in utf8 codepoints.
-    pub utf8_col: usize,
-}
-
-impl fmt::Display for Position {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: col -> utf8_col
-        write!(f, "{}:{}", self.line, self.col)
-    }
-}
-
-impl Position {
-    fn advance(&mut self, ch: char) {
-        self.pos += ch.len_utf8();
-        if ch == '\n' {
-            self.col = 0;
-            self.utf8_col = 0;
-            self.line += 1;
-        } else {
-            self.col += ch.len_utf8();
-            self.utf8_col += 1;
-        }
+    pub fn lex<'l, 's: 'l>(&'l self, source: &'s str) -> LexemeIter<'l, 's> {
+        LexemeIter::new(self, source)
     }
 }
 
 #[derive(Debug, Clone)]
-struct LexemeIter<'l, 's> {
-    position: Position,
-    // The _remaining, unlexed_ source text
+pub struct LexemeIter<'l, 's> {
     source: &'s str,
+    remaining_source: &'s str,
     lexer: &'l Lexer,
+    newline_positions: Vec<Offset>,
+    offset: Offset,
+    line: Line,
+    col: Col,
+    utf8_col: Col,
 }
 
 impl<'l, 's> LexemeIter<'l, 's> {
-    fn consume(&mut self, len: usize) -> (&'s str, Position, Position) {
-        let start = self.position;
-        for ch in self.source[..len].chars() {
-            self.position.advance(ch);
+    fn new(lexer: &'l Lexer, source: &'s str) -> LexemeIter<'l, 's> {
+        LexemeIter {
+            source,
+            remaining_source: source,
+            lexer,
+            newline_positions: vec![0],
+            offset: 0,
+            line: 0,
+            col: 0,
+            utf8_col: 0,
         }
-        let end = self.position;
+    }
 
-        let lexeme = &self.source[..len];
-        self.source = &self.source[len..];
-        (lexeme, start, end)
+    pub fn into_indexer(self) -> LineAndColIndexer<'s> {
+        LineAndColIndexer::from_raw_parts(self.source, self.newline_positions)
+    }
+
+    fn consume(&mut self, len: usize) -> Span {
+        let lexeme = &self.remaining_source[..len];
+        self.remaining_source = &self.remaining_source[len..];
+        let start = Pos {
+            line: self.line,
+            col: self.col,
+            utf8_col: self.utf8_col,
+        };
+        for ch in lexeme.chars() {
+            self.offset += ch.len_utf8();
+            self.col += ch.len_utf8() as Col;
+            self.utf8_col += 1;
+            if ch == '\n' {
+                self.line += 1;
+                self.col = 0;
+                self.utf8_col = 0;
+                self.newline_positions.push(self.offset);
+            }
+        }
+        let end = Pos {
+            line: self.line,
+            col: self.col,
+            utf8_col: self.utf8_col,
+        };
+        Span { start, end }
     }
 }
 
 impl<'l, 's> Iterator for LexemeIter<'l, 's> {
-    type Item = Lexeme<'s>;
+    type Item = (Token, Span);
 
-    fn next(&mut self) -> Option<Lexeme<'s>> {
+    fn next(&mut self) -> Option<(Token, Span)> {
         // Consume whitespace
-        if let Some(span) = self.lexer.whitespace.find(self.source) {
+        if let Some(span) = self.lexer.whitespace.find(self.remaining_source) {
             self.consume(span.end());
         }
 
         // If we're at the end of the file, we're done.
-        if self.source.is_empty() {
+        if self.remaining_source.is_empty() {
             return None;
         }
 
         // Find the best match (longest, with a tie-breaker of is_str)
         let mut best_match: Option<(Token, usize, bool)> = None;
-        for token in &self.lexer.regex_set.matches(self.source) {
+        for token in &self.lexer.regex_set.matches(self.remaining_source) {
             let pattern = &self.lexer.patterns[token];
 
             // Find the length (and tie-breaker is_str) of this match.
             let (len, is_str) = if let Some(len) = pattern.length {
                 (len, true)
             } else {
-                (pattern.regex.find(self.source).unwrap().end(), false)
+                (
+                    pattern.regex.find(self.remaining_source).unwrap().end(),
+                    false,
+                )
             };
 
             // If this is longer (or tie breaks) the best match so far, replace it.
@@ -258,29 +208,66 @@ impl<'l, 's> Iterator for LexemeIter<'l, 's> {
 
         // If there was a best match, consume and return it.
         if let Some((token, len, _)) = best_match {
-            let (lexeme, start, end) = self.consume(len);
-            return Some(Lexeme {
-                token,
-                lexeme,
-                start,
-                end,
-            });
+            let lexeme = self.consume(len);
+            return Some((token, lexeme));
         }
 
         // Otherwise, nothing matched. Lex error! By definition we can't lex, but let's say the
         // problem lies in the current chunk of non-basic-whitespace characters.
         let basic_whitespace = &[' ', '\t', '\r', '\n'];
-        let len = if let Some(len) = self.source.find(basic_whitespace) {
+        let len = if let Some(len) = self.remaining_source.find(basic_whitespace) {
             len
         } else {
-            self.source.len()
+            self.remaining_source.len()
         };
-        let (lexeme, start, end) = self.consume(len);
-        Some(Lexeme {
-            token: LEX_ERROR,
-            lexeme,
-            start,
-            end,
-        })
+        let lexeme = self.consume(len);
+        Some((LEX_ERROR, lexeme))
     }
+}
+
+#[test]
+fn test_lexer() {
+    let mut builder = LexerBuilder::new(r#"[ \t\r\n]+"#).unwrap();
+    let tok_var = builder.regex("[a-zA-Z_]+").unwrap();
+    let _duplicate = builder.string("raise").unwrap();
+    let tok_lparen = builder.string("(").unwrap();
+    let tok_raise = builder.string("raise").unwrap();
+    let tok_rparen = builder.string(")").unwrap();
+    let lexer = builder.finish().unwrap();
+
+    let source = "raised";
+    let indexer = LineAndColIndexer::new(source);
+    let mut lexemes = lexer.lex(source).map(|(t, s)| (t, indexer.source(s)));
+    assert_eq!(lexemes.next(), Some((tok_var, "raised")));
+    assert_eq!(lexemes.next(), None);
+
+    let source = "raise(my_error)";
+    let indexer = LineAndColIndexer::new(source);
+    let mut lexemes = lexer.lex(source).map(|(t, s)| (t, indexer.source(s)));
+    assert_eq!(lexemes.next(), Some((tok_raise, "raise")));
+    assert_eq!(lexemes.next(), Some((tok_lparen, "(")));
+    assert_eq!(lexemes.next(), Some((tok_var, "my_error")));
+    assert_eq!(lexemes.next(), Some((tok_rparen, ")")));
+    assert_eq!(lexemes.next(), None);
+
+    let source = "x $$ !";
+    let indexer = LineAndColIndexer::new(source);
+    let mut lexemes = lexer.lex(source).map(|(t, s)| (t, indexer.source(s)));
+    assert_eq!(lexemes.next(), Some((tok_var, "x")));
+    assert_eq!(lexemes.next(), Some((LEX_ERROR, "$$")));
+    assert_eq!(lexemes.next(), Some((LEX_ERROR, "!")));
+    assert_eq!(lexemes.next(), None);
+
+    let source = "raise(my_error)";
+    let lexer = {
+        let mut builder = LexerBuilder::new(r#"[ \t\r\n]+"#).unwrap();
+        let _ = builder.regex("[a-zA-Z_]+").unwrap();
+        let _ = builder.string("(").unwrap();
+        let _ = builder.string("raise").unwrap();
+        let _ = builder.string(")").unwrap();
+        builder.finish().unwrap()
+    };
+    let indexer = LineAndColIndexer::new(source);
+    let lexemes = lexer.lex(source).map(|(t, s)| (t, indexer.source(s)));
+    assert_eq!(lexemes.count(), 4);
 }

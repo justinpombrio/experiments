@@ -27,26 +27,29 @@
 //! assert_eq!(counter.line_contents(1), " ef");
 //! ```
 
-use std::fmt;
-
 /// A store of newline locations within a source text, for the purpose of quickly computing line
 /// and column positions.
 #[derive(Debug, Clone)]
 pub struct LineAndColIndexer<'s> {
     source: &'s str,
-    newline_positions: Vec<usize>,
+    newline_positions: Vec<Offset>,
 }
 
+pub type Line = u32;
+pub type Col = u32;
+pub type Offset = usize;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Pos {
-    pub offset: usize,
-    pub line: usize,
-    pub col: usize,
+    pub(crate) line: Line,
+    pub(crate) col: Col,
+    pub(crate) utf8_col: Col,
 }
 
-impl fmt::Display for Pos {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.col)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Span {
+    pub start: Pos,
+    pub end: Pos,
 }
 
 impl<'s> LineAndColIndexer<'s> {
@@ -67,8 +70,18 @@ impl<'s> LineAndColIndexer<'s> {
         }
     }
 
+    pub(crate) fn from_raw_parts(
+        source: &'s str,
+        newline_positions: Vec<Offset>,
+    ) -> LineAndColIndexer {
+        LineAndColIndexer {
+            source,
+            newline_positions,
+        }
+    }
+
     /// Get the original source text.
-    pub fn source(&self) -> &'s str {
+    pub fn full_source(&self) -> &'s str {
         self.source
     }
 
@@ -77,6 +90,47 @@ impl<'s> LineAndColIndexer<'s> {
         self.newline_positions.len() - 1
     }
 
+    pub fn source(&self, span: Span) -> &'s str {
+        &self.source[self.offset(span.start)..self.offset(span.end)]
+    }
+
+    pub fn start_line(&self, span: Span) -> Line {
+        span.start.line
+    }
+
+    pub fn end_line(&self, span: Span) -> Line {
+        span.end.line
+    }
+
+    pub fn start_col(&self, span: Span) -> Col {
+        span.start.col
+    }
+
+    pub fn end_col(&self, span: Span) -> Col {
+        span.start.col
+    }
+
+    pub fn start_offset(&self, span: Span) -> Offset {
+        self.offset(span.start)
+    }
+
+    pub fn end_offset(&self, span: Span) -> Offset {
+        self.offset(span.start)
+    }
+
+    pub fn start_utf8_col(&self, span: Span) -> Col {
+        span.start.utf8_col
+    }
+
+    pub fn end_utf8_col(&self, span: Span) -> Col {
+        span.end.utf8_col
+    }
+
+    fn offset(&self, pos: Pos) -> Offset {
+        self.newline_positions[pos.line as usize] + pos.col as usize
+    }
+
+    /*
     /// Lookup the position (line&col) of the start of a substring within the source string.
     pub fn start(&self, lexeme: &str) -> Pos {
         let start = self.offset(lexeme);
@@ -86,28 +140,6 @@ impl<'s> LineAndColIndexer<'s> {
             line,
             col,
         }
-    }
-
-    /// For best-case speed testing
-    pub fn start_col(&self, lexeme: &str) -> usize {
-        let pos = self.offset(lexeme);
-        let line = match self.newline_positions.binary_search(&pos) {
-            Ok(line) => line,
-            Err(line) => line - 1,
-        };
-        pos - self.newline_positions[line]
-    }
-
-    /// For best-case speed testing
-    pub fn end_utf8_col(&self, lexeme: &str) -> usize {
-        let pos = self.offset(lexeme) + lexeme.len();
-        let line = match self.newline_positions.binary_search(&pos) {
-            Ok(line) => line,
-            Err(line) => line - 1,
-        };
-        self.source[self.newline_positions[line]..pos]
-            .chars()
-            .count()
     }
 
     /// Lookup the position (line&col) of the end of a substring within the source string.
@@ -127,6 +159,7 @@ impl<'s> LineAndColIndexer<'s> {
         let start_ptr = lexeme as *const str as *const u8 as usize;
         start_ptr - source_ptr
     }
+    */
 
     /// Get the line and column of a position (byte index) within the source. `pos` is relative to
     /// the start of the `source` string. A newline or return character is considered part of the
