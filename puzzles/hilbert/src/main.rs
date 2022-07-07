@@ -11,14 +11,10 @@ const IMAGE_SIZE: u32 = 4096;
 const HILBERT_SIZE: u32 = 64;
 const CELL_WIDTH: u32 = IMAGE_SIZE / HILBERT_SIZE;
 const LINE_WIDTH: u32 = 3 * CELL_WIDTH / 4;
-//const GAP_WIDTH: u32 = (CELL_WIDTH - LINE_WIDTH) / 2;
-//const SUN_RADIUS: u32 = IMAGE_SIZE/10;
 const ENDPOINT_BORDER: u32 = CELL_WIDTH / 16;
 
 const BACKGROUND_COLOR: [u8; 3] = [255, 255, 255];
 const FOREGROUND_COLOR: [u8; 3] = [0, 0, 0];
-//const SUN_COLOR: [u8; 3] = [250, 220, 160];
-//const BORDER_COLOR: [u8; 3] = [0, 0, 0];
 
 type Image = ImageBuffer<Rgb<u8>, Vec<u8>>;
 type Color = [u8; 3];
@@ -29,10 +25,6 @@ pub fn main() {
     // Draw background
     for (x, y, pixel) in img.enumerate_pixels_mut() {
         pixel.0 = BACKGROUND_COLOR;
-        // let dx = ((x as i32) - (IMAGE_SIZE as i32)/2) as f32;
-        // let dy = ((y as i32) - (IMAGE_SIZE as i32)/2) as f32;
-        // let r = (dx * dx + dy * dy).sqrt();
-        // let theta = dy.atan2(dx);
         let sx = x / CELL_WIDTH / 8;
         let sy = y / CELL_WIDTH / 8;
         if (sx + sy) % 2 == 0 {
@@ -48,17 +40,6 @@ pub fn main() {
     let curve = HilbertCurve::new(HILBERT_SIZE);
     let mut total_count = 0;
     let mut clamped_count = 0;
-    /*
-    for d in 1..curve.length() {
-        let start = scale(curve.dist_to_point(d - 1));
-        let end = scale(curve.dist_to_point(d));
-        let frac = (d as f32) / (curve.length() as f32);
-        let (color, clamped) = colorscale(frac);
-        total_count += 1;
-        clamped_count += clamped as u32;
-        //draw_line(&mut img, start, end, LINE_WIDTH / 2, color);
-    }
-    */
     for d in 2..curve.length() {
         let start = scale(curve.dist_to_point(d - 2));
         let middle = scale(curve.dist_to_point(d - 1));
@@ -98,23 +79,6 @@ fn colorscale(f: f32) -> (Color, bool) {
     let b = rad * angle.cos();
     oklab_to_srgb([l, a, b])
 }
-
-/*
-fn colorscale_sun(f: f32) -> Color {
-    let angle = 16.0 * f;
-    let rad = 0.05;
-    let l = 0.90;
-    let a = rad * angle.sin();
-    let b = rad * angle.cos();
-    oklab_to_srgb([l, a, b]).0
-}
-
-fn draw_square(img: &mut Image, point: (u32, u32), radius: u32, color: Color) {
-    let lower_left = (point.0 - radius, point.1 - radius);
-    let upper_right = (point.0 + radius, point.1 + radius);
-    draw_rect(img, lower_left, upper_right, color);
-}
-*/
 
 fn draw_rect(img: &mut Image, mut lower_left: (u32, u32), mut upper_right: (u32, u32), color: Color) {
     if lower_left.0 > upper_right.0 {
@@ -162,26 +126,3 @@ fn draw_segment(
         }
     }
 }
-
-/*
-fn draw_line(img: &mut Image, start: (u32, u32), end: (u32, u32), width: u32, color: Color) {
-    if start.0 == end.0 {
-        for i in 0..width/2+1 {
-            let lower_left = (start.0 - width + i, start.1.min(end.1) - i);
-            let upper_right = (start.0 + width - i, start.1.max(end.1) + i);
-            draw_rect(img, lower_left, upper_right, color);
-        }
-        //let lower_left = (start.0 - width, start.1.min(end.1) - width/3);
-        //let upper_right = (start.0 + width, start.1.max(end.1) + width/3);
-        //draw_rect(img, lower_left, upper_right, color);
-    } else if start.1 == end.1 {
-        for i in 0..width/2+1 {
-            let lower_left = (start.0.min(end.0) - i, start.1 - width + i);
-            let upper_right = (start.0.max(end.0) + i, start.1 + width - i);
-            draw_rect(img, lower_left, upper_right, color);
-        }
-    } else {
-        panic!("draw_line: only horizontal / vertical lines supported");
-    }
-}
-*/
