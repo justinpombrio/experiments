@@ -6,15 +6,20 @@ use image::{ImageBuffer, Rgb};
 use oklab::oklab_to_srgb;
 use std::mem;
 
-const PI: f32 = std::f32::consts::PI;
+// All angles are measured in turns. Obviously.
+const START_COLOR_ANGLE: f64 = 0.0;
+const TOTAL_COLOR_ANGLE: f64 = 3.0;
+
 const IMAGE_SIZE: u32 = 4096;
 const HILBERT_SIZE: u32 = 64;
 const CELL_WIDTH: u32 = IMAGE_SIZE / HILBERT_SIZE;
-const LINE_WIDTH: u32 = 3 * CELL_WIDTH / 4;
+const LINE_WIDTH: u32 = 7 * CELL_WIDTH / 8;
 const ENDPOINT_BORDER: u32 = CELL_WIDTH / 16;
 
-const BACKGROUND_COLOR: [u8; 3] = [255, 255, 255];
 const FOREGROUND_COLOR: [u8; 3] = [0, 0, 0];
+const BACKGROUND_COLOR: [u8; 3] = [255, 255, 255];
+
+const DRAW_CHECKERBOARD: bool = true;
 
 type Image = ImageBuffer<Rgb<u8>, Vec<u8>>;
 type Color = [u8; 3];
@@ -23,12 +28,16 @@ pub fn main() {
     let mut img = ImageBuffer::<Rgb<u8>, _>::new(IMAGE_SIZE, IMAGE_SIZE);
 
     // Draw background
-    for (x, y, pixel) in img.enumerate_pixels_mut() {
+    for pixel in img.pixels_mut() {
         pixel.0 = BACKGROUND_COLOR;
-        let sx = x / CELL_WIDTH / 8;
-        let sy = y / CELL_WIDTH / 8;
-        if (sx + sy) % 2 == 0 {
-            pixel.0 = FOREGROUND_COLOR;
+    }
+    if DRAW_CHECKERBOARD {
+        for (x, y, pixel) in img.enumerate_pixels_mut() {
+            let sx = x / CELL_WIDTH / 8;
+            let sy = y / CELL_WIDTH / 8;
+            if (sx + sy) % 2 == 0 {
+                pixel.0 = FOREGROUND_COLOR;
+            }
         }
     }
 
@@ -44,13 +53,15 @@ pub fn main() {
         let start = scale(curve.dist_to_point(d - 2));
         let middle = scale(curve.dist_to_point(d - 1));
         let end = scale(curve.dist_to_point(d));
-        let frac = (d as f32) / (curve.length() as f32);
+        let frac = (d as f64) / (curve.length() as f64);
         let (color, clamped) = colorscale(frac);
         total_count += 1;
         clamped_count += clamped as u32;
         draw_segment(&mut img, start, middle, end, LINE_WIDTH / 2, color);
     }
-    println!("fraction clamped: {}", (clamped_count as f32) / (total_count as f32));
+    println!("Fraction of colors that had to be clamped: {}",
+        (clamped_count as f64) / (total_count as f64)
+    );
 
     // Draw start and end points
     let start_color = colorscale(0.0).0;
@@ -67,17 +78,8 @@ pub fn main() {
         }
     }
 
+    println!("Saving image to puzzle.png");
     img.save("puzzle.png").unwrap();
-}
-
-fn colorscale(f: f32) -> (Color, bool) {
-    let angle = 4.0 * PI * f + PI;
-    let scale = (2.0 * f - 1.0).abs() * 0.97 + 0.03;
-    let rad = 0.132 * scale.powf(1.0 / 3.0);
-    let l = 0.75 * scale.powf(1.0 / 3.0);
-    let a = rad * angle.sin();
-    let b = rad * angle.cos();
-    oklab_to_srgb([l, a, b])
 }
 
 fn draw_rect(img: &mut Image, mut lower_left: (u32, u32), mut upper_right: (u32, u32), color: Color) {
@@ -111,18 +113,30 @@ fn draw_segment(
         let upper_right = ((middle.0 + end.0) / 2, start.1 + width);
         draw_rect(img, lower_left, upper_right, color);
     } else {
-        let radius = (CELL_WIDTH / 2) as f32;
+        let radius = (CELL_WIDTH / 2) as f64;
         let center = ((start.0 + end.0) / 2, (start.1 + end.1) / 2);
         let dmiddle = (2 * middle.0 - center.0, 2 * middle.1 - center.1);
         for x in center.0.min(dmiddle.0)..center.0.max(dmiddle.0) {
             for y in center.1.min(dmiddle.1)..center.1.max(dmiddle.1) {
-                let dx = x as f32 - center.0 as f32;
-                let dy = y as f32 - center.1 as f32;
+                let dx = x as f64 - center.0 as f64;
+                let dy = y as f64 - center.1 as f64;
                 let dist = (dx * dx + dy * dy).sqrt();
-                if (dist - radius).abs() < width as f32 {
+                if (dist - radius).abs() < width as f64 {
                     img.get_pixel_mut(x, y).0 = color;
                 }
             }
         }
     }
+}
+
+fn colorscale(f: f64) -> (Color, bool) {
+    const PI: f64 = std::f64::consts::PI;
+
+    let angle = START_COLOR_ANGLE + TOTAL_COLOR_ANGLE * f;
+    let scale = (2.0 * f - 1.0).abs() * 0.7 + 0.3; // prev 0.9, sqrt
+    let rad = 0.133 * scale;
+    let l = 0.75 * scale;
+    let a = rad * (2.0 * PI * angle).sin();
+    let b = rad * (2.0 * PI * angle).cos();
+    oklab_to_srgb([l, a, b])
 }

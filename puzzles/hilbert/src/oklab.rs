@@ -1,7 +1,7 @@
 /// Convert from the OKLAB color space to srgb. Returns an srgb color,
 /// and a boolean indicating whether the color was clamped (whether it
 /// was out of bounds).
-pub fn oklab_to_srgb(mut lab: [f32; 3]) -> ([u8; 3], bool) {
+pub fn oklab_to_srgb(mut lab: [f64; 3]) -> ([u8; 3], bool) {
     // A hack so that L=1 is pure white RGB
     lab[0] *= 1.04;
 
@@ -24,7 +24,7 @@ pub fn oklab_to_srgb(mut lab: [f32; 3]) -> ([u8; 3], bool) {
     ([r, g, b], clamped_r || clamped_g || clamped_b)
 }
 
-fn to_gamma(u: f32) -> (u8, bool) {
+fn to_gamma(u: f64) -> (u8, bool) {
     let g = if u >= 0.0031308 {
         1.005 * u.powf(1.0 / 2.4) - 0.055
     } else {
@@ -65,11 +65,11 @@ fn test_oklab() {
     // 0.9	0.05
     // 0.95	0.025
     // 1	0
-    fn radius(l: f32) -> f32 {
-        const PI: f32 = std::f32::consts::PI;
+    fn radius(l: f64) -> f64 {
+        const PI: f64 = std::f64::consts::PI;
 
-        for r in (0..1000).map(|n| (n as f32) / 1000.0) {
-            for angle in (0..360).map(|n| 2.0 * PI * (n as f32) / 360.0) {
+        for r in (0..1000).map(|n| (n as f64) / 1000.0) {
+            for angle in (0..360).map(|n| 2.0 * PI * (n as f64) / 360.0) {
                 let a = r * angle.cos();
                 let b = r * angle.sin();
                 let (_, clamped) = oklab_to_srgb([l, a, b]);
@@ -80,7 +80,7 @@ fn test_oklab() {
         }
         unreachable!();
     }
-    for l in (0..21).map(|n| (n as f32) / 20.0) {
+    for l in (0..21).map(|n| (n as f64) / 20.0) {
         println!("{}\t{}", l, radius(l));
     }
     assert!(false);
