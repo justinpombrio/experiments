@@ -6,24 +6,29 @@ use image::{ImageBuffer, Rgb};
 use oklab::oklab_to_srgb;
 use std::mem;
 
-// All angles are measured in turns. Obviously.
+// OkLab Colors. All angles are measured in turns. Obviously.
 const START_COLOR_ANGLE: f64 = 0.0;
 const TOTAL_COLOR_ANGLE: f64 = 1.0;
 
+// Dimensions
 const IMAGE_SIZE: u32 = 4096;
 const HILBERT_SIZE: u32 = 256;
 const CELL_WIDTH: u32 = IMAGE_SIZE / HILBERT_SIZE;
+
+// Squares
+const DRAW_SQUARES: bool = true;
+
+// Curve
+const DRAW_CURVE: bool = false;
 const LINE_WIDTH: u32 = 7 * CELL_WIDTH / 8;
+const USE_FIXED_CURVE_COLOR: bool = false;
+const CURVE_COLOR: [u16; 3] = [30, 30, 30];
 const ENDPOINT_BORDER: u32 = CELL_WIDTH / 16;
 
+// Checkerboard
+const DRAW_CHECKERBOARD: bool = false;
 const FOREGROUND_COLOR: [u16; 3] = [0, 0, 0];
 const BACKGROUND_COLOR: [u16; 3] = [255, 255, 255];
-const CURVE_COLOR: [u16; 3] = [30, 30, 30];
-
-const DRAW_CHECKERBOARD: bool = false;
-const DRAW_SQUARES: bool = true;
-const DRAW_CURVE: bool = false;
-const USE_FIXED_CURVE_COLOR: bool = false;
 
 type Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 type Color = [u16; 3];
@@ -99,8 +104,8 @@ pub fn main() {
         }
     }
 
-    println!("Saving image to puzzle.png");
-    img.save("puzzle.png").unwrap();
+    println!("Saving image to hilbert.png");
+    img.save("hilbert.png").unwrap();
 }
 
 fn draw_rect(img: &mut Image, mut lower_left: (u32, u32), mut upper_right: (u32, u32), color: Color) {
