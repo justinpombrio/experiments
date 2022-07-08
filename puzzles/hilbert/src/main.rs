@@ -8,7 +8,7 @@ use std::mem;
 
 // All angles are measured in turns. Obviously.
 const START_COLOR_ANGLE: f64 = 0.0;
-const TOTAL_COLOR_ANGLE: f64 = 3.0;
+const TOTAL_COLOR_ANGLE: f64 = 1.0;
 
 const IMAGE_SIZE: u32 = 4096;
 const HILBERT_SIZE: u32 = 64;
@@ -18,8 +18,12 @@ const ENDPOINT_BORDER: u32 = CELL_WIDTH / 16;
 
 const FOREGROUND_COLOR: [u8; 3] = [0, 0, 0];
 const BACKGROUND_COLOR: [u8; 3] = [255, 255, 255];
+const CURVE_COLOR: [u8; 3] = [30, 30, 30];
 
-const DRAW_CHECKERBOARD: bool = true;
+const DRAW_CHECKERBOARD: bool = false;
+const DRAW_SQUARES: bool = true;
+const DRAW_CURVE: bool = false;
+const USE_FIXED_CURVE_COLOR: bool = false;
 
 type Image = ImageBuffer<Rgb<u8>, Vec<u8>>;
 type Color = [u8; 3];
@@ -45,27 +49,44 @@ pub fn main() {
         (CELL_WIDTH * point.0 + CELL_WIDTH / 2, CELL_WIDTH * point.1 + CELL_WIDTH / 2)
     };
 
-    // Draw curve
+    // Draw square background
     let curve = HilbertCurve::new(HILBERT_SIZE);
-    let mut total_count = 0;
-    let mut clamped_count = 0;
-    for d in 2..curve.length() {
-        let start = scale(curve.dist_to_point(d - 2));
-        let middle = scale(curve.dist_to_point(d - 1));
-        let end = scale(curve.dist_to_point(d));
-        let frac = (d as f64) / (curve.length() as f64);
-        let (color, clamped) = colorscale(frac);
-        total_count += 1;
-        clamped_count += clamped as u32;
-        draw_segment(&mut img, start, middle, end, LINE_WIDTH / 2, color);
+    let mut total_colors = 0;
+    let mut clamped_colors = 0;
+    if DRAW_SQUARES {
+        for d in 0..curve.length() {
+            let point = scale(curve.dist_to_point(d));
+            let frac = (d as f64) / (curve.length() as f64);
+            let (color, clamped) = colorscale(frac, 0.0, 1.0);
+            total_colors += 1;
+            clamped_colors += clamped as u32;
+            let lower_left = (point.0 - CELL_WIDTH / 2, point.1 - CELL_WIDTH / 2);
+            let upper_right = (point.0 + CELL_WIDTH / 2, point.1 + CELL_WIDTH / 2);
+            draw_rect(&mut img, lower_left, upper_right, color);
+        }
     }
     println!("Fraction of colors that had to be clamped: {}",
-        (clamped_count as f64) / (total_count as f64)
-    );
+             clamped_colors as f32 / total_colors as f32);
+
+    // Draw curve
+    if DRAW_CURVE {
+        for d in 2..curve.length() {
+            let start = scale(curve.dist_to_point(d - 2));
+            let middle = scale(curve.dist_to_point(d - 1));
+            let end = scale(curve.dist_to_point(d));
+            let frac = (d as f64) / (curve.length() as f64);
+            let color = if USE_FIXED_CURVE_COLOR {
+                CURVE_COLOR
+            } else {
+                colorscale(frac, 0.0, 1.0).0
+            };
+            draw_segment(&mut img, start, middle, end, LINE_WIDTH / 2, color);
+        }
+    }
 
     // Draw start and end points
-    let start_color = colorscale(0.0).0;
-    let end_color = colorscale(1.0).0;
+    let start_color = colorscale(0.0, 0.0, 1.0).0;
+    let end_color = colorscale(1.0, 0.0, 1.0).0;
     for (x, y, pixel) in img.enumerate_pixels_mut() {
         let width = CELL_WIDTH - ENDPOINT_BORDER;
         let border = ENDPOINT_BORDER;
@@ -129,13 +150,13 @@ fn draw_segment(
     }
 }
 
-fn colorscale(f: f64) -> (Color, bool) {
+fn colorscale(f: f64, offset: f64, saturation: f64) -> (Color, bool) {
     const PI: f64 = std::f64::consts::PI;
 
-    let angle = START_COLOR_ANGLE + TOTAL_COLOR_ANGLE * f;
-    let scale = (2.0 * f - 1.0).abs() * 0.7 + 0.3; // prev 0.9, sqrt
-    let rad = 0.133 * scale;
-    let l = 0.75 * scale;
+    let angle = START_COLOR_ANGLE + TOTAL_COLOR_ANGLE * f + offset;
+    let scale = (2.0 * f - 1.0).abs() * 0.8 + 0.2; // prev 0.9, sqrt
+    let rad = 0.15 * scale * saturation;
+    let l = 0.85 * scale;
     let a = rad * (2.0 * PI * angle).sin();
     let b = rad * (2.0 * PI * angle).cos();
     oklab_to_srgb([l, a, b])
