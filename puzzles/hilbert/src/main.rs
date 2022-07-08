@@ -11,25 +11,25 @@ const START_COLOR_ANGLE: f64 = 0.0;
 const TOTAL_COLOR_ANGLE: f64 = 1.0;
 
 const IMAGE_SIZE: u32 = 4096;
-const HILBERT_SIZE: u32 = 64;
+const HILBERT_SIZE: u32 = 256;
 const CELL_WIDTH: u32 = IMAGE_SIZE / HILBERT_SIZE;
 const LINE_WIDTH: u32 = 7 * CELL_WIDTH / 8;
 const ENDPOINT_BORDER: u32 = CELL_WIDTH / 16;
 
-const FOREGROUND_COLOR: [u8; 3] = [0, 0, 0];
-const BACKGROUND_COLOR: [u8; 3] = [255, 255, 255];
-const CURVE_COLOR: [u8; 3] = [30, 30, 30];
+const FOREGROUND_COLOR: [u16; 3] = [0, 0, 0];
+const BACKGROUND_COLOR: [u16; 3] = [255, 255, 255];
+const CURVE_COLOR: [u16; 3] = [30, 30, 30];
 
 const DRAW_CHECKERBOARD: bool = false;
 const DRAW_SQUARES: bool = true;
 const DRAW_CURVE: bool = false;
 const USE_FIXED_CURVE_COLOR: bool = false;
 
-type Image = ImageBuffer<Rgb<u8>, Vec<u8>>;
-type Color = [u8; 3];
+type Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
+type Color = [u16; 3];
 
 pub fn main() {
-    let mut img = ImageBuffer::<Rgb<u8>, _>::new(IMAGE_SIZE, IMAGE_SIZE);
+    let mut img = ImageBuffer::<Rgb<u16>, _>::new(IMAGE_SIZE, IMAGE_SIZE);
 
     // Draw background
     for pixel in img.pixels_mut() {
