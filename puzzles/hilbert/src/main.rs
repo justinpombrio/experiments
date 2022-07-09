@@ -7,14 +7,14 @@ use oklab::oklab_to_srgb;
 use std::mem;
 
 // OkLab Colors. All angles are measured in turns. Obviously.
-const START_COLOR_ANGLE: f64 = 1.0;
+const START_COLOR_ANGLE: f64 = 0.0;
 const TOTAL_COLOR_ANGLE: f64 = 1.0;
 const NUM_SHADE_TRANSITIONS: f64 = 1.5;
 const MAX_LIGHTNESS: f64 = 0.75;
 const MIN_SHADE: f64 = 0.3;
 const MAX_SATURATION: f64 = 0.127;
 const BORDER_COLOR: [u16; 3] = [u16::MAX/3, u16::MAX/3, u16::MAX/3];
-const HACKY_SAT_MULTIPLIER: f64 = 1.2;
+const HACKY_SAT_MULTIPLIER: f64 = 1.15;
 
 // Dimensions
 const IMAGE_SIZE: u32 = 4096;
