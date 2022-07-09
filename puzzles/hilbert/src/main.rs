@@ -9,10 +9,10 @@ use std::mem;
 // OkLab Colors. All angles are measured in turns. Obviously.
 const START_COLOR_ANGLE: f64 = 1.0;
 const TOTAL_COLOR_ANGLE: f64 = 1.0;
-const MIN_SHADE: f64 = 0.3;
 const NUM_SHADE_TRANSITIONS: f64 = 1.5;
-const MAX_LIGHTNESS: f64 = 0.7;
-const MAX_SATURATION: f64 = 0.123;
+const MAX_LIGHTNESS: f64 = 0.75;
+const MIN_SHADE: f64 = 0.3;
+const MAX_SATURATION: f64 = 0.127;
 const BORDER_COLOR: [u16; 3] = [u16::MAX/3, u16::MAX/3, u16::MAX/3];
 const HACKY_SAT_MULTIPLIER: f64 = 1.2;
 

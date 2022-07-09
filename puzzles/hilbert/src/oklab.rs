@@ -1,10 +1,7 @@
 /// Convert from the OKLAB color space to srgb. Returns an srgb color,
 /// and a boolean indicating whether the color was clamped (whether it
 /// was out of bounds).
-pub fn oklab_to_srgb(mut lab: [f64; 3]) -> ([u16; 3], bool) {
-    // A hack so that L=1 is pure white RGB
-    lab[0] *= 1.04;
-
+pub fn oklab_to_srgb(lab: [f64; 3]) -> ([u16; 3], bool) {
     let l = lab[0] + 0.3963377774 * lab[1] + 0.2158037573 * lab[2];
     let m = lab[0] - 0.1055613458 * lab[1] - 0.0638541728 * lab[2];
     let s = lab[0] - 0.0894841775 * lab[1] - 1.2914855480 * lab[2];
@@ -31,13 +28,17 @@ fn to_gamma(u: f64) -> (u16, bool) {
         12.92 * u
     };
     let component = (g * (u16::MAX as f64)).round();
+    clamp(component)
+}
+
+fn clamp(component: f64) -> (u16, bool) {
     if component < 0.0 {
-        return (0, true);
+        (0, true)
+    } else if component > (u16::MAX as f64) {
+        (u16::MAX, true)
+    } else {
+        (component as u16, false)
     }
-    if component > (u16::MAX as f64) {
-        return (u16::MAX, true);
-    }
-    (component as u16, false)
 }
 
 #[test]
