@@ -10,10 +10,11 @@ impl HilbertCurve {
     /// Create a new Hilbert curve of size `dimension x dimension`.
     pub fn new(dimension: u32) -> HilbertCurve {
         // Check that dimension is a power of 2.
-        assert!(dimension & (dimension - 1) == 0, "Hilbert curve dimension must be power of 2");
-        HilbertCurve {
-            dimension,
-        }
+        assert!(
+            dimension & (dimension - 1) == 0,
+            "Hilbert curve dimension must be power of 2"
+        );
+        HilbertCurve { dimension }
     }
 
     /// (x, y) point -> distance along the curve.

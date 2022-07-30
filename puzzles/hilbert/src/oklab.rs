@@ -88,10 +88,20 @@ fn test_oklab() {
     */
 
     assert_eq!(oklab_to_srgb([0.0, 0.0, 0.0]), ([0, 0, 0], false));
-    assert_eq!(oklab_to_srgb([1.0, 0.0, 0.0]), ([255, 255, 255], false));
-    assert_eq!(oklab_to_srgb([0.5, 0.0, 0.0]), ([99, 99, 99], false));
-    assert_eq!(oklab_to_srgb([0.75, 0.13, 0.0]), ([238, 139, 171], false));
-    assert_eq!(oklab_to_srgb([0.75, -0.13, 0.0]), ([51, 199, 177], false));
-    assert_eq!(oklab_to_srgb([0.75, 0.0, 0.13]), ([205, 170, 69], false));
-    assert_eq!(oklab_to_srgb([0.75, 0.0, -0.13]), ([143, 169, 253], false));
+    assert_eq!(
+        oklab_to_srgb([1.0, 0.0, 0.0]),
+        ([62258, 62258, 62258], false)
+    );
+    assert_eq!(
+        oklab_to_srgb([0.5, 0.0, 0.0]),
+        ([24087, 24087, 24087], false)
+    );
+    assert_eq!(
+        oklab_to_srgb([0.75, 0.13, 0.0]),
+        ([58604, 33427, 41565], false)
+    );
+    assert_eq!(
+        oklab_to_srgb([0.75, 0.0, -0.13]),
+        ([34584, 41201, 62594], false)
+    );
 }

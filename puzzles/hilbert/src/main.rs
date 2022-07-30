@@ -1,6 +1,8 @@
+mod curve;
 mod hilbert_curve;
 mod oklab;
 
+use curve::HILBERT_CURVE;
 use hilbert_curve::HilbertCurve;
 use image::{ImageBuffer, Rgb};
 use oklab::oklab_to_srgb;
@@ -13,13 +15,15 @@ const NUM_SHADE_TRANSITIONS: f64 = 1.5;
 const MAX_LIGHTNESS: f64 = 0.75;
 const MIN_SHADE: f64 = 0.3;
 const MAX_SATURATION: f64 = 0.127;
-const BORDER_COLOR: [u16; 3] = [u16::MAX/3, u16::MAX/3, u16::MAX/3];
+const BORDER_COLOR: [u16; 3] = [u16::MAX / 3, u16::MAX / 3, u16::MAX / 3];
 const HACKY_SAT_MULTIPLIER: f64 = 1.15;
 
 // Dimensions
 const IMAGE_SIZE: u32 = 4096;
 const BORDER_SIZE: u32 = 32;
-const HILBERT_SIZE: u32 = 256;
+const HILBERT_ITERS: u32 = 8;
+const HILBERT_SIZE: u32 = 2_u32.pow(HILBERT_ITERS);
+const HILBERT_CURVE_LEN: u32 = HILBERT_SIZE * HILBERT_SIZE;
 const CELL_WIDTH: u32 = IMAGE_SIZE / HILBERT_SIZE;
 
 // Squares
@@ -41,10 +45,8 @@ type Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 type Color = [u16; 3];
 
 pub fn main() {
-    let mut img = ImageBuffer::<Rgb<u16>, _>::new(
-        IMAGE_SIZE + 2 * BORDER_SIZE,
-        IMAGE_SIZE + 2 * BORDER_SIZE,
-    );
+    let mut img =
+        ImageBuffer::<Rgb<u16>, _>::new(IMAGE_SIZE + 2 * BORDER_SIZE, IMAGE_SIZE + 2 * BORDER_SIZE);
 
     // Draw background
     for pixel in img.pixels_mut() {
@@ -64,18 +66,24 @@ pub fn main() {
         }
     }
 
-    let scale = |point: (u32, u32)| -> (u32, u32) {
-        (CELL_WIDTH * point.0 + CELL_WIDTH / 2, CELL_WIDTH * point.1 + CELL_WIDTH / 2)
+    let scale = |point: (f64, f64)| -> (u32, u32) {
+        (
+            CELL_WIDTH * point.0.round() as u32 + CELL_WIDTH / 2,
+            CELL_WIDTH * point.1.round() as u32 + CELL_WIDTH / 2,
+        )
     };
 
     // Draw square background
-    let curve = HilbertCurve::new(HILBERT_SIZE);
+    //let curve = HilbertCurve::new(HILBERT_SIZE);
     let mut total_colors = 0;
     let mut clamped_colors = 0;
     if DRAW_SQUARES {
-        for d in 0..curve.length() {
-            let point = scale(curve.dist_to_point(d));
-            let frac = (d as f64) / (curve.length() as f64);
+        let curve = HILBERT_CURVE.expand(HILBERT_ITERS as usize);
+        for (d, point) in curve.enumerate() {
+            println!("point {},{}", point.0, point.1);
+            let point = scale(point);
+            println!("point {},{}", point.0, point.1);
+            let frac = (d as f64) / (HILBERT_CURVE_LEN as f64);
             let (color, clamped) = colorscale(frac);
             total_colors += 1;
             clamped_colors += clamped as u32;
@@ -84,22 +92,27 @@ pub fn main() {
             draw_rect(&mut img, lower_left, upper_right, color);
         }
     }
-    println!("Fraction of colors that had to be clamped: {}",
-             clamped_colors as f32 / total_colors as f32);
+    println!(
+        "Fraction of colors that had to be clamped: {}",
+        clamped_colors as f32 / total_colors as f32
+    );
 
     // Draw curve
     if DRAW_CURVE {
-        for d in 2..curve.length() {
-            let start = scale(curve.dist_to_point(d - 2));
-            let middle = scale(curve.dist_to_point(d - 1));
-            let end = scale(curve.dist_to_point(d));
-            let frac = (d as f64) / (curve.length() as f64);
+        let mut curve = HILBERT_CURVE.expand(HILBERT_ITERS as usize);
+        let mut start = scale(curve.next().unwrap());
+        let mut middle = scale(curve.next().unwrap());
+        for (d, point) in curve.enumerate() {
+            let end = scale(point);
+            let frac = (d as f64) / (HILBERT_CURVE_LEN as f64);
             let color = if USE_FIXED_CURVE_COLOR {
                 CURVE_COLOR
             } else {
                 colorscale(frac).0
             };
             draw_segment(&mut img, start, middle, end, LINE_WIDTH / 2, color);
+            start = middle;
+            middle = end;
         }
     }
 
@@ -124,7 +137,12 @@ pub fn main() {
     img.save("hilbert.png").unwrap();
 }
 
-fn draw_rect(img: &mut Image, mut lower_left: (u32, u32), mut upper_right: (u32, u32), color: Color) {
+fn draw_rect(
+    img: &mut Image,
+    mut lower_left: (u32, u32),
+    mut upper_right: (u32, u32),
+    color: Color,
+) {
     if lower_left.0 > upper_right.0 {
         mem::swap(&mut lower_left.0, &mut upper_right.0);
     }
@@ -144,7 +162,7 @@ fn draw_segment(
     middle: (u32, u32),
     end: (u32, u32),
     width: u32,
-    color: Color
+    color: Color,
 ) {
     if start.0 == end.0 {
         let lower_left = (start.0 - width, (start.1 + middle.1) / 2);
@@ -177,7 +195,7 @@ fn colorscale(f: f64) -> (Color, bool) {
     let angle = START_COLOR_ANGLE + TOTAL_COLOR_ANGLE * f;
     let transition = f % (1.0 / NUM_SHADE_TRANSITIONS) * NUM_SHADE_TRANSITIONS;
     let mut raw_shade = (2.0 * transition - 1.0).abs();
-    if f < 1.0/3.0 {
+    if f < 1.0 / 3.0 {
         raw_shade *= HACKY_SAT_MULTIPLIER;
     }
     let shade = raw_shade * (1.0 - MIN_SHADE) + MIN_SHADE;
