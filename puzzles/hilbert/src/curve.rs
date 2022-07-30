@@ -1,44 +1,81 @@
+const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
+
 pub const HILBERT_CURVE: LindenmayerSystem = LindenmayerSystem {
     start: "A",
     rules: &[('A', "rBflAfAlfBr"), ('B', "lAfrBfBrfAl")],
 };
 
 /// A Lindenmayer system for constructing a fractal curve
+#[derive(Clone, Copy)]
 pub struct LindenmayerSystem {
     pub start: &'static str,
     pub rules: &'static [(char, &'static str)],
 }
 
-impl LindenmayerSystem {
-    /// Return the sequence of (x, y) points in the `n`th iteration of this fractal curve.
-    pub fn expand(&self, n: usize) -> impl Iterator<Item = (f64, f64)> {
-        let mut curve = self.start.to_owned();
-        for _ in 0..n {
-            curve = self.iter(curve);
-        }
-        curve = curve
-            .chars()
-            .rev()
-            .filter(|ch| !ch.is_uppercase())
-            .collect();
+struct CurveIter {
+    system: LindenmayerSystem,
+    depth: usize,
+    at_start: bool,
+    stack: Vec<&'static str>,
+    point: (f64, f64),
+    direction: f64,
+}
+
+impl CurveIter {
+    fn new(system: LindenmayerSystem, depth: usize) -> CurveIter {
         CurveIter {
+            stack: vec![system.start],
+            system,
+            depth,
             at_start: true,
             point: (0.0, 0.0),
             direction: 0.0,
-            curve,
         }
     }
+}
 
-    fn iter(&self, curve: String) -> String {
-        let mut new_curve = String::new();
-        for letter in curve.chars() {
+impl Iterator for CurveIter {
+    type Item = (f64, f64);
+
+    fn next(&mut self) -> Option<(f64, f64)> {
+        if self.at_start {
+            self.at_start = false;
+            return Some(self.point);
+        }
+        while let Some(top) = self.stack.last() {
+            let mut chars = top.chars();
+            let letter = match chars.next() {
+                None => {
+                    self.stack.pop();
+                    continue;
+                }
+                Some(letter) => letter,
+            };
+            *self.stack.last_mut().unwrap() = chars.as_str();
             match letter {
-                'l' | 'r' | 'p' | 'q' | 'f' => new_curve.push(letter),
-                'A'..='Z' => new_curve.push_str(self.lookup(letter)),
+                'l' => self.direction -= 0.25,
+                'r' => self.direction += 0.25,
+                'p' => self.direction -= 1.0 / 6.0,
+                'q' => self.direction += 1.0 / 6.0,
+                'f' => {
+                    self.point.0 += (self.direction * RADS_PER_TURN).cos();
+                    self.point.1 += (self.direction * RADS_PER_TURN).sin();
+                    return Some(self.point);
+                }
+                'A'..='Z' => if self.stack.len() < self.depth + 1 {
+                    self.stack.push(self.system.lookup(letter));
+                }
                 _ => panic!("LindermayerSystem: '{}' not recognized. (Remember: replacement letters must be capitalized.)", letter),
             }
         }
-        new_curve
+        None
+    }
+}
+
+impl LindenmayerSystem {
+    /// Return the sequence of (x, y) points in the `n`th iteration of this fractal curve.
+    pub fn expand(&self, n: usize) -> impl Iterator<Item = (f64, f64)> {
+        CurveIter::new(*self, n)
     }
 
     fn lookup(&self, letter: char) -> &'static str {
@@ -51,42 +88,6 @@ impl LindenmayerSystem {
             "LindenmayerSystem: replacement letter '{}' not found.",
             letter
         );
-    }
-}
-
-// Follow the action characters in `curve`, which is stored in reverse.
-struct CurveIter {
-    at_start: bool,
-    point: (f64, f64),
-    direction: f64,
-    curve: String,
-}
-
-const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
-
-impl Iterator for CurveIter {
-    type Item = (f64, f64);
-
-    fn next(&mut self) -> Option<(f64, f64)> {
-        if self.at_start {
-            self.at_start = false;
-            return Some(self.point);
-        }
-        while let Some(action) = self.curve.pop() {
-            match action {
-                'l' => self.direction -= 0.25,
-                'r' => self.direction += 0.25,
-                'p' => self.direction -= 1.0 / 6.0,
-                'q' => self.direction += 1.0 / 6.0,
-                'f' => {
-                    self.point.0 += (self.direction * RADS_PER_TURN).cos();
-                    self.point.1 += (self.direction * RADS_PER_TURN).sin();
-                    return Some(self.point);
-                }
-                _ => panic!("LindermayerSystem: action '{}' unrecognized.", action),
-            }
-        }
-        None
     }
 }
 
