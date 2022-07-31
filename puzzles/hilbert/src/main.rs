@@ -8,13 +8,15 @@ use image::{ImageBuffer, Rgb};
 use oklab::oklab_to_srgb;
 use std::mem;
 
+const COLORS: ColorScaleConfig = ColorScaleConfig {
+    hue_range: (0.0, 1.0),
+    shade_range: (0.0, 3.0),
+    min_shade: 0.3,
+    saturation: 0.127,
+    lightness: 0.75,
+};
+
 // OkLab Colors. All angles are measured in turns. Obviously.
-const START_COLOR_ANGLE: f64 = 0.0;
-const TOTAL_COLOR_ANGLE: f64 = 1.0;
-const NUM_SHADE_TRANSITIONS: f64 = 1.5;
-const MAX_LIGHTNESS: f64 = 0.75;
-const MIN_SHADE: f64 = 0.3;
-const MAX_SATURATION: f64 = 0.127;
 const BORDER_COLOR: [u16; 3] = [u16::MAX / 3, u16::MAX / 3, u16::MAX / 3];
 const HACKY_SAT_MULTIPLIER: f64 = 1.15;
 
@@ -80,11 +82,9 @@ pub fn main() {
     if DRAW_SQUARES {
         let curve = HILBERT_CURVE.expand(HILBERT_ITERS as usize);
         for (d, point) in curve.enumerate() {
-            println!("point {},{}", point.0, point.1);
             let point = scale(point);
-            println!("point {},{}", point.0, point.1);
             let frac = (d as f64) / (HILBERT_CURVE_LEN as f64);
-            let (color, clamped) = colorscale(frac);
+            let (color, clamped) = color_scale(frac, COLORS);
             total_colors += 1;
             clamped_colors += clamped as u32;
             let lower_left = (point.0 - CELL_WIDTH / 2, point.1 - CELL_WIDTH / 2);
@@ -108,7 +108,7 @@ pub fn main() {
             let color = if USE_FIXED_CURVE_COLOR {
                 CURVE_COLOR
             } else {
-                colorscale(frac).0
+                color_scale(frac, COLORS).0
             };
             draw_segment(&mut img, start, middle, end, LINE_WIDTH / 2, color);
             start = middle;
@@ -117,8 +117,8 @@ pub fn main() {
     }
 
     // Draw start and end points
-    let start_color = colorscale(0.0).0;
-    let end_color = colorscale(1.0).0;
+    let start_color = color_scale(0.0, COLORS).0;
+    let end_color = color_scale(1.0, COLORS).0;
     for (x, y, pixel) in img.enumerate_pixels_mut() {
         let width = CELL_WIDTH - ENDPOINT_BORDER;
         let border = ENDPOINT_BORDER;
@@ -189,19 +189,28 @@ fn draw_segment(
     }
 }
 
-fn colorscale(f: f64) -> (Color, bool) {
-    const PI: f64 = std::f64::consts::PI;
+struct ColorScaleConfig {
+    hue_range: (f64, f64),
+    shade_range: (f64, f64),
+    min_shade: f64,
+    saturation: f64,
+    lightness: f64,
+}
 
-    let angle = START_COLOR_ANGLE + TOTAL_COLOR_ANGLE * f;
-    let transition = f % (1.0 / NUM_SHADE_TRANSITIONS) * NUM_SHADE_TRANSITIONS;
-    let mut raw_shade = (2.0 * transition - 1.0).abs();
-    if f < 1.0 / 3.0 {
-        raw_shade *= HACKY_SAT_MULTIPLIER;
+fn color_scale(f: f64, config: ColorScaleConfig) -> (Color, bool) {
+    const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
+
+    fn interpolate(f: f64, (start, end): (f64, f64)) -> f64 {
+        start + f * (end - start)
     }
-    let shade = raw_shade * (1.0 - MIN_SHADE) + MIN_SHADE;
-    let saturation = MAX_SATURATION * shade;
-    let l = MAX_LIGHTNESS * shade;
-    let a = saturation * (2.0 * PI * angle).sin();
-    let b = saturation * (2.0 * PI * angle).cos();
+
+    let angle = interpolate(f, config.hue_range);
+    let shade = interpolate(f, config.shade_range);
+    let shade = ((shade % 2.0) - 1.0).abs();
+    let shade = shade * (1.0 - config.min_shade) + config.min_shade;
+    let saturation = shade * config.saturation;
+    let l = shade * config.lightness;
+    let a = saturation * (RADS_PER_TURN * angle).sin();
+    let b = saturation * (RADS_PER_TURN * angle).cos();
     oklab_to_srgb([l, a, b])
 }
