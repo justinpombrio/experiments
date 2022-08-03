@@ -3,13 +3,18 @@ const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
 pub const HILBERT_CURVE: LindenmayerSystem = LindenmayerSystem {
     start: "A",
     rules: &[('A', "rBflAfAlfBr"), ('B', "lAfrBfBrfAl")],
+    len: hilbert_len,
 };
+fn hilbert_len(depth: usize) -> usize {
+    4_usize.pow(depth as u32)
+}
 
 /// A Lindenmayer system for constructing a fractal curve
 #[derive(Clone, Copy)]
 pub struct LindenmayerSystem {
     pub start: &'static str,
     pub rules: &'static [(char, &'static str)],
+    pub len: fn(usize) -> usize,
 }
 
 struct CurveIter {
@@ -70,11 +75,18 @@ impl Iterator for CurveIter {
         }
         None
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.system.len(self.depth);
+        (len, Some(len))
+    }
 }
+
+impl ExactSizeIterator for CurveIter {}
 
 impl LindenmayerSystem {
     /// Return the sequence of (x, y) points in the `n`th iteration of this fractal curve.
-    pub fn expand(&self, n: usize) -> impl Iterator<Item = (f64, f64)> {
+    pub fn expand(&self, n: usize) -> impl ExactSizeIterator<Item = (f64, f64)> {
         CurveIter::new(*self, n)
     }
 
@@ -88,6 +100,10 @@ impl LindenmayerSystem {
             "LindenmayerSystem: replacement letter '{}' not found.",
             letter
         );
+    }
+
+    fn len(&self, depth: usize) -> usize {
+        (self.len)(depth)
     }
 }
 

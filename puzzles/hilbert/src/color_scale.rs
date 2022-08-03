@@ -2,6 +2,34 @@ use crate::oklab::oklab_to_srgb;
 
 pub type Color = [u16; 3];
 
+pub struct ColorCone {
+    pub max_saturation: f64,
+    pub min_lightness: f64,
+    pub max_lightness: f64,
+}
+
+impl ColorCone {
+    pub fn hsv(&self, hue: f64, sat: f64, val: f64) -> Option<Color> {
+        assert!(0.0 <= hue && hue <= 1.0);
+        assert!(0.0 <= sat && sat <= 1.0);
+        assert!(0.0 <= val && val <= 1.0);
+        const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
+        fn interpolate(f: f64, start: f64, end: f64) -> f64 {
+            start + f * (end - start)
+        }
+        let l = interpolate(val, self.min_lightness, self.max_lightness);
+        let s = sat * self.max_saturation * val;
+        let a = s * (RADS_PER_TURN * hue).sin();
+        let b = s * (RADS_PER_TURN * hue).cos();
+        let (color, is_clamped) = oklab_to_srgb([l, a, b]);
+        if is_clamped {
+            None
+        } else {
+            Some(color)
+        }
+    }
+}
+
 pub struct ColorScaleConfig {
     pub hue_range: (f64, f64),
     pub shade_range: (f64, f64),
