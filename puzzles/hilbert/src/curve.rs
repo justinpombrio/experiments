@@ -86,8 +86,8 @@ impl ExactSizeIterator for CurveIter {}
 
 impl LindenmayerSystem {
     /// Return the sequence of (x, y) points in the `n`th iteration of this fractal curve.
-    pub fn expand(&self, n: usize) -> impl ExactSizeIterator<Item = (f64, f64)> {
-        CurveIter::new(*self, n)
+    pub fn expand(&self, depth: usize) -> impl ExactSizeIterator<Item = (f64, f64)> {
+        CurveIter::new(*self, depth)
     }
 
     fn lookup(&self, letter: char) -> &'static str {

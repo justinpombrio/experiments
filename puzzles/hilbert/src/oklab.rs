@@ -1,7 +1,59 @@
+use crate::interpolate;
+
+pub type Color = [u16; 3];
+
+/// Construct a color scale in OKLAB color space (a mapping from `[0, 1]` to `Color`).
+///
+/// `max_saturation`, `min_lightness`, and `max_lightness` determine the shape of a truncated cone
+/// in OKLAB space:
+///
+/// - The cone points "down", with its tip on pure black and its circular top facing pure white.
+/// - `min_lightness` is the height (L-component) at which the tip of the cone is truncated.
+/// - `max_lightness` is the height of the circular top of the cone.
+/// - `max_saturation` is the radius of the circular top of the cone.
+///
+/// `hsv` converts the `[0, 1]` input into a `(hue, sat, val)` triple. Each of these components
+/// lies between 0.0 and 1.0. Together, these three components determine the location on the
+/// truncated cone:
+///
+/// - `val` determines the height of the point, where 0 is `min_lightness` and 1 is
+///   `max_lightness`.
+/// - `hue` determines the horizontal angle of the point, where 0 is yellow, 0.1 is orangeish, and
+/// 1 wraps around to yellow again.
+/// - `sat` is the horizontal distance from the center of the cone, where 0 is centered (pure gray)
+/// and 1 is on the edge of the cone.
+pub struct ColorScale {
+    pub max_saturation: f64,
+    pub min_lightness: f64,
+    pub max_lightness: f64,
+    pub hsv: (fn (f64) -> (f64, f64, f64)),
+}
+
+impl ColorScale {
+    pub fn sample(&self, f: f64) -> Color {
+        const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
+
+        let (hue, sat, val) = (self.hsv)(f);
+        assert!(0.0 <= hue && hue <= 1.0);
+        assert!(0.0 <= sat && sat <= 1.0);
+        assert!(0.0 <= val && val <= 1.0);
+
+        let l = interpolate(val, self.min_lightness, self.max_lightness);
+        let rad = sat * self.max_saturation * l / self.max_lightness;
+        let a = rad * (RADS_PER_TURN * hue).sin();
+        let b = rad * (RADS_PER_TURN * hue).cos();
+        let (color, is_clamped) = oklab_to_srgb([l, a, b]);
+        if is_clamped {
+            panic!("Color is out of bounds. Try reducing saturation.");
+        }
+        color
+    }
+}
+
 /// Convert from the OKLAB color space to srgb. Returns an srgb color,
 /// and a boolean indicating whether the color was clamped (whether it
 /// was out of bounds).
-pub fn oklab_to_srgb(lab: [f64; 3]) -> ([u16; 3], bool) {
+pub fn oklab_to_srgb(lab: [f64; 3]) -> (Color, bool) {
     let l = lab[0] + 0.3963377774 * lab[1] + 0.2158037573 * lab[2];
     let m = lab[0] - 0.1055613458 * lab[1] - 0.0638541728 * lab[2];
     let s = lab[0] - 0.0894841775 * lab[1] - 1.2914855480 * lab[2];
