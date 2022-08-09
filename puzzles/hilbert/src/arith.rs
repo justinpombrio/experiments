@@ -1,8 +1,15 @@
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Div, Mul, Sub};
 
-pub trait Number : std::fmt::Debug + Clone + Copy
-    + Add<Output=Self> + Sub<Output=Self> + Mul<Output = Self> + Div<Output = Self>
-{}
+pub trait Number:
+    std::fmt::Debug
+    + Clone
+    + Copy
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Mul<Output = Self>
+    + Div<Output = Self>
+{
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Bounds<N: Number> {
@@ -21,7 +28,8 @@ impl Number for u32 {}
 impl<N: Number> Number for Point<N> {}
 
 pub fn interpolate<N: Number>(f: f64, start: N, end: N) -> N
-    where N: Mul<f64, Output=N>
+where
+    N: Mul<f64, Output = N>,
 {
     start + (end - start) * f
 }

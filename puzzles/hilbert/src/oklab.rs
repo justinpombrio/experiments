@@ -26,7 +26,7 @@ pub struct ColorScale {
     pub max_saturation: f64,
     pub min_lightness: f64,
     pub max_lightness: f64,
-    pub hsv: (fn (f64) -> (f64, f64, f64)),
+    pub hsv: fn(f64) -> (f64, f64, f64),
 }
 
 impl ColorScale {

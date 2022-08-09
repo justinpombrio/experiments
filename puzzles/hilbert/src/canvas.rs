@@ -1,6 +1,5 @@
-use crate::arith::{Bounds, Point, Number, interpolate};
+use crate::arith::{interpolate, Bounds, Point};
 use image::{ImageBuffer, Rgb};
-use std::mem;
 
 type Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 type Color = [u16; 3];
@@ -17,7 +16,7 @@ impl Canvas {
             size: Point {
                 x: width,
                 y: height,
-            }
+            },
         }
     }
 
@@ -29,13 +28,16 @@ impl Canvas {
         self.draw_rect(
             Bounds {
                 min: Point { x: 0, y: 0 },
-                max: Point { x: self.image.width(), y: self.image.height() },
+                max: Point {
+                    x: self.image.width(),
+                    y: self.image.height(),
+                },
             },
             color,
         );
     }
 
-    pub fn draw_rect(&mut self, mut bounds: Bounds<u32>, color: Color) {
+    pub fn draw_rect(&mut self, bounds: Bounds<u32>, color: Color) {
         assert!(bounds.min.x < bounds.max.x);
         assert!(bounds.min.y < bounds.max.y);
         for x in bounds.min.x..bounds.max.x {
@@ -55,7 +57,7 @@ impl Canvas {
         let size = image_bounds.max - image_bounds.min;
         for x in image_bounds.min.x..image_bounds.max.x {
             for y in image_bounds.min.y..image_bounds.max.y {
-                let point = Point {x, y};
+                let point = Point { x, y };
                 let parity = (point - image_bounds.min) * num_checkers / size;
                 let color = if (parity.x + parity.y) % 2 == 0 {
                     color_1
@@ -99,7 +101,7 @@ impl Canvas {
         let len = (end - start).dist();
         let num_points = (2.0 * len) as usize;
         for i in 0..num_points {
-            let f = (i as f64 / (num_points - 1) as f64);
+            let f = i as f64 / (num_points - 1) as f64;
             self.draw_point(interpolate(f, start, end), color);
         }
     }
