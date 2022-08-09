@@ -1,4 +1,4 @@
-use crate::interpolate;
+use crate::arith::interpolate;
 
 pub type Color = [u16; 3];
 

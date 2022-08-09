@@ -1,3 +1,5 @@
+use crate::arith::Point;
+
 const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
 
 pub const HILBERT_CURVE: LindenmayerSystem = LindenmayerSystem {
@@ -22,7 +24,7 @@ struct CurveIter {
     depth: usize,
     at_start: bool,
     stack: Vec<&'static str>,
-    point: (f64, f64),
+    point: Point<f64>,
     direction: f64,
 }
 
@@ -33,16 +35,16 @@ impl CurveIter {
             system,
             depth,
             at_start: true,
-            point: (0.0, 0.0),
+            point: Point { x: 0.0, y: 0.0 },
             direction: 0.0,
         }
     }
 }
 
 impl Iterator for CurveIter {
-    type Item = (f64, f64);
+    type Item = Point<f64>;
 
-    fn next(&mut self) -> Option<(f64, f64)> {
+    fn next(&mut self) -> Option<Point<f64>> {
         if self.at_start {
             self.at_start = false;
             return Some(self.point);
@@ -63,8 +65,8 @@ impl Iterator for CurveIter {
                 'p' => self.direction -= 1.0 / 6.0,
                 'q' => self.direction += 1.0 / 6.0,
                 'f' => {
-                    self.point.0 += (self.direction * RADS_PER_TURN).cos();
-                    self.point.1 += (self.direction * RADS_PER_TURN).sin();
+                    self.point.x += (self.direction * RADS_PER_TURN).cos();
+                    self.point.y += (self.direction * RADS_PER_TURN).sin();
                     return Some(self.point);
                 }
                 'A'..='Z' => if self.stack.len() < self.depth + 1 {
@@ -86,7 +88,7 @@ impl ExactSizeIterator for CurveIter {}
 
 impl LindenmayerSystem {
     /// Return the sequence of (x, y) points in the `n`th iteration of this fractal curve.
-    pub fn expand(&self, depth: usize) -> impl ExactSizeIterator<Item = (f64, f64)> {
+    pub fn expand(&self, depth: usize) -> impl ExactSizeIterator<Item = Point<f64>> {
         CurveIter::new(*self, depth)
     }
 
