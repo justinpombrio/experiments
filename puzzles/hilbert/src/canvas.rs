@@ -78,7 +78,7 @@ impl Canvas {
         let start = curve(0.0);
         let end = curve(1.0);
         let len = (start - end).dist();
-        let num_points = (3.0 * len) as usize;
+        let num_points = (5.0 * len) as usize;
         for i in 0..num_points {
             // compute first and second point
             let f0 = i as f64 / (num_points - 1) as f64;

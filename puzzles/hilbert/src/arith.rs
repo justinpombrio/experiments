@@ -49,6 +49,17 @@ impl Point<f64> {
     }
 }
 
+impl<N: Number> Add<N> for Point<N> {
+    type Output = Point<N>;
+
+    fn add(self, scalar: N) -> Point<N> {
+        Point {
+            x: self.x + scalar,
+            y: self.y + scalar,
+        }
+    }
+}
+
 impl<N: Number> Mul<N> for Point<N> {
     type Output = Point<N>;
 

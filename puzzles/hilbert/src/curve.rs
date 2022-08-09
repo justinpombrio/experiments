@@ -17,6 +17,8 @@ struct CurveIter {
     stack: Vec<&'static str>,
     point: Point<f64>,
     direction: f64,
+    // hack for z-order curve
+    z_index: usize,
 }
 
 impl CurveIter {
@@ -28,6 +30,7 @@ impl CurveIter {
             at_start: true,
             point: Point { x: 0.0, y: 0.0 },
             direction: 0.0,
+            z_index: 0,
         }
     }
 }
@@ -59,6 +62,19 @@ impl Iterator for CurveIter {
                     self.point.x += (self.direction * RADS_PER_TURN).cos();
                     self.point.y += (self.direction * RADS_PER_TURN).sin();
                     return Some(self.point);
+                }
+                'z' => {
+                    self.z_index += 1;
+                    let mut x = 0;
+                    let mut y = 0;
+                    for i in 0..16 {
+                        x += (1 << i) & (self.z_index >> i);
+                        y += (1 << i) & (self.z_index >> (i + 1));
+                    }
+                    return Some(Point {
+                        x: x as f64,
+                        y: y as f64,
+                    });
                 }
                 'A'..='Z' => if self.stack.len() < self.depth + 1 {
                     self.stack.push(self.system.lookup(letter));
