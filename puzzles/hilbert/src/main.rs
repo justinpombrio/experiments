@@ -6,59 +6,74 @@ mod oklab;
 use arith::{interpolate, Bounds, Point};
 use canvas::Canvas;
 use curve::LindenmayerSystem;
-use oklab::{Color, ColorScale};
+use oklab::{Color, oklab_hsv_to_srgb};
 
 /**********
  * Colors *
  **********/
 
 const BORDER_COLOR: Color = [180 * 256, 180 * 256, 180 * 256];
-const BACKGROUND_COLOR: Color = [u16::MAX, u16::MAX, u16::MAX];
+const BACKGROUND_COLOR: Color = [210 * 256, 210 * 256, 210 * 256];
+const BACKGROUND_COLOR_BW: Color = [170 * 256, 200 * 256, 250 * 256];
 const CHECKERBOARD_COLOR_1: Color = [220 * 256, 220 * 256, 170 * 256];
 const CHECKERBOARD_COLOR_2: Color = [180 * 256, 200 * 256, 240 * 256];
 
-/*
-const COLOR_SCALE_1: ColorScale = ColorScale {
-    max_saturation: 0.127,
-    min_lightness: 0.25,
-    max_lightness: 0.75,
-    hsv: hsv_1,
-};
+/****************
+ * Color Scales *
+ ****************/
 
-fn hsv_1(f: f64) -> (f64, f64, f64) {
-    let hue = cycle(f, 0.0, 1.0);
-    let sat = 1.0;
-    let val = 1.0;
-    (hue, sat, val)
-}
-*/
-
-const COLOR_SCALE_2: ColorScale = ColorScale {
-    max_saturation: 0.127,
-    min_lightness: 0.25,
-    max_lightness: 0.75,
-    hsv: hsv_2,
-};
-
-fn hsv_2(f: f64) -> (f64, f64, f64) {
-    let hue = cycle(f, 0.0, 1.0);
-    let sat = 1.0;
-    let val = linear_cycle(f, 0.5, 2.0, 0.0);
-    (hue, sat, val)
+fn hsv_bw(f: f64) -> [f64; 3] {
+    let hue = 0.0;
+    let sat = 0.0;
+    let val = linear_cycle(f, (0.5, 1.0), (0.25, 0.95));
+    [hue, sat, val]
 }
 
+fn hsv_1(f: f64) -> [f64; 3] {
+    let hue = cycle(f, 0.0, 1.0);
+    let sat = 0.176;
+    let val = 0.75;
+    [hue, sat, val]
+}
+
+fn hsv_2(f: f64) -> [f64; 3] {
+    let hue = cycle(f, 0.0, 1.0);
+    let sat = 0.175;
+    let val = linear_cycle(f, (0.5, 2.0), (0.25, 0.75));
+    [hue, sat, val]
+}
+
+fn hsv_3(f: f64) -> [f64; 3] {
+    let hue = cycle(f, 0.0, 1.0);
+    let sat = 0.175;
+    let val = linear_cycle(f, (0.0, 6.0), (0.30, 0.70));
+    [hue, sat, val]
+}
+
 /*
-const COLOR_SCALE_6: ColorScale = ColorScale {
-    max_saturation: 0.127,
-    min_lightness: 0.25,
+const COLOR_SCALE_3: ColorScale = ColorScale {
+    max_saturation: 0.176,
     max_lightness: 0.75,
-    hsv: hsv_6,
+    hsv: hsv_3,
 };
 
-fn hsv_6(f: f64) -> (f64, f64, f64) {
+fn hsv_3(f: f64) -> (f64, f64, f64) {
     let hue = cycle(f, 0.0, 1.0);
-    let sat = linear_cycle(f, 0.0, 4.0, 0.5);
-    let val = linear_cycle(f, 0.5, 5.5, 0.0);
+    let sat = linear_cycle(f, 0.5, 3.5, 0.0);
+    let val = linear_cycle(f, 0.5, 2.0, 0.3);
+    (hue, sat.powf(1.0/3.0), val)
+}
+
+const COLOR_SCALE_7: ColorScale = ColorScale {
+    max_saturation: 0.176,
+    max_lightness: 0.75,
+    hsv: hsv_7,
+};
+
+fn hsv_7(f: f64) -> (f64, f64, f64) {
+    let hue = cycle(f, 0.0, 5.0);
+    let sat = linear_cycle(f, 0.0, 6.0, 0.5);
+    let val = linear_cycle(f, 0.0, 7.0, 0.5);
     (hue, sat, val)
 }
 */
@@ -75,21 +90,12 @@ const HILBERT_CURVE: LindenmayerSystem = LindenmayerSystem {
 fn hilbert_len(depth: usize) -> usize {
     4_usize.pow(depth as u32)
 }
-
-fn hilbert_drawing(image_size: u32, curve_width: f64, depth: usize, border: u32) -> Drawing {
-    Drawing {
-        curve: HILBERT_CURVE,
-        depth,
-        curve_width: curve_width * image_size as f64 / 2_u32.pow(depth as u32) as f64 * 0.5,
-        bounds: Bounds {
-            min: Point { x: -0.5, y: -0.5 },
-            max: Point {
-                x: 2_u32.pow(depth as u32) as f64 - 0.5,
-                y: 2_u32.pow(depth as u32) as f64 - 0.5,
-            },
-        },
-        color_scale: COLOR_SCALE_2,
-        border,
+fn hilbert_bounds(depth: usize) -> Bounds<f64> {
+    let min = -0.5;
+    let max = 2_u32.pow(depth as u32) as f64 - 0.5;
+    Bounds {
+        min: Point { x: min, y: min },
+        max: Point { x: max, y: max }
     }
 }
 
@@ -105,21 +111,59 @@ const Z_ORDER_CURVE: LindenmayerSystem = LindenmayerSystem {
 fn z_order_len(depth: usize) -> usize {
     4_usize.pow(depth as u32)
 }
+fn z_order_bounds(depth: usize) -> Bounds<f64> {
+    let min = -0.5;
+    let max = 2_u32.pow(depth as u32) as f64 - 0.5;
+    Bounds {
+        min: Point { x: min, y: min },
+        max: Point { x: max, y: max }
+    }
+}
 
-fn z_order_drawing(image_size: u32, curve_width: f64, depth: usize, border: u32) -> Drawing {
-    Drawing {
-        curve: Z_ORDER_CURVE,
-        depth,
-        curve_width: curve_width * image_size as f64 / 2_u32.pow(depth as u32) as f64 * 0.5,
-        bounds: Bounds {
-            min: Point { x: -0.5, y: -0.5 },
-            max: Point {
-                x: 2_u32.pow(depth as u32) as f64 - 0.5,
-                y: 2_u32.pow(depth as u32) as f64 - 0.5,
-            },
-        },
-        color_scale: COLOR_SCALE_2,
-        border,
+/****************
+ * Dragon Curve *
+ ****************/
+
+const DRAGON_CURVE: LindenmayerSystem = LindenmayerSystem {
+    start: "R",
+    rules: &[('R', "RfrL"), ('L', "RflL")],
+    len: dragon_len,
+};
+fn dragon_len(depth: usize) -> usize {
+    2_usize.pow(depth as u32)
+}
+fn dragon_bounds(depth: usize) -> Bounds<f64> {
+    let bounds = DRAGON_CURVE.bounds(depth);
+    let center = (bounds.min + bounds.max) / 2.0;
+    let dimensions = bounds.max - bounds.min;
+    let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
+    Bounds {
+        min: center - new_dimensions/2.0 - 0.5,
+        max: center + new_dimensions/2.0 + 0.5,
+    }
+}
+
+/****************
+ * Gosper Curve *
+ ****************/
+
+const GOSPER_CURVE: LindenmayerSystem = LindenmayerSystem {
+    start: "A",
+    rules: &[('A', "gApgBppgBqgAqqgAgAqgBp"),
+             ('B', "qgApgBgBppgBpgAqqgAqgB")],
+    len: gosper_len,
+};
+fn gosper_len(depth: usize) -> usize {
+    7_usize.pow(depth as u32)
+}
+fn gosper_bounds(depth: usize) -> Bounds<f64> {
+    let bounds = GOSPER_CURVE.bounds(depth);
+    let center = (bounds.min + bounds.max) / 2.0;
+    let dimensions = bounds.max - bounds.min;
+    let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
+    Bounds {
+        min: center - new_dimensions/2.0 - 0.5,
+        max: center + new_dimensions/2.0 + 0.5,
     }
 }
 
@@ -133,72 +177,8 @@ fn cycle(f: f64, start: f64, end: f64) -> f64 {
 /// As `f` scales from 0.0 to 1.0, the result varies between `c(start)` and `c(end)`,
 /// where `c` is a cyclic linear function varying between 0.0 at `0, 1, 2, ...` and 1.0 at
 /// `0.5, 1.5, 2.5, ...`.
-fn linear_cycle(f: f64, start: f64, end: f64, min: f64) -> f64 {
-    min + (1.0 - (2.0 * cycle(f, start, end) - 1.0).abs()) * (1.0 - min)
-}
-
-struct Drawing {
-    curve: LindenmayerSystem,
-    depth: usize,
-    curve_width: f64,
-    color_scale: ColorScale,
-    bounds: Bounds<f64>,
-    border: u32,
-}
-
-impl Drawing {
-    fn draw_on_canvas(&self, canvas: &mut Canvas) {
-        let drawing_size = self.bounds.max - self.bounds.min;
-        let points = self.curve.expand(self.depth);
-        let curve_len = points.len() - 1;
-
-        let canvas_size = Point {
-            x: (canvas.size.x - 2 * self.border) as f64,
-            y: (canvas.size.y - 2 * self.border) as f64,
-        };
-        let mut points = points
-            .map(move |point| (point - self.bounds.min) / drawing_size * canvas_size + self.border as f64);
-
-        // If curve_width=0, draw just the points
-        if self.curve_width == 0.0 {
-            for (i, point) in points.enumerate() {
-                let color = self.color_scale.sample((i + 1) as f64 / curve_len as f64);
-                canvas.draw_point(point, color);
-            }
-        } else {
-            let mut start = points.next().unwrap();
-            let mut middle = points.next().unwrap();
-            // first segment
-            canvas.draw_curve_segment(
-                |f| interpolate(f, (start * 3.0 - middle) / 2.0, (start + middle) / 2.0),
-                self.curve_width,
-                self.color_scale.sample(0.0),
-            );
-            for (i, end) in points.enumerate() {
-                let color = self.color_scale.sample((i + 1) as f64 / curve_len as f64);
-                // middle segments
-                canvas.draw_curve_segment(
-                    |f| {
-                        middle * 2.0 * f * (1.0 - f)
-                            + (start + middle) * f * f / 2.0
-                            + (middle + end) * (1.0 - f) * (1.0 - f) / 2.0
-                    },
-                    self.curve_width,
-                    color,
-                );
-                if i == curve_len - 2 {
-                    // last segment
-                    canvas.draw_curve_segment(
-                        |f| interpolate(f, (middle + end) / 2.0, (end * 3.0 - middle) / 2.0),
-                        self.curve_width,
-                        self.color_scale.sample(1.0),
-                    );
-                }
-                start = middle;
-                middle = end;
-            }
-        }
-    }
+fn linear_cycle(f: f64, (start, end): (f64, f64), (min, max): (f64, f64)) -> f64 {
+    min + (1.0 - (2.0 * cycle(f, start, end) - 1.0).abs()) * (max - min)
 }
 
 fn main() {
@@ -207,6 +187,7 @@ fn main() {
     let mut curve_name = "hilbert".to_owned();
     let mut depth = 3;
     let mut curve_width = 0.5;
+    let mut color_scale_name = "bw".to_owned();
     let mut image_size = 1024;
     let mut border_width = 0;
     let mut image_name = "curve.png".to_owned();
@@ -230,6 +211,10 @@ fn main() {
         args.refer(&mut curve_width)
             .add_option(&["-t", "--thickness"], Store,
                 "How wide the curve should be, where 1.0 is thick enought to touch itself (default 0.5). Exactly 0 draws individual points.");
+        args.refer(&mut color_scale_name).add_option(
+            &["-c", "--colors"], Store,
+            "Color scale (default 'bw'). Options are bw, 2, 3, 7.",
+        );
         args.refer(&mut border_width).add_option(
             &["-b", "--border"],
             Store,
@@ -253,9 +238,18 @@ fn main() {
         args.parse_args_or_exit();
     }
 
-    let drawing = match curve_name.as_ref() {
-        "hilbert" => hilbert_drawing(image_size, curve_width, depth, border_width),
-        "zorder" => z_order_drawing(image_size, curve_width, depth, border_width),
+    let color_scale = match color_scale_name.as_ref() {
+        "bw" => hsv_bw,
+        "1" => hsv_1,
+        "2" => hsv_2,
+        "3" => hsv_3,
+        name => panic!("Color scale name '{}' not recognized", name),
+    };
+    let (curve, bounds) = match curve_name.as_ref() {
+        "hilbert" => (HILBERT_CURVE, hilbert_bounds(depth)),
+        "zorder" => (Z_ORDER_CURVE, z_order_bounds(depth)),
+        "dragon" => (DRAGON_CURVE, dragon_bounds(depth)),
+        "gosper" => (GOSPER_CURVE, gosper_bounds(depth)),
         name => panic!("Curve name '{}' not recognized", name),
     };
     let image_bounds = Bounds {
@@ -270,6 +264,8 @@ fn main() {
     };
 
     let mut canvas = Canvas::new(image_size, image_size);
+
+    // Draw background
     canvas.fill(BORDER_COLOR);
     if checkers > 0 {
         canvas.draw_checkerboard(
@@ -282,8 +278,67 @@ fn main() {
             CHECKERBOARD_COLOR_2,
         );
     } else {
-        canvas.draw_rect(image_bounds, BACKGROUND_COLOR);
+        let background_color = if color_scale_name == "bw" {
+            BACKGROUND_COLOR_BW
+        } else {
+            BACKGROUND_COLOR
+        };
+        canvas.draw_rect(image_bounds, background_color);
     }
-    drawing.draw_on_canvas(&mut canvas);
+
+    let drawing_size = bounds.max - bounds.min;
+    let points = curve.expand(depth);
+    let curve_len = points.len() - 1;
+
+    let canvas_size = Point {
+        x: (canvas.size.x - 2 * border_width) as f64,
+        y: (canvas.size.y - 2 * border_width) as f64,
+    };
+    curve_width *= canvas_size.x / drawing_size.x / 2.0;
+    let mut points = points
+        .map(move |point| (point - bounds.min) / drawing_size * canvas_size + border_width as f64);
+
+    if curve_width == 0.0 {
+        // If curve_width=0, draw just the points
+        for (i, point) in points.enumerate() {
+            let color = oklab_hsv_to_srgb(color_scale(i as f64 / curve_len as f64))
+                .expect("Color out of bounds");
+            canvas.draw_point(point, color);
+        }
+    } else {
+        let mut start = points.next().unwrap();
+        let mut middle = points.next().unwrap();
+        // first segment
+        canvas.draw_curve_segment(
+            |f| interpolate(f, (start * 3.0 - middle) / 2.0, (start + middle) / 2.0),
+            curve_width,
+            oklab_hsv_to_srgb(color_scale(0.0)).expect("Color out of bounds")
+        );
+        for (i, end) in points.enumerate() {
+            //let color = color_scale.sample((i + 1) as f64 / curve_len as f64);
+            // middle segments
+            canvas.draw_curve_segment(
+                |f| {
+                    middle * 2.0 * f * (1.0 - f)
+                        + (start + middle) * f * f / 2.0
+                        + (middle + end) * (1.0 - f) * (1.0 - f) / 2.0
+                },
+                curve_width,
+                oklab_hsv_to_srgb(color_scale((i + 1) as f64 / curve_len as f64))
+                    .expect("Color out of bounds")
+            );
+            if i == curve_len - 2 {
+                // last segment
+                canvas.draw_curve_segment(
+                    |f| interpolate(f, (middle + end) / 2.0, (end * 3.0 - middle) / 2.0),
+                    curve_width,
+                    oklab_hsv_to_srgb(color_scale(1.0)).expect("Color out of bounds")
+                );
+            }
+            start = middle;
+            middle = end;
+        }
+    }
+
     canvas.save("curve.png");
 }

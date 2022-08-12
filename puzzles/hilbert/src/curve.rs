@@ -1,8 +1,24 @@
-use crate::arith::Point;
+use crate::arith::{Point, Bounds};
 
 const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
 
-/// A Lindenmayer system for constructing a fractal curve
+/// A Lindenmayer system for constructing a fractal curve.
+///
+/// The curve of iteration N is defined by:
+///
+/// - Start with the string `start`.
+/// - Do N times: Replace each capital letter in the string with its replacement listed in `rules`.
+/// - Follow the instructions described by the lowercase letters now in the string.
+///
+/// The meanings of the lowercase letters are:
+///
+///     l -- turn left 1/4 turn
+///     r -- turn right 1/4 turn
+///     p -- turn left 1/6 turn
+///     q -- turn right 1/6 turn
+///     f -- move forward by 1.0
+///     g -- move forward by 1.0, except this letter is deleted on all but the last iteration
+///     z -- magically jump to the next point in the z-order curve
 #[derive(Clone, Copy)]
 pub struct LindenmayerSystem {
     pub start: &'static str,
@@ -63,6 +79,11 @@ impl Iterator for CurveIter {
                     self.point.y += (self.direction * RADS_PER_TURN).sin();
                     return Some(self.point);
                 }
+                'g' => if self.stack.len() == self.depth + 1 {
+                    self.point.x += (self.direction * RADS_PER_TURN).cos();
+                    self.point.y += (self.direction * RADS_PER_TURN).sin();
+                    return Some(self.point);
+                }
                 'z' => {
                     self.z_index += 1;
                     let mut x = 0;
@@ -99,6 +120,23 @@ impl LindenmayerSystem {
         CurveIter::new(*self, depth)
     }
 
+    /// Determine the bounds of this curve. Walks the whole curve!
+    pub fn bounds(&self, depth: usize) -> Bounds<f64> {
+        let mut points = self.expand(depth);
+        let first_point = points.next().unwrap();
+        let mut bounds = Bounds {
+            min: first_point,
+            max: first_point,
+        };
+        for point in points {
+            bounds.min.x = bounds.min.x.min(point.x);
+            bounds.min.y = bounds.min.y.min(point.y);
+            bounds.max.x = bounds.max.x.max(point.x);
+            bounds.max.y = bounds.max.y.max(point.y);
+        }
+        bounds
+    }
+
     fn lookup(&self, letter: char) -> &'static str {
         for (seek, replace) in self.rules {
             if *seek == letter {
@@ -118,10 +156,12 @@ impl LindenmayerSystem {
 
 #[test]
 fn test_curves() {
+    use crate::HILBERT_CURVE;
+
     assert_eq!(
         HILBERT_CURVE
             .expand(2)
-            .map(|(x, y)| (x.round() as i32, y.round() as i32))
+            .map(|point| (point.x.round() as i32, point.y.round() as i32))
             .collect::<Vec<_>>(),
         vec![
             (0, 0),

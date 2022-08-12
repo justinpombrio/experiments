@@ -35,6 +35,10 @@ where
 }
 
 impl Point<f64> {
+    pub fn zero() -> Point<f64> {
+        Point { x: 0.0, y: 0.0 }
+    }
+
     pub fn dist(self) -> f64 {
         (self.x * self.x + self.y * self.y).sqrt()
     }
@@ -56,6 +60,17 @@ impl<N: Number> Add<N> for Point<N> {
         Point {
             x: self.x + scalar,
             y: self.y + scalar,
+        }
+    }
+}
+
+impl<N: Number> Sub<N> for Point<N> {
+    type Output = Point<N>;
+
+    fn sub(self, scalar: N) -> Point<N> {
+        Point {
+            x: self.x - scalar,
+            y: self.y - scalar,
         }
     }
 }

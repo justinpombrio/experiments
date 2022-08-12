@@ -4,6 +4,9 @@ use image::{ImageBuffer, Rgb};
 type Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 type Color = [u16; 3];
 
+const LINE_DENSITY: f64 = 2.0;
+const SEGMENT_DENSITY: f64 = 10.0;
+
 pub struct Canvas {
     image: Image,
     pub size: Point<u32>,
@@ -78,7 +81,7 @@ impl Canvas {
         let start = curve(0.0);
         let end = curve(1.0);
         let len = (start - end).dist();
-        let num_points = (5.0 * len) as usize;
+        let num_points = (SEGMENT_DENSITY * len) as usize;
         for i in 0..num_points {
             // compute first and second point
             let f0 = i as f64 / (num_points - 1) as f64;
@@ -99,7 +102,7 @@ impl Canvas {
 
     pub fn draw_line(&mut self, start: Point<f64>, end: Point<f64>, color: Color) {
         let len = (end - start).dist();
-        let num_points = (2.0 * len) as usize;
+        let num_points = (LINE_DENSITY * len) as usize;
         for i in 0..num_points {
             let f = i as f64 / (num_points - 1) as f64;
             self.draw_point(interpolate(f, start, end), color);
