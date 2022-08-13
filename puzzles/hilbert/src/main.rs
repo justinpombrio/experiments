@@ -50,6 +50,13 @@ fn hsv_3(f: f64) -> [f64; 3] {
     [hue, sat, val]
 }
 
+fn hsv_9(f: f64) -> [f64; 3] {
+    let hue = cycle(f, 0.0, 2.0);
+    let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.2, 1.0)).powf(1.0 / 2.0);
+    let val = linear_cycle(f, (0.0, 5.0), (0.30, 0.70));
+    [hue, sat, val]
+}
+
 /*
 const COLOR_SCALE_3: ColorScale = ColorScale {
     max_saturation: 0.176,
@@ -167,6 +174,30 @@ fn gosper_bounds(depth: usize) -> Bounds<f64> {
     }
 }
 
+/***************
+ * Peano Curve *
+ ***************/
+
+const PEANO_CURVE: LindenmayerSystem = LindenmayerSystem {
+    start: "rL",
+    rules: &[('L', "LfRfLlflRfLfRrfrLfRfL"),
+             ('R', "RfLfRrfrLfRfLlflRfLfR")],
+    len: peano_len,
+};
+fn peano_len(depth: usize) -> usize {
+    9_usize.pow(depth as u32)
+}
+fn peano_bounds(depth: usize) -> Bounds<f64> {
+    let bounds = PEANO_CURVE.bounds(depth);
+    let center = (bounds.min + bounds.max) / 2.0;
+    let dimensions = bounds.max - bounds.min;
+    let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
+    Bounds {
+        min: center - new_dimensions/2.0 - 0.5,
+        max: center + new_dimensions/2.0 + 0.5,
+    }
+}
+
 /*****************/
 
 /// As `f` scales from 0.0 to 1.0, the result scales from `start` to `end`.
@@ -243,6 +274,7 @@ fn main() {
         "1" => hsv_1,
         "2" => hsv_2,
         "3" => hsv_3,
+        "9" => hsv_9,
         name => panic!("Color scale name '{}' not recognized", name),
     };
     let (curve, bounds) = match curve_name.as_ref() {
@@ -250,6 +282,7 @@ fn main() {
         "zorder" => (Z_ORDER_CURVE, z_order_bounds(depth)),
         "dragon" => (DRAGON_CURVE, dragon_bounds(depth)),
         "gosper" => (GOSPER_CURVE, gosper_bounds(depth)),
+        "peano" => (PEANO_CURVE, peano_bounds(depth)),
         name => panic!("Curve name '{}' not recognized", name),
     };
     let image_bounds = Bounds {
