@@ -50,6 +50,13 @@ fn hsv_3(f: f64) -> [f64; 3] {
     [hue, sat, val]
 }
 
+fn hsv_8(f: f64) -> [f64; 3] {
+    let hue = cycle(f, 0.0, 1.0);
+    let sat = 0.175;
+    let val = 0.75 * linear_cycle(f, (0.5, 4.5), (0.003, 1.0)).powf(1.0 / 3.0);
+    [hue, sat, val]
+}
+
 fn hsv_9(f: f64) -> [f64; 3] {
     let hue = cycle(f, 0.0, 2.0);
     let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.2, 1.0)).powf(1.0 / 2.0);
@@ -198,6 +205,35 @@ fn peano_bounds(depth: usize) -> Bounds<f64> {
     }
 }
 
+/********************
+ * Sierpinski Curve *
+ ********************/
+
+const SIERPINSKI_CURVE: LindenmayerSystem = LindenmayerSystem {
+    start: "frXfrfrXf",
+    rules: &[('X', "XflfrflXfrfrXflfrflX")],
+    len: sierpinski_len,
+};
+fn sierpinski_len(depth: usize) -> usize {
+    let mut f = 4;
+    let mut x = 2;
+    for _ in 0..depth {
+        f = 8 * x + f;
+        x = 4 * x;
+    }
+    f + 1
+}
+fn sierpinski_bounds(depth: usize) -> Bounds<f64> {
+    let bounds = SIERPINSKI_CURVE.bounds(depth);
+    let center = (bounds.min + bounds.max) / 2.0;
+    let dimensions = bounds.max - bounds.min;
+    let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
+    Bounds {
+        min: center - new_dimensions/2.0 - 0.5,
+        max: center + new_dimensions/2.0 + 0.5,
+    }
+}
+
 /*****************/
 
 /// As `f` scales from 0.0 to 1.0, the result scales from `start` to `end`.
@@ -274,6 +310,7 @@ fn main() {
         "1" => hsv_1,
         "2" => hsv_2,
         "3" => hsv_3,
+        "8" => hsv_8,
         "9" => hsv_9,
         name => panic!("Color scale name '{}' not recognized", name),
     };
@@ -283,6 +320,7 @@ fn main() {
         "dragon" => (DRAGON_CURVE, dragon_bounds(depth)),
         "gosper" => (GOSPER_CURVE, gosper_bounds(depth)),
         "peano" => (PEANO_CURVE, peano_bounds(depth)),
+        "sierpinski" => (SIERPINSKI_CURVE, sierpinski_bounds(depth)),
         name => panic!("Curve name '{}' not recognized", name),
     };
     let image_bounds = Bounds {
