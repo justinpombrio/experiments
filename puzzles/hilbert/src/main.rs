@@ -92,147 +92,55 @@ fn hsv_7(f: f64) -> (f64, f64, f64) {
 }
 */
 
-/*****************
- * Hilbert Curve *
- *****************/
+/**********
+ * Curves *
+ **********/
 
 const HILBERT_CURVE: LindenmayerSystem = LindenmayerSystem {
     start: "A",
     rules: &[('A', "rBflAfAlfBr"), ('B', "lAfrBfBrfAl")],
-    len: hilbert_len,
 };
-fn hilbert_len(depth: usize) -> usize {
-    4_usize.pow(depth as u32)
-}
-fn hilbert_bounds(depth: usize) -> Bounds<f64> {
-    let min = -0.5;
-    let max = 2_u32.pow(depth as u32) as f64 - 0.5;
-    Bounds {
-        min: Point { x: min, y: min },
-        max: Point { x: max, y: max }
-    }
-}
-
-/*****************
- * Z-Order Curve *
- *****************/
 
 const Z_ORDER_CURVE: LindenmayerSystem = LindenmayerSystem {
     start: "Z",
     rules: &[('Z', "ZzZzZzZ")],
-    len: z_order_len,
 };
-fn z_order_len(depth: usize) -> usize {
-    4_usize.pow(depth as u32)
-}
-fn z_order_bounds(depth: usize) -> Bounds<f64> {
-    let min = -0.5;
-    let max = 2_u32.pow(depth as u32) as f64 - 0.5;
-    Bounds {
-        min: Point { x: min, y: min },
-        max: Point { x: max, y: max }
-    }
-}
-
-/****************
- * Dragon Curve *
- ****************/
 
 const DRAGON_CURVE: LindenmayerSystem = LindenmayerSystem {
     start: "R",
     rules: &[('R', "RfrL"), ('L', "RflL")],
-    len: dragon_len,
 };
-fn dragon_len(depth: usize) -> usize {
-    2_usize.pow(depth as u32)
-}
-fn dragon_bounds(depth: usize) -> Bounds<f64> {
-    let bounds = DRAGON_CURVE.bounds(depth);
-    let center = (bounds.min + bounds.max) / 2.0;
-    let dimensions = bounds.max - bounds.min;
-    let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
-    Bounds {
-        min: center - new_dimensions/2.0 - 0.5,
-        max: center + new_dimensions/2.0 + 0.5,
-    }
-}
-
-/****************
- * Gosper Curve *
- ****************/
 
 const GOSPER_CURVE: LindenmayerSystem = LindenmayerSystem {
     start: "A",
     rules: &[('A', "gApgBppgBqgAqqgAgAqgBp"),
              ('B', "qgApgBgBppgBpgAqqgAqgB")],
-    len: gosper_len,
 };
-fn gosper_len(depth: usize) -> usize {
-    7_usize.pow(depth as u32)
-}
-fn gosper_bounds(depth: usize) -> Bounds<f64> {
-    let bounds = GOSPER_CURVE.bounds(depth);
-    let center = (bounds.min + bounds.max) / 2.0;
-    let dimensions = bounds.max - bounds.min;
-    let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
-    Bounds {
-        min: center - new_dimensions/2.0 - 0.5,
-        max: center + new_dimensions/2.0 + 0.5,
-    }
-}
-
-/***************
- * Peano Curve *
- ***************/
 
 const PEANO_CURVE: LindenmayerSystem = LindenmayerSystem {
     start: "rL",
     rules: &[('L', "LfRfLlflRfLfRrfrLfRfL"),
              ('R', "RfLfRrfrLfRfLlflRfLfR")],
-    len: peano_len,
 };
-fn peano_len(depth: usize) -> usize {
-    9_usize.pow(depth as u32)
-}
-fn peano_bounds(depth: usize) -> Bounds<f64> {
-    let bounds = PEANO_CURVE.bounds(depth);
-    let center = (bounds.min + bounds.max) / 2.0;
-    let dimensions = bounds.max - bounds.min;
-    let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
-    Bounds {
-        min: center - new_dimensions/2.0 - 0.5,
-        max: center + new_dimensions/2.0 + 0.5,
-    }
-}
-
-/********************
- * Sierpinski Curve *
- ********************/
 
 const SIERPINSKI_CURVE: LindenmayerSystem = LindenmayerSystem {
     start: "frXfrfrXf",
     rules: &[('X', "XflfrflXfrfrXflfrflX")],
-    len: sierpinski_len,
 };
-fn sierpinski_len(depth: usize) -> usize {
-    let mut f = 4;
-    let mut x = 2;
-    for _ in 0..depth {
-        f = 8 * x + f;
-        x = 4 * x;
-    }
-    f + 1
-}
-fn sierpinski_bounds(depth: usize) -> Bounds<f64> {
-    let bounds = SIERPINSKI_CURVE.bounds(depth);
-    let center = (bounds.min + bounds.max) / 2.0;
-    let dimensions = bounds.max - bounds.min;
-    let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
-    Bounds {
-        min: center - new_dimensions/2.0 - 0.5,
-        max: center + new_dimensions/2.0 + 0.5,
-    }
-}
+
+// Improper. Self intersects.
+const TRIANGLE_CURVE: LindenmayerSystem = LindenmayerSystem {
+    start: "L",
+    rules: &[('L', "pgRqgLqqgRppgL"),
+             ('R', "qgLpgRppgLqqgR")],
+};
+
+// Improper. Self intersects. Oddly, looks identical to Hilbert curve at large scale.
+const SQUARE_CURVE: LindenmayerSystem = LindenmayerSystem {
+    start: "L",
+    rules: &[('L', "lgRrgLgLrgRl"),
+             ('R', "rgLlgRgRlgLr")],
+};
 
 /*****************/
 
@@ -267,7 +175,7 @@ fn main() {
             .add_argument(
                 "curve",
                 Store,
-                "Which curve to use (default hilbert). Options are hilbert, peano, zorder, dragon.",
+                "Which curve to use (default hilbert). Options are hilbert, peano, zorder, dragon, gosper, sierpinski.",
             )
             .required();
         args.refer(&mut depth).add_option(
@@ -280,7 +188,7 @@ fn main() {
                 "How wide the curve should be, where 1.0 is thick enought to touch itself (default 0.5). Exactly 0 draws individual points.");
         args.refer(&mut color_scale_name).add_option(
             &["-c", "--colors"], Store,
-            "Color scale (default 'bw'). Options are bw, 2, 3, 7.",
+            "Color scale (default 'bw'). Options are bw, 1, 2, 3, 8, 9.",
         );
         args.refer(&mut border_width).add_option(
             &["-b", "--border"],
@@ -314,14 +222,26 @@ fn main() {
         "9" => hsv_9,
         name => panic!("Color scale name '{}' not recognized", name),
     };
-    let (curve, bounds) = match curve_name.as_ref() {
-        "hilbert" => (HILBERT_CURVE, hilbert_bounds(depth)),
-        "zorder" => (Z_ORDER_CURVE, z_order_bounds(depth)),
-        "dragon" => (DRAGON_CURVE, dragon_bounds(depth)),
-        "gosper" => (GOSPER_CURVE, gosper_bounds(depth)),
-        "peano" => (PEANO_CURVE, peano_bounds(depth)),
-        "sierpinski" => (SIERPINSKI_CURVE, sierpinski_bounds(depth)),
+    let curve = match curve_name.as_ref() {
+        "hilbert" => HILBERT_CURVE,
+        "zorder" => Z_ORDER_CURVE,
+        "dragon" => DRAGON_CURVE,
+        "gosper" => GOSPER_CURVE,
+        "peano" => PEANO_CURVE,
+        "sierpinski" => SIERPINSKI_CURVE,
+        "triangle" => TRIANGLE_CURVE,
+        "square" => SQUARE_CURVE,
         name => panic!("Curve name '{}' not recognized", name),
+    };
+    let bounds = {
+        let bounds = curve.bounds(depth);
+        let center = (bounds.min + bounds.max) / 2.0;
+        let dimensions = bounds.max - bounds.min;
+        let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
+        Bounds {
+            min: center - new_dimensions/2.0 - 0.5,
+            max: center + new_dimensions/2.0 + 0.5,
+        }
     };
     let image_bounds = Bounds {
         min: Point {

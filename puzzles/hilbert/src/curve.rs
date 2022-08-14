@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::arith::{Point, Bounds};
 
 const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
@@ -23,7 +24,6 @@ const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
 pub struct LindenmayerSystem {
     pub start: &'static str,
     pub rules: &'static [(char, &'static str)],
-    pub len: fn(usize) -> usize,
 }
 
 struct CurveIter {
@@ -150,7 +150,37 @@ impl LindenmayerSystem {
     }
 
     fn len(&self, depth: usize) -> usize {
-        (self.len)(depth)
+        // Initialize a letter-count map from every letter to 0
+        let mut letter_counts = HashMap::new();
+        letter_counts.insert('f', 0);
+        letter_counts.insert('g', 0);
+        letter_counts.insert('z', 0);
+        for letter in self.start.chars().chain(self.rules.iter().flat_map(|(_, s)| s.chars())) {
+            letter_counts.entry(letter).or_insert(0);
+        }
+
+        // Count the letters in `self.start`
+        for letter in self.start.chars() {
+            *letter_counts.get_mut(&letter).unwrap() += 1;
+        }
+
+        // Update the letter counts based on the rewrite rules, for each iteration of the curve
+        for i in 0..depth {
+            let mut new_letter_counts = letter_counts.clone();
+            for (seek, replace) in self.rules {
+                *new_letter_counts.get_mut(&seek).unwrap() -= letter_counts[seek];
+                for letter in replace.chars() {
+                    *new_letter_counts.get_mut(&letter).unwrap() += letter_counts[seek];
+                }
+            }
+            if i + 1 < depth {
+                *new_letter_counts.get_mut(&'g').unwrap() = 0;
+            }
+            letter_counts = new_letter_counts;
+        }
+
+        // The length of the curve is the number of forward steps we take, plus 1
+        letter_counts[&'f'] + letter_counts[&'g'] + letter_counts[&'z'] + 1
     }
 }
 
