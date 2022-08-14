@@ -24,9 +24,11 @@ const CHECKERBOARD_COLOR_2: Color = [180 * 256, 200 * 256, 240 * 256];
 
 const COLOR_SCALES: &[(&str, fn(f64) -> [f64; 3])] = &[
     ("bw", hsv_bw),
+    ("bw2", hsv_bw2),
     ("1", hsv_1),
     ("2", hsv_2),
     ("3", hsv_3),
+    ("4", hsv_4),
     ("8", hsv_8),
     ("9", hsv_9),
 ];
@@ -36,6 +38,13 @@ fn hsv_bw(f: f64) -> [f64; 3] {
     let hue = 0.0;
     let sat = 0.0;
     let val = linear_cycle(f, (0.5, 1.0), (0.25, 0.95));
+    [hue, sat, val]
+}
+
+fn hsv_bw2(f: f64) -> [f64; 3] {
+    let hue = 0.0;
+    let sat = 0.0;
+    let val = linear_cycle(f, (0.375, 1.375), (0.25, 0.95));
     [hue, sat, val]
 }
 
@@ -60,6 +69,13 @@ fn hsv_3(f: f64) -> [f64; 3] {
     [hue, sat, val]
 }
 
+fn hsv_4(f: f64) -> [f64; 3] {
+    let hue = cycle(f, -0.125, 0.875);
+    let sat = 0.175;
+    let val = linear_cycle(f, (0.375, 1.375), (0.25, 0.75));
+    [hue, sat, val]
+}
+
 fn hsv_8(f: f64) -> [f64; 3] {
     let hue = cycle(f, 0.0, 1.0);
     let sat = 0.175;
@@ -68,9 +84,9 @@ fn hsv_8(f: f64) -> [f64; 3] {
 }
 
 fn hsv_9(f: f64) -> [f64; 3] {
-    let hue = cycle(f, 0.0, 2.0);
-    let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.2, 1.0)).powf(1.0 / 2.0);
-    let val = linear_cycle(f, (0.0, 5.0), (0.30, 0.70));
+    let hue = cycle(f, 0.0, 1.0);
+    let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.1, 1.0)).powf(1.0 / 2.0);
+    let val = linear_cycle(f, (0.5, 5.5), (0.40, 0.75));
     [hue, sat, val]
 }
 
