@@ -1,5 +1,7 @@
 use std::ops::{Add, Div, Mul, Sub};
 
+const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
+
 pub trait Number:
     std::fmt::Debug
     + Clone
@@ -39,8 +41,20 @@ impl Point<f64> {
         Point { x: 0.0, y: 0.0 }
     }
 
-    pub fn dist(self) -> f64 {
+    pub fn cis(turns: f64) -> Point<f64> {
+        let angle_rad = turns * RADS_PER_TURN;
+        Point {
+            x: angle_rad.cos(),
+            y: angle_rad.sin(),
+        }
+    }
+
+    pub fn abs(self) -> f64 {
         (self.x * self.x + self.y * self.y).sqrt()
+    }
+
+    pub fn angle(self) -> f64 {
+        self.y.atan2(self.x) / RADS_PER_TURN
     }
 }
 

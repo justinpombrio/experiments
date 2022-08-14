@@ -31,6 +31,7 @@ const COLOR_SCALES: &[(&str, fn(f64) -> [f64; 3])] = &[
     ("4", hsv_4),
     ("8", hsv_8),
     ("9", hsv_9),
+    ("o4", hsv_o4),
 ];
 
 
@@ -90,6 +91,12 @@ fn hsv_9(f: f64) -> [f64; 3] {
     [hue, sat, val]
 }
 
+fn hsv_o4(f: f64) -> [f64; 3] {
+    let (val, hue) = orbit(f, (0.0, 1.0, 0.6), (0.0, 4.0, 0.15));
+    let sat = 0.175;
+    [hue, sat, val]
+}
+
 /// As `f` scales from 0.0 to 1.0, the result scales from `start` to `end`.
 fn cycle(f: f64, start: f64, end: f64) -> f64 {
     (start + f * (end - start)) % 1.0
@@ -100,6 +107,13 @@ fn cycle(f: f64, start: f64, end: f64) -> f64 {
 /// `0.5, 1.5, 2.5, ...`.
 fn linear_cycle(f: f64, (start, end): (f64, f64), (min, max): (f64, f64)) -> f64 {
     min + (1.0 - (2.0 * cycle(f, start, end) - 1.0).abs()) * (max - min)
+}
+
+fn orbit(f: f64, (big_start, big_end, big_rad): (f64, f64, f64), (little_start, little_end, little_rad): (f64, f64, f64)) -> (f64, f64) {
+    let big_vec = Point::cis(interpolate(f, big_start, big_end)) * big_rad;
+    let little_vec = Point::cis(interpolate(f, little_start, little_end)) * little_rad;
+    let vector = big_vec + little_vec;
+    (vector.abs(), vector.angle())
 }
 
 /**********

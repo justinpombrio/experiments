@@ -80,7 +80,7 @@ impl Canvas {
     ) {
         let start = curve(0.0);
         let end = curve(1.0);
-        let len = (start - end).dist();
+        let len = (start - end).abs();
         let num_points = (SEGMENT_DENSITY * len) as usize;
         for i in 0..num_points {
             // compute first and second point
@@ -91,7 +91,7 @@ impl Canvas {
 
             // compute normalized orthogonal vector
             let d = p1 - p0;
-            let ortho = d.rotate_quarter_turn() / d.dist();
+            let ortho = d.rotate_quarter_turn() / d.abs();
 
             // draw line from left point to right point
             let left = p0 + ortho * width;
@@ -101,7 +101,7 @@ impl Canvas {
     }
 
     pub fn draw_line(&mut self, start: Point<f64>, end: Point<f64>, color: Color) {
-        let len = (end - start).dist();
+        let len = (end - start).abs();
         let num_points = (LINE_DENSITY * len) as usize;
         for i in 0..num_points {
             let f = i as f64 / (num_points - 1) as f64;
