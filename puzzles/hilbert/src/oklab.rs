@@ -86,8 +86,20 @@ fn test_oklab() {
     // Note: greatest saturation available at val=0.75
 
     assert_eq!(oklab_hsv_to_srgb([0.0, 0.0, 0.0]), Some([0, 0, 0]));
-    assert_eq!(oklab_hsv_to_srgb([0.0, 0.0, 1.0]), Some([65485, 65485, 65485]));
-    assert_eq!(oklab_hsv_to_srgb([0.0, 0.175, 0.75]), Some([52629, 43619, 17165]));
-    assert_eq!(oklab_hsv_to_srgb([1.0, 0.175, 0.75]), Some([52629, 43619, 17165]));
-    assert_eq!(oklab_hsv_to_srgb([0.25, 0.175, 0.75]), Some([61232, 35563, 43801]));
+    assert_eq!(
+        oklab_hsv_to_srgb([0.0, 0.0, 1.0]),
+        Some([65485, 65485, 65485])
+    );
+    assert_eq!(
+        oklab_hsv_to_srgb([0.0, 0.175, 0.75]),
+        Some([52629, 43619, 17165])
+    );
+    assert_eq!(
+        oklab_hsv_to_srgb([1.0, 0.175, 0.75]),
+        Some([52629, 43619, 17165])
+    );
+    assert_eq!(
+        oklab_hsv_to_srgb([0.25, 0.175, 0.75]),
+        Some([61232, 35563, 43801])
+    );
 }

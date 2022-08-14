@@ -1,5 +1,5 @@
+use crate::arith::{Bounds, Point};
 use std::collections::HashMap;
-use crate::arith::{Point, Bounds};
 
 const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
 
@@ -152,7 +152,11 @@ impl LindenmayerSystem {
         let mut letter_counts = HashMap::new();
         letter_counts.insert('f', 0);
         letter_counts.insert('z', 0);
-        for letter in self.start.chars().chain(self.rules.iter().flat_map(|(_, s)| s.chars())) {
+        for letter in self
+            .start
+            .chars()
+            .chain(self.rules.iter().flat_map(|(_, s)| s.chars()))
+        {
             letter_counts.entry(letter).or_insert(0);
         }
 

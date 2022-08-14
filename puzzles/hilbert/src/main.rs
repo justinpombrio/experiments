@@ -6,7 +6,7 @@ mod oklab;
 use arith::{interpolate, Bounds, Point};
 use canvas::Canvas;
 use curve::LindenmayerSystem;
-use oklab::{Color, oklab_hsv_to_srgb};
+use oklab::{oklab_hsv_to_srgb, Color};
 
 /*********************
  * Background Colors *
@@ -33,7 +33,6 @@ const COLOR_SCALES: &[(&str, fn(f64) -> [f64; 3])] = &[
     ("9", hsv_9),
     ("o4", hsv_o4),
 ];
-
 
 fn hsv_bw(f: f64) -> [f64; 3] {
     let hue = 0.0;
@@ -109,7 +108,11 @@ fn linear_cycle(f: f64, (start, end): (f64, f64), (min, max): (f64, f64)) -> f64
     min + (1.0 - (2.0 * cycle(f, start, end) - 1.0).abs()) * (max - min)
 }
 
-fn orbit(f: f64, (big_start, big_end, big_rad): (f64, f64, f64), (little_start, little_end, little_rad): (f64, f64, f64)) -> (f64, f64) {
+fn orbit(
+    f: f64,
+    (big_start, big_end, big_rad): (f64, f64, f64),
+    (little_start, little_end, little_rad): (f64, f64, f64),
+) -> (f64, f64) {
     let big_vec = Point::cis(interpolate(f, big_start, big_end)) * big_rad;
     let little_vec = Point::cis(interpolate(f, little_start, little_end)) * little_rad;
     let vector = big_vec + little_vec;
@@ -121,70 +124,100 @@ fn orbit(f: f64, (big_start, big_end, big_rad): (f64, f64, f64), (little_start, 
  **********/
 
 const CURVES: &[(&str, LindenmayerSystem)] = &[
-    ("hilbert", LindenmayerSystem {
-        start: "A",
-        rules: &[('A', "+Bf-AfA-fB+"), ('B', "-Af+BfB+fA-")],
-        angle: 90.0,
-        implicit_f: false,
-    }),
-    ("zorder", LindenmayerSystem {
-        start: "Z",
-        rules: &[('Z', "ZzZzZzZ")],
-        angle: 0.0,
-        implicit_f: false,
-    }),
-    ("dragon", LindenmayerSystem {
-        start: "R",
-        rules: &[('R', "Rf+L"), ('L', "Rf-L")],
-        angle: 90.0,
-        implicit_f: false,
-    }),
-    ("gosper", LindenmayerSystem {
-        start: "A",
-        rules: &[('A', "A-B--B+A++AA+B-"),
-                 ('B', "+A-BB--B-A++A+B")],
-        angle: 60.0,
-        implicit_f: true,
-    }),
-    ("peano", LindenmayerSystem {
-        start: "+L",
-        rules: &[('L', "LfRfL-f-RfLfR+f+LfRfL"),
-                 ('R', "RfLfR+f+LfRfL-f-RfLfR")],
-        angle: 90.0,
-        implicit_f: false,
-    }),
-    ("sierpinski", LindenmayerSystem {
-        start: "-f++Xf++f++Xf",
-        rules: &[('X', "Xf--f++f--Xf++f++Xf--f++f--X")],
-        angle: 45.0,
-        implicit_f: false,
-    }),
-    ("koch", LindenmayerSystem {
-        start: "X",
-        rules: &[('X', "X-X++X-X")],
-        angle: 60.0,
-        implicit_f: true,
-    }),
-    ("koch-90", LindenmayerSystem {
-        start: "X",
-        rules: &[('X', "X-X+X+X-X")],
-        angle: 90.0,
-        implicit_f: true,
-    }),
+    (
+        "hilbert",
+        LindenmayerSystem {
+            start: "A",
+            rules: &[('A', "+Bf-AfA-fB+"), ('B', "-Af+BfB+fA-")],
+            angle: 90.0,
+            implicit_f: false,
+        },
+    ),
+    (
+        "zorder",
+        LindenmayerSystem {
+            start: "Z",
+            rules: &[('Z', "ZzZzZzZ")],
+            angle: 0.0,
+            implicit_f: false,
+        },
+    ),
+    (
+        "dragon",
+        LindenmayerSystem {
+            start: "R",
+            rules: &[('R', "Rf+L"), ('L', "Rf-L")],
+            angle: 90.0,
+            implicit_f: false,
+        },
+    ),
+    (
+        "gosper",
+        LindenmayerSystem {
+            start: "A",
+            rules: &[('A', "A-B--B+A++AA+B-"), ('B', "+A-BB--B-A++A+B")],
+            angle: 60.0,
+            implicit_f: true,
+        },
+    ),
+    (
+        "peano",
+        LindenmayerSystem {
+            start: "+L",
+            rules: &[
+                ('L', "LfRfL-f-RfLfR+f+LfRfL"),
+                ('R', "RfLfR+f+LfRfL-f-RfLfR"),
+            ],
+            angle: 90.0,
+            implicit_f: false,
+        },
+    ),
+    (
+        "sierpinski",
+        LindenmayerSystem {
+            start: "-f++Xf++f++Xf",
+            rules: &[('X', "Xf--f++f--Xf++f++Xf--f++f--X")],
+            angle: 45.0,
+            implicit_f: false,
+        },
+    ),
+    (
+        "koch",
+        LindenmayerSystem {
+            start: "X",
+            rules: &[('X', "X-X++X-X")],
+            angle: 60.0,
+            implicit_f: true,
+        },
+    ),
+    (
+        "koch-90",
+        LindenmayerSystem {
+            start: "X",
+            rules: &[('X', "X-X+X+X-X")],
+            angle: 90.0,
+            implicit_f: true,
+        },
+    ),
     // Improper. Self intersects.
-    ("triangle", LindenmayerSystem {
-        start: "L",
-        rules: &[('L', "-R+L++R--L"),
-                 ('R', "+L-R--L++R")],
-        angle: 60.0,
-        implicit_f: true,
-    }),
-    ("foo", LindenmayerSystem {
-        start: "X",
-        rules: &[('X', "-X++XX--X+")],
-        angle: 60.0,
-        implicit_f: true,
-    }),
+    (
+        "triangle",
+        LindenmayerSystem {
+            start: "L",
+            rules: &[('L', "-R+L++R--L"), ('R', "+L-R--L++R")],
+            angle: 60.0,
+            implicit_f: true,
+        },
+    ),
+    (
+        "foo",
+        LindenmayerSystem {
+            start: "X",
+            rules: &[('X', "-X++XX--X+")],
+            angle: 60.0,
+            implicit_f: true,
+        },
+    ),
 ];
 
 /********
@@ -193,8 +226,16 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
 
 fn main() {
     use argparse::{ArgumentParser, Store};
-    let curve_name_options = CURVES.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ");
-    let color_scale_options = COLOR_SCALES.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ");
+    let curve_name_options = CURVES
+        .iter()
+        .map(|(name, _)| *name)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let color_scale_options = COLOR_SCALES
+        .iter()
+        .map(|(name, _)| *name)
+        .collect::<Vec<_>>()
+        .join(", ");
 
     // Options to be set
     let mut curve_name = "hilbert".to_owned();
@@ -210,29 +251,29 @@ fn main() {
     {
         let curve_name_description =
             format!("Which curve to use. Options are: {}.", curve_name_options);
-        let color_scale_description =
-            format!("Which color scale to use (default bw). Options are: {}.", color_scale_options);
+        let color_scale_description = format!(
+            "Which color scale to use (default bw). Options are: {}.",
+            color_scale_options
+        );
 
         let mut args = ArgumentParser::new();
         args.set_description("Draw fancy curves.");
         args.refer(&mut curve_name)
-            .add_argument(
-                "curve",
-                Store,
-                &curve_name_description,
-            )
+            .add_argument("curve", Store, &curve_name_description)
             .required();
         args.refer(&mut depth)
             .add_argument(
                 "iterations",
                 Store,
-                "How many iterations to repeat the curve for.")
+                "How many iterations to repeat the curve for.",
+            )
             .required();
         args.refer(&mut curve_width)
             .add_option(&["-t", "--thickness"], Store,
                 "How wide the curve should be, where 1.0 is thick enought to touch itself (default 0.5). Exactly 0 draws individual points.");
         args.refer(&mut color_scale_name).add_option(
-            &["-c", "--colors"], Store,
+            &["-c", "--colors"],
+            Store,
             &color_scale_description,
         );
         args.refer(&mut border_width).add_option(
@@ -268,7 +309,10 @@ fn main() {
         }
         match found {
             Some(scale) => scale,
-            None => panic!("Color scale name '{}' not recognized. Options are {}", color_scale_name, color_scale_options),
+            None => panic!(
+                "Color scale name '{}' not recognized. Options are {}",
+                color_scale_name, color_scale_options
+            ),
         }
     };
 
@@ -282,7 +326,10 @@ fn main() {
         }
         match found {
             Some(curve) => curve,
-            None => panic!("Curve name '{}' not recognized. Options are {}", curve_name, curve_name_options)
+            None => panic!(
+                "Curve name '{}' not recognized. Options are {}",
+                curve_name, curve_name_options
+            ),
         }
     };
 
@@ -293,8 +340,8 @@ fn main() {
         let dimensions = bounds.max - bounds.min;
         let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
         Bounds {
-            min: center - new_dimensions/2.0 - 0.5,
-            max: center + new_dimensions/2.0 + 0.5,
+            min: center - new_dimensions / 2.0 - 0.5,
+            max: center + new_dimensions / 2.0 + 0.5,
         }
     };
 
@@ -360,7 +407,7 @@ fn main() {
         canvas.draw_curve_segment(
             |f| interpolate(f, (start * 3.0 - middle) / 2.0, (start + middle) / 2.0),
             curve_width,
-            oklab_hsv_to_srgb(color_scale(0.0)).expect("Color out of bounds")
+            oklab_hsv_to_srgb(color_scale(0.0)).expect("Color out of bounds"),
         );
         for (i, end) in points.enumerate() {
             // middle segments
@@ -372,14 +419,14 @@ fn main() {
                 },
                 curve_width,
                 oklab_hsv_to_srgb(color_scale((i + 1) as f64 / curve_len as f64))
-                    .expect("Color out of bounds")
+                    .expect("Color out of bounds"),
             );
             if i == curve_len - 2 {
                 // last segment
                 canvas.draw_curve_segment(
                     |f| interpolate(f, (middle + end) / 2.0, (end * 3.0 - middle) / 2.0),
                     curve_width,
-                    oklab_hsv_to_srgb(color_scale(1.0)).expect("Color out of bounds")
+                    oklab_hsv_to_srgb(color_scale(1.0)).expect("Color out of bounds"),
                 );
             }
             start = middle;
