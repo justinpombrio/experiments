@@ -9,21 +9,22 @@ const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
 ///
 /// - Start with the string `start`.
 /// - Do N times: Replace each capital letter in the string with its replacement listed in `rules`.
-/// - Follow the instructions described by the lowercase letters now in the string.
+/// - Follow the instructions described by the lowercase letters and +/- now in the string.
 ///
 /// The meanings of the lowercase letters are:
 ///
-///     l -- turn left 1/4 turn
-///     r -- turn right 1/4 turn
-///     p -- turn left 1/6 turn
-///     q -- turn right 1/6 turn
+///     - -- turn left by `self.angle`
+///     + -- turn left by `self.angle`
 ///     f -- move forward by 1.0
-///     g -- move forward by 1.0, except this letter is deleted on all but the last iteration
 ///     z -- magically jump to the next point in the z-order curve
+///
+/// If `implicit_f` is true, treat all capital letters in the _final_ string as if they were `f`.
 #[derive(Clone, Copy)]
 pub struct LindenmayerSystem {
     pub start: &'static str,
     pub rules: &'static [(char, &'static str)],
+    pub angle: f64,
+    pub implicit_f: bool,
 }
 
 struct CurveIter {
@@ -70,16 +71,9 @@ impl Iterator for CurveIter {
             };
             *self.stack.last_mut().unwrap() = chars.as_str();
             match letter {
-                'l' => self.direction -= 0.25,
-                'r' => self.direction += 0.25,
-                'p' => self.direction -= 1.0 / 6.0,
-                'q' => self.direction += 1.0 / 6.0,
+                '-' => self.direction -= self.system.angle/360.0,
+                '+' => self.direction += self.system.angle/360.0,
                 'f' => {
-                    self.point.x += (self.direction * RADS_PER_TURN).cos();
-                    self.point.y += (self.direction * RADS_PER_TURN).sin();
-                    return Some(self.point);
-                }
-                'g' => if self.stack.len() == self.depth + 1 {
                     self.point.x += (self.direction * RADS_PER_TURN).cos();
                     self.point.y += (self.direction * RADS_PER_TURN).sin();
                     return Some(self.point);
@@ -99,6 +93,10 @@ impl Iterator for CurveIter {
                 }
                 'A'..='Z' => if self.stack.len() < self.depth + 1 {
                     self.stack.push(self.system.lookup(letter));
+                } else if self.system.implicit_f {
+                    self.point.x += (self.direction * RADS_PER_TURN).cos();
+                    self.point.y += (self.direction * RADS_PER_TURN).sin();
+                    return Some(self.point);
                 }
                 _ => panic!("LindermayerSystem: '{}' not recognized. (Remember: replacement letters must be capitalized.)", letter),
             }
@@ -153,7 +151,6 @@ impl LindenmayerSystem {
         // Initialize a letter-count map from every letter to 0
         let mut letter_counts = HashMap::new();
         letter_counts.insert('f', 0);
-        letter_counts.insert('g', 0);
         letter_counts.insert('z', 0);
         for letter in self.start.chars().chain(self.rules.iter().flat_map(|(_, s)| s.chars())) {
             letter_counts.entry(letter).or_insert(0);
@@ -165,7 +162,7 @@ impl LindenmayerSystem {
         }
 
         // Update the letter counts based on the rewrite rules, for each iteration of the curve
-        for i in 0..depth {
+        for _ in 0..depth {
             let mut new_letter_counts = letter_counts.clone();
             for (seek, replace) in self.rules {
                 *new_letter_counts.get_mut(&seek).unwrap() -= letter_counts[seek];
@@ -173,23 +170,30 @@ impl LindenmayerSystem {
                     *new_letter_counts.get_mut(&letter).unwrap() += letter_counts[seek];
                 }
             }
-            if i + 1 < depth {
-                *new_letter_counts.get_mut(&'g').unwrap() = 0;
-            }
             letter_counts = new_letter_counts;
         }
 
         // The length of the curve is the number of forward steps we take, plus 1
-        letter_counts[&'f'] + letter_counts[&'g'] + letter_counts[&'z'] + 1
+        let mut length = letter_counts[&'f'] + letter_counts[&'z'] + 1;
+        if self.implicit_f {
+            for (letter, count) in letter_counts {
+                if letter.is_uppercase() {
+                    length += count;
+                }
+            }
+        }
+        length
     }
 }
 
 #[test]
 fn test_curves() {
-    use crate::HILBERT_CURVE;
+    use crate::CURVES;
+
+    let hilbert_curve: LindenmayerSystem = CURVES[0].1;
 
     assert_eq!(
-        HILBERT_CURVE
+        hilbert_curve
             .expand(2)
             .map(|point| (point.x.round() as i32, point.y.round() as i32))
             .collect::<Vec<_>>(),

@@ -8,9 +8,9 @@ use canvas::Canvas;
 use curve::LindenmayerSystem;
 use oklab::{Color, oklab_hsv_to_srgb};
 
-/**********
- * Colors *
- **********/
+/*********************
+ * Background Colors *
+ *********************/
 
 const BORDER_COLOR: Color = [180 * 256, 180 * 256, 180 * 256];
 const BACKGROUND_COLOR: Color = [210 * 256, 210 * 256, 210 * 256];
@@ -21,6 +21,16 @@ const CHECKERBOARD_COLOR_2: Color = [180 * 256, 200 * 256, 240 * 256];
 /****************
  * Color Scales *
  ****************/
+
+const COLOR_SCALES: &[(&str, fn(f64) -> [f64; 3])] = &[
+    ("bw", hsv_bw),
+    ("1", hsv_1),
+    ("2", hsv_2),
+    ("3", hsv_3),
+    ("8", hsv_8),
+    ("9", hsv_9),
+];
+
 
 fn hsv_bw(f: f64) -> [f64; 3] {
     let hue = 0.0;
@@ -64,86 +74,6 @@ fn hsv_9(f: f64) -> [f64; 3] {
     [hue, sat, val]
 }
 
-/*
-const COLOR_SCALE_3: ColorScale = ColorScale {
-    max_saturation: 0.176,
-    max_lightness: 0.75,
-    hsv: hsv_3,
-};
-
-fn hsv_3(f: f64) -> (f64, f64, f64) {
-    let hue = cycle(f, 0.0, 1.0);
-    let sat = linear_cycle(f, 0.5, 3.5, 0.0);
-    let val = linear_cycle(f, 0.5, 2.0, 0.3);
-    (hue, sat.powf(1.0/3.0), val)
-}
-
-const COLOR_SCALE_7: ColorScale = ColorScale {
-    max_saturation: 0.176,
-    max_lightness: 0.75,
-    hsv: hsv_7,
-};
-
-fn hsv_7(f: f64) -> (f64, f64, f64) {
-    let hue = cycle(f, 0.0, 5.0);
-    let sat = linear_cycle(f, 0.0, 6.0, 0.5);
-    let val = linear_cycle(f, 0.0, 7.0, 0.5);
-    (hue, sat, val)
-}
-*/
-
-/**********
- * Curves *
- **********/
-
-const HILBERT_CURVE: LindenmayerSystem = LindenmayerSystem {
-    start: "A",
-    rules: &[('A', "rBflAfAlfBr"), ('B', "lAfrBfBrfAl")],
-};
-
-const Z_ORDER_CURVE: LindenmayerSystem = LindenmayerSystem {
-    start: "Z",
-    rules: &[('Z', "ZzZzZzZ")],
-};
-
-const DRAGON_CURVE: LindenmayerSystem = LindenmayerSystem {
-    start: "R",
-    rules: &[('R', "RfrL"), ('L', "RflL")],
-};
-
-const GOSPER_CURVE: LindenmayerSystem = LindenmayerSystem {
-    start: "A",
-    rules: &[('A', "gApgBppgBqgAqqgAgAqgBp"),
-             ('B', "qgApgBgBppgBpgAqqgAqgB")],
-};
-
-const PEANO_CURVE: LindenmayerSystem = LindenmayerSystem {
-    start: "rL",
-    rules: &[('L', "LfRfLlflRfLfRrfrLfRfL"),
-             ('R', "RfLfRrfrLfRfLlflRfLfR")],
-};
-
-const SIERPINSKI_CURVE: LindenmayerSystem = LindenmayerSystem {
-    start: "frXfrfrXf",
-    rules: &[('X', "XflfrflXfrfrXflfrflX")],
-};
-
-// Improper. Self intersects.
-const TRIANGLE_CURVE: LindenmayerSystem = LindenmayerSystem {
-    start: "L",
-    rules: &[('L', "pgRqgLqqgRppgL"),
-             ('R', "qgLpgRppgLqqgR")],
-};
-
-// Improper. Self intersects. Oddly, looks identical to Hilbert curve at large scale.
-const SQUARE_CURVE: LindenmayerSystem = LindenmayerSystem {
-    start: "L",
-    rules: &[('L', "lgRrgLgLrgRl"),
-             ('R', "rgLlgRgRlgLr")],
-};
-
-/*****************/
-
 /// As `f` scales from 0.0 to 1.0, the result scales from `start` to `end`.
 fn cycle(f: f64, start: f64, end: f64) -> f64 {
     (start + f * (end - start)) % 1.0
@@ -156,9 +86,87 @@ fn linear_cycle(f: f64, (start, end): (f64, f64), (min, max): (f64, f64)) -> f64
     min + (1.0 - (2.0 * cycle(f, start, end) - 1.0).abs()) * (max - min)
 }
 
+/**********
+ * Curves *
+ **********/
+
+const CURVES: &[(&str, LindenmayerSystem)] = &[
+    ("hilbert", LindenmayerSystem {
+        start: "A",
+        rules: &[('A', "+Bf-AfA-fB+"), ('B', "-Af+BfB+fA-")],
+        angle: 90.0,
+        implicit_f: false,
+    }),
+    ("zorder", LindenmayerSystem {
+        start: "Z",
+        rules: &[('Z', "ZzZzZzZ")],
+        angle: 0.0,
+        implicit_f: false,
+    }),
+    ("dragon", LindenmayerSystem {
+        start: "R",
+        rules: &[('R', "Rf+L"), ('L', "Rf-L")],
+        angle: 90.0,
+        implicit_f: false,
+    }),
+    ("gosper", LindenmayerSystem {
+        start: "A",
+        rules: &[('A', "A-B--B+A++AA+B-"),
+                 ('B', "+A-BB--B-A++A+B")],
+        angle: 60.0,
+        implicit_f: true,
+    }),
+    ("peano", LindenmayerSystem {
+        start: "+L",
+        rules: &[('L', "LfRfL-f-RfLfR+f+LfRfL"),
+                 ('R', "RfLfR+f+LfRfL-f-RfLfR")],
+        angle: 90.0,
+        implicit_f: false,
+    }),
+    ("sierpinski", LindenmayerSystem {
+        start: "-f++Xf++f++Xf",
+        rules: &[('X', "Xf--f++f--Xf++f++Xf--f++f--X")],
+        angle: 45.0,
+        implicit_f: false,
+    }),
+    ("koch", LindenmayerSystem {
+        start: "X",
+        rules: &[('X', "X-X++X-X")],
+        angle: 60.0,
+        implicit_f: true,
+    }),
+    ("koch-90", LindenmayerSystem {
+        start: "X",
+        rules: &[('X', "X-X+X+X-X")],
+        angle: 90.0,
+        implicit_f: true,
+    }),
+    // Improper. Self intersects.
+    ("triangle", LindenmayerSystem {
+        start: "L",
+        rules: &[('L', "-R+L++R--L"),
+                 ('R', "+L-R--L++R")],
+        angle: 60.0,
+        implicit_f: true,
+    }),
+    ("foo", LindenmayerSystem {
+        start: "X",
+        rules: &[('X', "-X++XX--X+")],
+        angle: 60.0,
+        implicit_f: true,
+    }),
+];
+
+/********
+ * Main *
+ ********/
+
 fn main() {
     use argparse::{ArgumentParser, Store};
+    let curve_name_options = CURVES.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ");
+    let color_scale_options = COLOR_SCALES.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ");
 
+    // Options to be set
     let mut curve_name = "hilbert".to_owned();
     let mut depth = 3;
     let mut curve_width = 0.5;
@@ -168,27 +176,34 @@ fn main() {
     let mut image_name = "curve.png".to_owned();
     let mut checkers = 0;
 
+    // Parse command line args (sets the above options)
     {
+        let curve_name_description =
+            format!("Which curve to use. Options are: {}.", curve_name_options);
+        let color_scale_description =
+            format!("Which color scale to use (default bw). Options are: {}.", color_scale_options);
+
         let mut args = ArgumentParser::new();
         args.set_description("Draw fancy curves.");
         args.refer(&mut curve_name)
             .add_argument(
                 "curve",
                 Store,
-                "Which curve to use (default hilbert). Options are hilbert, peano, zorder, dragon, gosper, sierpinski.",
+                &curve_name_description,
             )
             .required();
-        args.refer(&mut depth).add_option(
-            &["-i", "--iters"],
-            Store,
-            "How many iterations to repeat the curve for.",
-        );
+        args.refer(&mut depth)
+            .add_argument(
+                "iterations",
+                Store,
+                "How many iterations to repeat the curve for.")
+            .required();
         args.refer(&mut curve_width)
             .add_option(&["-t", "--thickness"], Store,
                 "How wide the curve should be, where 1.0 is thick enought to touch itself (default 0.5). Exactly 0 draws individual points.");
         args.refer(&mut color_scale_name).add_option(
             &["-c", "--colors"], Store,
-            "Color scale (default 'bw'). Options are bw, 1, 2, 3, 8, 9.",
+            &color_scale_description,
         );
         args.refer(&mut border_width).add_option(
             &["-b", "--border"],
@@ -213,26 +228,35 @@ fn main() {
         args.parse_args_or_exit();
     }
 
-    let color_scale = match color_scale_name.as_ref() {
-        "bw" => hsv_bw,
-        "1" => hsv_1,
-        "2" => hsv_2,
-        "3" => hsv_3,
-        "8" => hsv_8,
-        "9" => hsv_9,
-        name => panic!("Color scale name '{}' not recognized", name),
+    // Look up color scale, or error
+    let color_scale = {
+        let mut found = None;
+        for (name, scale) in COLOR_SCALES {
+            if &color_scale_name == name {
+                found = Some(scale);
+            }
+        }
+        match found {
+            Some(scale) => scale,
+            None => panic!("Color scale name '{}' not recognized. Options are {}", color_scale_name, color_scale_options),
+        }
     };
-    let curve = match curve_name.as_ref() {
-        "hilbert" => HILBERT_CURVE,
-        "zorder" => Z_ORDER_CURVE,
-        "dragon" => DRAGON_CURVE,
-        "gosper" => GOSPER_CURVE,
-        "peano" => PEANO_CURVE,
-        "sierpinski" => SIERPINSKI_CURVE,
-        "triangle" => TRIANGLE_CURVE,
-        "square" => SQUARE_CURVE,
-        name => panic!("Curve name '{}' not recognized", name),
+
+    // Look up curve name, or error
+    let curve = {
+        let mut found = None;
+        for (name, curve) in CURVES {
+            if &curve_name == name {
+                found = Some(curve);
+            }
+        }
+        match found {
+            Some(curve) => curve,
+            None => panic!("Curve name '{}' not recognized. Options are {}", curve_name, curve_name_options)
+        }
     };
+
+    // Determine bounds of the curve by walking it
     let bounds = {
         let bounds = curve.bounds(depth);
         let center = (bounds.min + bounds.max) / 2.0;
@@ -243,6 +267,8 @@ fn main() {
             max: center + new_dimensions/2.0 + 0.5,
         }
     };
+
+    // Calculate image bounds (just based on size & border)
     let image_bounds = Bounds {
         min: Point {
             x: border_width,
@@ -254,6 +280,7 @@ fn main() {
         },
     };
 
+    // Start drawing! Make a canvas.
     let mut canvas = Canvas::new(image_size, image_size);
 
     // Draw background
@@ -277,10 +304,10 @@ fn main() {
         canvas.draw_rect(image_bounds, background_color);
     }
 
+    // Draw the curve itself
     let drawing_size = bounds.max - bounds.min;
     let points = curve.expand(depth);
     let curve_len = points.len() - 1;
-
     let canvas_size = Point {
         x: (canvas.size.x - 2 * border_width) as f64,
         y: (canvas.size.y - 2 * border_width) as f64,
@@ -306,7 +333,6 @@ fn main() {
             oklab_hsv_to_srgb(color_scale(0.0)).expect("Color out of bounds")
         );
         for (i, end) in points.enumerate() {
-            //let color = color_scale.sample((i + 1) as f64 / curve_len as f64);
             // middle segments
             canvas.draw_curve_segment(
                 |f| {
@@ -331,5 +357,6 @@ fn main() {
         }
     }
 
+    // Write the image
     canvas.save("curve.png");
 }
