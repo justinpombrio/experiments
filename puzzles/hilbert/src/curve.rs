@@ -169,7 +169,7 @@ impl LindenmayerSystem {
         for _ in 0..depth {
             let mut new_letter_counts = letter_counts.clone();
             for (seek, replace) in self.rules {
-                *new_letter_counts.get_mut(&seek).unwrap() -= letter_counts[seek];
+                *new_letter_counts.get_mut(seek).unwrap() -= letter_counts[seek];
                 for letter in replace.chars() {
                     *new_letter_counts.get_mut(&letter).unwrap() += letter_counts[seek];
                 }

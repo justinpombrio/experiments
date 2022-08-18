@@ -7,9 +7,10 @@ type Color = [u16; 3];
 const LINE_DENSITY: f64 = 2.0;
 const SEGMENT_DENSITY: f64 = 10.0;
 
+/// Draw to a PNG
 pub struct Canvas {
     image: Image,
-    pub size: Point<u32>,
+    size: Point<u32>,
 }
 
 impl Canvas {
@@ -23,10 +24,12 @@ impl Canvas {
         }
     }
 
+    /// Save this image as a PNG file.
     pub fn save(&mut self, filename: &str) {
         self.image.save(filename).unwrap();
     }
 
+    /// Fill the entire canvas with a background color.
     pub fn fill(&mut self, color: Color) {
         self.draw_rect(
             Bounds {
@@ -40,6 +43,7 @@ impl Canvas {
         );
     }
 
+    /// Fill a rectangle with the given color.
     pub fn draw_rect(&mut self, bounds: Bounds<u32>, color: Color) {
         assert!(bounds.min.x < bounds.max.x);
         assert!(bounds.min.y < bounds.max.y);
@@ -50,6 +54,8 @@ impl Canvas {
         }
     }
 
+    /// Within the rectangle `image_bounds`, draw a `num_checkers.x` by `num_checkers.y`
+    /// checkerboard using the colors `color_1` and `color_2`.
     pub fn draw_checkerboard(
         &mut self,
         image_bounds: Bounds<u32>,
@@ -72,7 +78,9 @@ impl Canvas {
         }
     }
 
-    pub fn draw_curve_segment(
+    /// Draw a curve with the given width and color. The curve itself is given by the parametric
+    /// function `curve(f)` for `0.0 <= f < = 1`.
+    pub fn draw_curve(
         &mut self,
         curve: impl Fn(f64) -> Point<f64>,
         width: f64,
@@ -100,6 +108,7 @@ impl Canvas {
         }
     }
 
+    /// Draw a line of the given color, of width 1 pixel.
     pub fn draw_line(&mut self, start: Point<f64>, end: Point<f64>, color: Color) {
         let len = (end - start).abs();
         let num_points = (LINE_DENSITY * len) as usize;
@@ -109,6 +118,7 @@ impl Canvas {
         }
     }
 
+    /// Set the color of a single pixel.
     pub fn draw_point(&mut self, p: Point<f64>, color: Color) {
         if p.x < 0.0 || p.y < 0.0 || p.x >= self.size.x as f64 || p.y >= self.size.y as f64 {
             return;

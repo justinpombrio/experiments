@@ -22,7 +22,9 @@ const CHECKERBOARD_COLOR_2: Color = [180 * 256, 200 * 256, 240 * 256];
  * Color Scales *
  ****************/
 
-const COLOR_SCALES: &[(&str, fn(f64) -> [f64; 3])] = &[
+type ColorScale = fn(f64) -> [f64; 3];
+
+const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("bw", hsv_bw),
     ("bw2", hsv_bw2),
     ("1", hsv_1),
@@ -85,7 +87,7 @@ fn hsv_8(f: f64) -> [f64; 3] {
 
 fn hsv_9(f: f64) -> [f64; 3] {
     let hue = cycle(f, 0.0, 1.0);
-    let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.1, 1.0)).powf(1.0 / 2.0);
+    let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.3, 1.0)).powf(1.0 / 2.0);
     let val = linear_cycle(f, (0.5, 5.5), (0.40, 0.75));
     [hue, sat, val]
 }
@@ -213,7 +215,7 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
         "foo",
         LindenmayerSystem {
             start: "X",
-            rules: &[('X', "-X++XX--X+")],
+            rules: &[('X', "+X-X--XX++X+X-")],
             angle: 60.0,
             implicit_f: true,
         },
@@ -386,8 +388,8 @@ fn main() {
     let points = curve.expand(depth);
     let curve_len = points.len() - 1;
     let canvas_size = Point {
-        x: (canvas.size.x - 2 * border_width) as f64,
-        y: (canvas.size.y - 2 * border_width) as f64,
+        x: (image_size - 2 * border_width) as f64,
+        y: (image_size - 2 * border_width) as f64,
     };
     curve_width *= canvas_size.x / drawing_size.x / 2.0;
     let mut points = points
@@ -404,14 +406,14 @@ fn main() {
         let mut start = points.next().unwrap();
         let mut middle = points.next().unwrap();
         // first segment
-        canvas.draw_curve_segment(
+        canvas.draw_curve(
             |f| interpolate(f, (start * 3.0 - middle) / 2.0, (start + middle) / 2.0),
             curve_width,
             oklab_hsv_to_srgb(color_scale(0.0)).expect("Color out of bounds"),
         );
         for (i, end) in points.enumerate() {
             // middle segments
-            canvas.draw_curve_segment(
+            canvas.draw_curve(
                 |f| {
                     middle * 2.0 * f * (1.0 - f)
                         + (start + middle) * f * f / 2.0
@@ -423,7 +425,7 @@ fn main() {
             );
             if i == curve_len - 2 {
                 // last segment
-                canvas.draw_curve_segment(
+                canvas.draw_curve(
                     |f| interpolate(f, (middle + end) / 2.0, (end * 3.0 - middle) / 2.0),
                     curve_width,
                     oklab_hsv_to_srgb(color_scale(1.0)).expect("Color out of bounds"),
