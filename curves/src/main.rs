@@ -31,6 +31,7 @@ const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("2", hsv_2),
     ("3", hsv_3),
     ("4", hsv_4),
+    ("7", hsv_7),
     ("8", hsv_8),
     ("9", hsv_9),
     ("o4", hsv_o4),
@@ -89,6 +90,13 @@ fn hsv_9(f: f64) -> [f64; 3] {
     let hue = cycle(f, 0.0, 1.0);
     let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.3, 1.0)).powf(1.0 / 2.0);
     let val = linear_cycle(f, (0.5, 5.5), (0.40, 0.75));
+    [hue, sat, val]
+}
+
+fn hsv_7(f: f64) -> [f64; 3] {
+    let hue = cycle(f, 0.2, 2.7);
+    let sat = 0.175;
+    let val = linear_cycle(f, (0.5, 6.5), (0.40, 0.75));
     [hue, sat, val]
 }
 
@@ -212,7 +220,7 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
         },
     ),
     (
-        "foo",
+        "fivefold",
         LindenmayerSystem {
             start: "X",
             rules: &[('X', "+X-X--XX++X+X-")],
@@ -300,6 +308,8 @@ fn main() {
         );
         args.parse_args_or_exit();
     }
+
+    println!("Drawing {} iterations of {} curve.", depth, curve_name);
 
     // Look up color scale, or error
     let color_scale = {
@@ -436,6 +446,6 @@ fn main() {
         }
     }
 
-    // Write the image
-    canvas.save("curve.png");
+    println!("Saving to '{}'.", image_name);
+    canvas.save(&image_name);
 }

@@ -80,12 +80,7 @@ impl Canvas {
 
     /// Draw a curve with the given width and color. The curve itself is given by the parametric
     /// function `curve(f)` for `0.0 <= f < = 1`.
-    pub fn draw_curve(
-        &mut self,
-        curve: impl Fn(f64) -> Point<f64>,
-        width: f64,
-        color: Color,
-    ) {
+    pub fn draw_curve(&mut self, curve: impl Fn(f64) -> Point<f64>, width: f64, color: Color) {
         let start = curve(0.0);
         let end = curve(1.0);
         let len = (start - end).abs();
