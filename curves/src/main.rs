@@ -12,7 +12,7 @@ use oklab::{oklab_hsv_to_srgb, Color};
  * Background Colors *
  *********************/
 
-const BORDER_COLOR: Color = [180 * 256, 180 * 256, 180 * 256];
+const BORDER_COLOR: Color = [210 * 256, 210 * 256, 210 * 256];
 const BACKGROUND_COLOR: Color = [210 * 256, 210 * 256, 210 * 256];
 const BACKGROUND_COLOR_BW: Color = [170 * 256, 200 * 256, 250 * 256];
 const CHECKERBOARD_COLOR_1: Color = [220 * 256, 220 * 256, 170 * 256];
@@ -31,6 +31,7 @@ const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("2", hsv_2),
     ("3", hsv_3),
     ("4", hsv_4),
+    ("6", hsv_6),
     ("7", hsv_7),
     ("8", hsv_8),
     ("9", hsv_9),
@@ -76,6 +77,13 @@ fn hsv_4(f: f64) -> [f64; 3] {
     let hue = cycle(f, -0.125, 0.875);
     let sat = 0.175;
     let val = linear_cycle(f, (0.375, 1.375), (0.25, 0.75));
+    [hue, sat, val]
+}
+
+fn hsv_6(f: f64) -> [f64; 3] {
+    let hue = cycle(f, 0.0, 1.0);
+    let sat = 0.175 * linear_cycle(f, (0.5, 32.5), (0.75, 1.0)).powf(1.0 / 2.0);
+    let val = linear_cycle(f, (0.0, 6.0), (0.30, 0.70));
     [hue, sat, val]
 }
 
