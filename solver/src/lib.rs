@@ -1,18 +1,14 @@
-// TODO: temporary
-#![allow(unused)]
-
 mod cartesian_prod;
 
 use cartesian_prod::cartesian_prod;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
-use std::fmt::Display;
+use std::fmt;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-pub trait Var: Hash + Eq + Display + Clone {}
-pub trait Value: PartialEq + Clone {}
+pub trait Var: fmt::Debug + Hash + Eq + fmt::Display + Clone {}
+pub trait Value: fmt::Debug + PartialEq + Clone {}
 
 impl Var for String {}
 impl Value for String {}
@@ -41,11 +37,12 @@ struct Component<X: Var, V: Value> {
 #[derive(Debug, Clone)]
 struct Mapping<X: Var, V: Value>(HashMap<X, V>);
 
-pub trait ConstraintTrait<X: Var, V: Value>: Debug {
+pub trait ConstraintTrait<X: Var, V: Value>: fmt::Debug {
     fn params(&self) -> &[X];
     fn pred(&self, args: Vec<Option<V>>) -> bool;
 }
 
+#[derive(Debug)]
 pub struct Constraint<X: Var, V: Value>(Box<dyn ConstraintTrait<X, V>>);
 
 /*
@@ -63,10 +60,16 @@ pub struct Constraint<X: Var, V: Value> {
 }
 */
 
-// TODO: debug
 pub struct Unsatisfiable<'a, X: Var, V: Value> {
     component: Component<X, V>,
     constraint: &'a dyn ConstraintTrait<X, V>,
+}
+
+impl<'a, X: Var, V: Value> fmt::Debug for Unsatisfiable<'a, X, V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO
+        write!(f, "unsat")
+    }
 }
 
 impl<X: Var> Domain<X> {
@@ -197,13 +200,14 @@ impl<X: Var, V: Value> Assignment<X, V> {
             );
         }
 
+        //println!("Assigned var {:#?} to get {:#?}", x, self);
         self.components.push(Component {
             domain: Domain::singleton(x.clone()),
             mappings: values
                 .into_iter()
                 .map(|val| Mapping::singleton(x.clone(), val))
                 .collect::<Vec<_>>(),
-        })
+        });
     }
 
     fn apply_constraint<'a>(
@@ -236,18 +240,19 @@ impl<X: Var, V: Value> Assignment<X, V> {
         }
         self.components.extend(disj_comps);
         self.components.push(shared_comp);
+        //println!("Added constraint {:#?} to get {:#?}", constraint, self);
         Ok(())
     }
 }
 
-pub struct Solver<X: Var, V: Value> {
+pub struct Solvomatic<X: Var, V: Value> {
     variables: Vec<(X, Vec<V>)>,
     constraints: Vec<Constraint<X, V>>,
 }
 
-impl<X: Var, V: Value> Solver<X, V> {
-    pub fn new() -> Solver<X, V> {
-        Solver {
+impl<X: Var, V: Value> Solvomatic<X, V> {
+    pub fn new() -> Solvomatic<X, V> {
+        Solvomatic {
             variables: Vec::new(),
             constraints: Vec::new(),
         }
@@ -258,8 +263,8 @@ impl<X: Var, V: Value> Solver<X, V> {
             .push((x, values.into_iter().collect::<Vec<_>>()));
     }
 
-    pub fn add_constraint(&mut self, constraint: Constraint<X, V>) {
-        self.constraints.push(constraint);
+    pub fn add_constraint(&mut self, constraint: impl ConstraintTrait<X, V> + 'static) {
+        self.constraints.push(Constraint(Box::new(constraint)));
     }
 
     pub fn solve(&mut self) -> Result<Assignment<X, V>, Unsatisfiable<X, V>> {
@@ -269,6 +274,7 @@ impl<X: Var, V: Value> Solver<X, V> {
             let mut choices = Vec::new();
             for (i, (x, vals)) in self.variables.iter().enumerate() {
                 let mut new_assignment = assignment.clone();
+                new_assignment.assign_var(x.clone(), vals.clone());
                 for constraint in &self.constraints {
                     new_assignment.apply_constraint(constraint)?;
                 }
@@ -284,4 +290,5 @@ impl<X: Var, V: Value> Solver<X, V> {
     }
 }
 
-fn main() {}
+impl Var for char {}
+impl Value for i32 {}
