@@ -5,9 +5,11 @@ mod cartesian_prod;
 
 use cartesian_prod::cartesian_prod;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::ops::Deref;
 
 pub trait Var: Hash + Eq + Display + Clone {}
 pub trait Value: PartialEq + Clone {}
@@ -18,10 +20,9 @@ impl Value for String {}
 #[derive(Debug, Clone)]
 struct Domain<X: Var>(HashSet<X>);
 
-/// Cross product of Components
+/// Constants union cross product of Components
 #[derive(Debug, Clone)]
-struct Assignment<X: Var, V: Value> {
-    is_empty: bool,
+pub struct Assignment<X: Var, V: Value> {
     domain: Domain<X>,
     constants: Mapping<X, V>,
     components: Vec<Component<X, V>>,
@@ -39,6 +40,34 @@ struct Component<X: Var, V: Value> {
 // INVARIANT: never empty
 #[derive(Debug, Clone)]
 struct Mapping<X: Var, V: Value>(HashMap<X, V>);
+
+pub trait ConstraintTrait<X: Var, V: Value>: Debug {
+    fn params(&self) -> &[X];
+    fn pred(&self, args: Vec<Option<V>>) -> bool;
+}
+
+pub struct Constraint<X: Var, V: Value>(Box<dyn ConstraintTrait<X, V>>);
+
+/*
+/// A constraint, saying that the values that certain variables have obey some predicate.
+pub struct Constraint<X: Var, V: Value> {
+    /// The set of variables that are constrained.
+    domain: Domain<X>,
+    /// The set of variables that are constrained, in the same order as they will be passed to
+    /// `pred`.
+    params: Vec<X>,
+    /// The predicate, saying whether this constraint is satisfied when the variables `self.vars()`
+    /// are given the values in the function arg (`Vec<Option<V>>`). `None` represents unspecified
+    /// values; `pred` must return true if there is _any_ assignment of them that would yield true.
+    pred: Box<dyn Fn(Vec<Option<V>>) -> bool>,
+}
+*/
+
+// TODO: debug
+pub struct Unsatisfiable<'a, X: Var, V: Value> {
+    component: Component<X, V>,
+    constraint: &'a dyn ConstraintTrait<X, V>,
+}
 
 impl<X: Var> Domain<X> {
     fn new() -> Domain<X> {
@@ -144,6 +173,14 @@ impl<X: Var, V: Value> Component<X, V> {
 }
 
 impl<X: Var, V: Value> Assignment<X, V> {
+    fn new() -> Assignment<X, V> {
+        Assignment {
+            domain: Domain::new(),
+            constants: Mapping::new(),
+            components: Vec::new(),
+        }
+    }
+
     fn possibilities(&self) -> usize {
         self.components.iter().map(|a| a.mappings.len()).product()
     }
@@ -152,7 +189,7 @@ impl<X: Var, V: Value> Assignment<X, V> {
         self.components.iter().map(|a| a.mappings.len()).sum()
     }
 
-    pub fn add_var(&mut self, x: X, values: Vec<V>) {
+    fn assign_var(&mut self, x: X, values: impl IntoIterator<Item = V>) {
         if self.domain.contains(&x) {
             panic!(
                 "Variable '{}' is already in the Assignment, and can't be added again.",
@@ -169,22 +206,29 @@ impl<X: Var, V: Value> Assignment<X, V> {
         })
     }
 
-    pub fn apply_constraint(&mut self, constraint: Constraint<X, V>) {
-        let (disj_comps, shared_comps) = self
-            .components
-            .drain(..)
-            .partition::<Vec<_>, _>(|c| !c.domain.is_disjoint(&constraint.domain));
+    fn apply_constraint<'a>(
+        &mut self,
+        constraint: &'a Constraint<X, V>,
+    ) -> Result<(), Unsatisfiable<'a, X, V>> {
+        let (disj_comps, shared_comps) = self.components.drain(..).partition::<Vec<_>, _>(|c| {
+            !constraint.0.params().iter().any(|x| c.domain.contains(x))
+        });
         let mut shared_comp = Component::merge(shared_comps);
+        let shared_comp_old = shared_comp.clone(); // for debugging
         shared_comp.retain(|mapping| {
             let args = constraint
-                .params
+                .0
+                .params()
                 .iter()
                 .map(|x| self.constants.get(x).or_else(|| mapping.get(x)))
                 .collect::<Vec<_>>();
-            (constraint.pred)(args)
+            constraint.0.pred(args)
         });
         if shared_comp.mappings.len() == 0 {
-            self.is_empty = true;
+            return Err(Unsatisfiable {
+                component: shared_comp_old,
+                constraint: constraint.0.deref() as &dyn ConstraintTrait<X, V>,
+            });
         } else {
             for (x, val) in shared_comp.factor_constants().0.into_iter() {
                 self.constants.insert(x, val);
@@ -192,30 +236,51 @@ impl<X: Var, V: Value> Assignment<X, V> {
         }
         self.components.extend(disj_comps);
         self.components.push(shared_comp);
+        Ok(())
     }
 }
 
-/// A constraint, saying that the values that certain variables have obey some predicate.
-pub struct Constraint<X: Var, V: Value> {
-    /// The set of variables that are constrained.
-    domain: Domain<X>,
-    /// The set of variables that are constrained, in the same order as they will be passed to
-    /// `pred`.
-    params: Vec<X>,
-    /// The predicate, saying whether this constraint is satisfied when the variables `self.vars()`
-    /// are given the values in the function arg (`Vec<Option<V>>`). `None` represents unspecified
-    /// values; `pred` must return true if there is _any_ assignment of them that would yield true.
-    pred: Box<dyn Fn(Vec<Option<V>>) -> bool>,
+pub struct Solver<X: Var, V: Value> {
+    variables: Vec<(X, Vec<V>)>,
+    constraints: Vec<Constraint<X, V>>,
 }
 
-impl<X: Var, V: Value> Constraint<X, V> {
-    fn satisfied_by(&self, mapping: &Mapping<X, V>) -> bool {
-        let args = self
-            .params
-            .iter()
-            .map(|x| mapping.get(x))
-            .collect::<Vec<_>>();
-        (self.pred)(args)
+impl<X: Var, V: Value> Solver<X, V> {
+    pub fn new() -> Solver<X, V> {
+        Solver {
+            variables: Vec::new(),
+            constraints: Vec::new(),
+        }
+    }
+
+    pub fn add_var(&mut self, x: X, values: impl IntoIterator<Item = V>) {
+        self.variables
+            .push((x, values.into_iter().collect::<Vec<_>>()));
+    }
+
+    pub fn add_constraint(&mut self, constraint: Constraint<X, V>) {
+        self.constraints.push(constraint);
+    }
+
+    pub fn solve(&mut self) -> Result<Assignment<X, V>, Unsatisfiable<X, V>> {
+        let mut assignment = Assignment::new();
+
+        while !self.variables.is_empty() {
+            let mut choices = Vec::new();
+            for (i, (x, vals)) in self.variables.iter().enumerate() {
+                let mut new_assignment = assignment.clone();
+                for constraint in &self.constraints {
+                    new_assignment.apply_constraint(constraint)?;
+                }
+                choices.push((i, new_assignment));
+            }
+            let (best_var_index, best_assignment) =
+                choices.into_iter().min_by_key(|(_, a)| a.size()).unwrap();
+            self.variables.remove(best_var_index);
+            assignment = best_assignment;
+        }
+
+        Ok(assignment)
     }
 }
 
