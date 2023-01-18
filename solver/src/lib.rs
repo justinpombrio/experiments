@@ -4,7 +4,6 @@ use cartesian_prod::cartesian_prod;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::ops::Deref;
 
 pub trait Var: fmt::Debug + Hash + Eq + fmt::Display + Clone {}
@@ -15,6 +14,11 @@ impl Value for String {}
 
 #[derive(Debug, Clone)]
 struct Domain<X: Var>(HashSet<X>);
+
+pub trait DomainTrait<X: Var, V: Value> {
+    fn domain(&self) -> &[X];
+    fn display(&self, mapping: &Mapping<X, V>) -> String;
+}
 
 /// Constants union cross product of Components
 #[derive(Debug, Clone)]
@@ -35,7 +39,7 @@ struct Component<X: Var, V: Value> {
 /// Map from var (X) to value (V)
 // INVARIANT: never empty
 #[derive(Debug, Clone)]
-struct Mapping<X: Var, V: Value>(HashMap<X, V>);
+pub struct Mapping<X: Var, V: Value>(HashMap<X, V>);
 
 pub trait ConstraintTrait<X: Var, V: Value>: fmt::Debug {
     fn params(&self) -> &[X];
@@ -83,16 +87,8 @@ impl<X: Var> Domain<X> {
         Domain(set)
     }
 
-    fn insert(&mut self, x: X) {
-        self.0.insert(x);
-    }
-
     fn contains(&self, x: &X) -> bool {
         self.0.contains(x)
-    }
-
-    fn is_disjoint(&self, other: &Domain<X>) -> bool {
-        self.0.is_disjoint(&other.0)
     }
 
     fn merge(domains: impl IntoIterator<Item = Domain<X>>) -> Domain<X> {
@@ -115,6 +111,10 @@ impl<X: Var, V: Value> Mapping<X, V> {
         Mapping(map)
     }
 
+    pub fn get(&self, x: &X) -> Option<V> {
+        self.0.get(x).cloned()
+    }
+
     fn insert(&mut self, x: X, val: V) {
         self.0.insert(x, val);
     }
@@ -131,19 +131,18 @@ impl<X: Var, V: Value> Mapping<X, V> {
         Mapping(map)
     }
 
-    fn get(&self, x: &X) -> Option<V> {
-        self.0.get(x).cloned()
+    fn display(&self, domain: &impl DomainTrait<X, V>) -> String {
+        use std::fmt::Write;
+
+        let mut out = String::new();
+        for line in domain.display(&self).lines() {
+            write!(&mut out, "    {}", line).unwrap();
+        }
+        out
     }
 }
 
 impl<X: Var, V: Value> Component<X, V> {
-    fn new(domain: Domain<X>) -> Component<X, V> {
-        Component {
-            domain,
-            mappings: Vec::new(),
-        }
-    }
-
     fn merge(components: impl IntoIterator<Item = Component<X, V>>) -> Component<X, V> {
         let (domain_list, mappings_list) = components
             .into_iter()
@@ -173,6 +172,20 @@ impl<X: Var, V: Value> Component<X, V> {
         }
         constants
     }
+
+    fn is_trivial(&self) -> bool {
+        self.mappings.len() == 1 && self.mappings[0].0.is_empty()
+    }
+
+    fn display(&self, domain: &impl DomainTrait<X, V>) -> String {
+        use std::fmt::Write;
+
+        let mut out = String::new();
+        for (i, mapping) in self.mappings.iter().enumerate() {
+            writeln!(out, "{}", mapping.display(domain)).unwrap();
+        }
+        out
+    }
 }
 
 impl<X: Var, V: Value> Assignment<X, V> {
@@ -184,7 +197,19 @@ impl<X: Var, V: Value> Assignment<X, V> {
         }
     }
 
-    fn possibilities(&self) -> usize {
+    fn display(&self, domain: &impl DomainTrait<X, V>) -> String {
+        use std::fmt::Write;
+
+        let mut out = String::new();
+        writeln!(out, "{}", self.constants.display(domain)).unwrap();
+        for component in &self.components {
+            writeln!(out, "\nAnd one of:\n").unwrap();
+            writeln!(out, "{}", component.display(domain)).unwrap();
+        }
+        out
+    }
+
+    pub fn possibilities(&self) -> usize {
         self.components.iter().map(|a| a.mappings.len()).product()
     }
 
@@ -239,20 +264,24 @@ impl<X: Var, V: Value> Assignment<X, V> {
             }
         }
         self.components.extend(disj_comps);
-        self.components.push(shared_comp);
+        if !shared_comp.is_trivial() {
+            self.components.push(shared_comp);
+        }
         //println!("Added constraint {:#?} to get {:#?}", constraint, self);
         Ok(())
     }
 }
 
-pub struct Solvomatic<X: Var, V: Value> {
+pub struct Solvomatic<X: Var, V: Value, D: DomainTrait<X, V>> {
+    domain: D,
     variables: Vec<(X, Vec<V>)>,
     constraints: Vec<Constraint<X, V>>,
 }
 
-impl<X: Var, V: Value> Solvomatic<X, V> {
-    pub fn new() -> Solvomatic<X, V> {
+impl<X: Var, V: Value, D: DomainTrait<X, V>> Solvomatic<X, V, D> {
+    pub fn new(domain: D) -> Solvomatic<X, V, D> {
         Solvomatic {
+            domain,
             variables: Vec::new(),
             constraints: Vec::new(),
         }
@@ -288,7 +317,17 @@ impl<X: Var, V: Value> Solvomatic<X, V> {
 
         Ok(assignment)
     }
+
+    pub fn display(&self, assignment: &Assignment<X, V>) -> String {
+        use std::fmt::Write;
+
+        let mut out = String::new();
+        writeln!(&mut out, "Result:").unwrap();
+        writeln!(&mut out).unwrap();
+        write!(&mut out, "{}", assignment.display(&self.domain)).unwrap();
+        out
+    }
 }
 
 impl Var for char {}
-impl Value for i32 {}
+impl Value for i8 {}

@@ -2,8 +2,23 @@
 //!
 //! Find a 3-digit number ABC such that A + B + C = 9, A * B * C = 12, and ...
 
-use solvomatic::{ConstraintTrait, Solvomatic, Value, Var};
+use solvomatic::{ConstraintTrait, DomainTrait, Mapping, Solvomatic, Value, Var};
 use std::fmt;
+
+struct SimpleDomain<X: Var, V: Value> {
+    domain: Vec<X>,
+    display: fn(&Mapping<X, V>) -> String,
+}
+
+impl<X: Var, V: Value> DomainTrait<X, V> for SimpleDomain<X, V> {
+    fn domain(&self) -> &[X] {
+        &self.domain
+    }
+
+    fn display(&self, mapping: &Mapping<X, V>) -> String {
+        (self.display)(mapping)
+    }
+}
 
 struct SimpleConstraint<X: Var, V: Value, D: fmt::Debug> {
     name: &'static str,
@@ -33,13 +48,37 @@ impl<X: Var, V: Value, D: fmt::Debug> ConstraintTrait<X, V> for SimpleConstraint
 }
 
 fn main() {
-    let mut solver = Solvomatic::new();
+    fn display_number(mapping: &Mapping<char, i8>) -> String {
+        use std::fmt::Write;
+
+        fn write_digit(s: &mut String, digit: Option<i8>) {
+            if let Some(digit) = digit {
+                write!(s, "{}", digit).unwrap();
+            } else {
+                write!(s, "_").unwrap();
+            }
+        }
+
+        let mut s = String::new();
+        for letter in "ABCDE".chars() {
+            write_digit(&mut s, mapping.get(&letter));
+        }
+        s
+    }
+    let five_digit_number = SimpleDomain {
+        domain: vec!['A', 'B', 'C', 'D', 'E'],
+        display: display_number,
+    };
+
+    let mut solver = Solvomatic::new(five_digit_number);
 
     solver.add_var('A', 1..9);
     solver.add_var('B', 1..9);
     solver.add_var('C', 0..9);
+    solver.add_var('D', 0..9);
+    solver.add_var('E', 0..9);
 
-    fn has_sum(args: Vec<Option<i32>>, expected_sum: &i32) -> bool {
+    fn has_sum(args: Vec<Option<i8>>, expected_sum: &i8) -> bool {
         let mut sum = 0;
         for arg in args {
             if let Some(n) = arg {
@@ -68,30 +107,13 @@ fn main() {
         params: vec!['B', 'C'],
         pred: has_sum,
     });
+    solver.add_constraint(SimpleConstraint {
+        name: "sum",
+        data: 1,
+        params: vec!['D', 'E'],
+        pred: has_sum,
+    });
 
     let assignment = solver.solve().unwrap();
-    println!("{:#?}", assignment);
+    println!("{}", solver.display(&assignment));
 }
-
-/*
-struct FunctionConstraint {
-    args: Vec<char>,
-    pred: fn(Vec<Option<u8>>) -> bool,
-}
-
-impl
-
-struct Sum(Vec<char>,
-pub trait ConstraintTrait<X: Var, V: Value>: Debug {
-    fn params(&self) -> &[X];
-    fn pred(&self, args: Vec<Option<V>>) -> bool;
-}
-
-fn main() {
-    let solver = Solvomatic::new();
-    solver.add_var('A', 1..9);
-    solver.add_var('B', 1..9);
-    solver.add_var('C', 0..9);
-    solver.add_constraint(
-}
-*/
