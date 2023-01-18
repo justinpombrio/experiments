@@ -2,7 +2,7 @@ use std::iter;
 
 /// Iterator over the cartesian product of a list of sets. (All elements of the first set, cross
 /// all elements of the second set, ..., cross all elements of the last set).
-pub fn cartesian_prod<T>(inputs: &Vec<Vec<T>>) -> impl Iterator<Item = Vec<&T>> {
+pub fn cartesian_prod<T: Clone>(inputs: &Vec<Vec<T>>) -> impl Iterator<Item = Vec<T>> + '_ {
     if inputs.into_iter().any(|inp| inp.is_empty()) {
         return CartesianProdIter { inputs, path: None };
     } else {
@@ -14,21 +14,21 @@ pub fn cartesian_prod<T>(inputs: &Vec<Vec<T>>) -> impl Iterator<Item = Vec<&T>> 
 }
 
 // This can also implement ExactSizeIter and DoubleEndedIter and such, but we don't need them now
-struct CartesianProdIter<'a, T> {
+struct CartesianProdIter<'a, T: Clone> {
     inputs: &'a Vec<Vec<T>>,
     path: Option<Vec<usize>>,
 }
 
-impl<'a, T> Iterator for CartesianProdIter<'a, T> {
-    type Item = Vec<&'a T>;
+impl<'a, T: Clone> Iterator for CartesianProdIter<'a, T> {
+    type Item = Vec<T>;
 
-    fn next(&mut self) -> Option<Vec<&'a T>> {
+    fn next(&mut self) -> Option<Vec<T>> {
         if let Some(path) = &mut self.path {
             let cur_elem = path
                 .iter()
                 .copied()
                 .enumerate()
-                .map(|(i, j)| &self.inputs[i][j])
+                .map(|(i, j)| self.inputs[i][j].clone())
                 .collect::<Vec<_>>();
             let mut i = self.inputs.len();
             loop {
