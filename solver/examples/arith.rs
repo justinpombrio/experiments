@@ -50,10 +50,10 @@ fn main() {
     solver.var('D', 0..9);
     solver.var('E', 0..9);
 
-    solver.lax_constraint("sum", ['A', 'B'], |args| args[0] + args[1] == 7);
-    solver.lax_constraint("sum", ['A', 'C'], |args| args[0] + args[1] == 8);
-    solver.lax_constraint("sum", ['B', 'C'], |args| args[0] + args[1] == 9);
-    solver.lax_constraint("sum", ['D', 'E'], |args| args[0] + args[1] == 1);
+    solver.simple_constraint("sum", ['A', 'B'], |args| args[0] + args[1] == 7);
+    solver.simple_constraint("sum", ['A', 'C'], |args| args[0] + args[1] == 8);
+    solver.simple_constraint("sum", ['B', 'C'], |args| args[0] + args[1] == 9);
+    solver.simple_constraint("sum", ['D', 'E'], |args| args[0] + args[1] == 1);
 
     let assignment = solver.solve().unwrap();
     println!("{}", solver.display(&assignment));

@@ -283,7 +283,7 @@ impl<X: Var, V: Value, D: DomainTrait<X, V>> Solvomatic<X, V, D> {
             .push((x, values.into_iter().collect::<Vec<_>>()));
     }
 
-    pub fn lax_constraint(
+    pub fn simple_constraint(
         &mut self,
         name: impl Into<String>,
         params: impl IntoIterator<Item = X>,
@@ -298,7 +298,7 @@ impl<X: Var, V: Value, D: DomainTrait<X, V>> Solvomatic<X, V, D> {
                     if let Some(arg) = arg {
                         unwrapped_args.push(arg);
                     } else {
-                        // We're lax, meaning that if any arg is unknown, the constraint might
+                        // We're simple, meaning that if any arg is unknown, the constraint might
                         // hold.
                         return true;
                     }
