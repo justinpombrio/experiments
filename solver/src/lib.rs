@@ -4,7 +4,6 @@ use cartesian_prod::cartesian_prod;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::Hash;
-use std::ops::Deref;
 
 pub trait Var: fmt::Debug + Hash + Eq + fmt::Display + Clone {}
 pub trait Value: fmt::Debug + PartialEq + Clone {}
@@ -41,13 +40,11 @@ struct Component<X: Var, V: Value> {
 #[derive(Debug, Clone)]
 pub struct Mapping<X: Var, V: Value>(HashMap<X, V>);
 
-pub trait ConstraintTrait<X: Var, V: Value>: fmt::Debug {
-    fn params(&self) -> &[X];
-    fn pred(&self, args: Vec<Option<V>>) -> bool;
+struct Constraint<X: Var, V: Value> {
+    name: String,
+    params: Vec<X>,
+    pred: Box<dyn Fn(Vec<Option<V>>) -> bool>,
 }
-
-#[derive(Debug)]
-pub struct Constraint<X: Var, V: Value>(Box<dyn ConstraintTrait<X, V>>);
 
 /*
 /// A constraint, saying that the values that certain variables have obey some predicate.
@@ -64,16 +61,10 @@ pub struct Constraint<X: Var, V: Value> {
 }
 */
 
-pub struct Unsatisfiable<'a, X: Var, V: Value> {
+#[derive(Debug, Clone)]
+pub struct Unsatisfiable<X: Var, V: Value> {
     component: Component<X, V>,
-    constraint: &'a dyn ConstraintTrait<X, V>,
-}
-
-impl<'a, X: Var, V: Value> fmt::Debug for Unsatisfiable<'a, X, V> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO
-        write!(f, "unsat")
-    }
+    constraint: (String, Vec<X>),
 }
 
 impl<X: Var> Domain<X> {
@@ -181,7 +172,7 @@ impl<X: Var, V: Value> Component<X, V> {
         use std::fmt::Write;
 
         let mut out = String::new();
-        for (i, mapping) in self.mappings.iter().enumerate() {
+        for mapping in &self.mappings {
             writeln!(out, "{}", mapping.display(domain)).unwrap();
         }
         out
@@ -237,26 +228,26 @@ impl<X: Var, V: Value> Assignment<X, V> {
 
     fn apply_constraint<'a>(
         &mut self,
-        constraint: &'a Constraint<X, V>,
-    ) -> Result<(), Unsatisfiable<'a, X, V>> {
-        let (disj_comps, shared_comps) = self.components.drain(..).partition::<Vec<_>, _>(|c| {
-            !constraint.0.params().iter().any(|x| c.domain.contains(x))
-        });
+        constraint: &Constraint<X, V>,
+    ) -> Result<(), Unsatisfiable<X, V>> {
+        let (disj_comps, shared_comps) = self
+            .components
+            .drain(..)
+            .partition::<Vec<_>, _>(|c| !constraint.params.iter().any(|x| c.domain.contains(x)));
         let mut shared_comp = Component::merge(shared_comps);
         let shared_comp_old = shared_comp.clone(); // for debugging
         shared_comp.retain(|mapping| {
             let args = constraint
-                .0
-                .params()
+                .params
                 .iter()
                 .map(|x| self.constants.get(x).or_else(|| mapping.get(x)))
                 .collect::<Vec<_>>();
-            constraint.0.pred(args)
+            (constraint.pred)(args)
         });
         if shared_comp.mappings.len() == 0 {
             return Err(Unsatisfiable {
                 component: shared_comp_old,
-                constraint: constraint.0.deref() as &dyn ConstraintTrait<X, V>,
+                constraint: (constraint.name.clone(), constraint.params.clone()),
             });
         } else {
             for (x, val) in shared_comp.factor_constants().0.into_iter() {
@@ -287,13 +278,47 @@ impl<X: Var, V: Value, D: DomainTrait<X, V>> Solvomatic<X, V, D> {
         }
     }
 
-    pub fn add_var(&mut self, x: X, values: impl IntoIterator<Item = V>) {
+    pub fn var(&mut self, x: X, values: impl IntoIterator<Item = V>) {
         self.variables
             .push((x, values.into_iter().collect::<Vec<_>>()));
     }
 
-    pub fn add_constraint(&mut self, constraint: impl ConstraintTrait<X, V> + 'static) {
-        self.constraints.push(Constraint(Box::new(constraint)));
+    pub fn lax_constraint(
+        &mut self,
+        name: impl Into<String>,
+        params: impl IntoIterator<Item = X>,
+        predicate: impl Fn(Vec<V>) -> bool + 'static,
+    ) {
+        self.constraints.push(Constraint {
+            name: name.into(),
+            params: params.into_iter().collect::<Vec<_>>(),
+            pred: Box::new(move |args| {
+                let mut unwrapped_args = Vec::with_capacity(args.len());
+                for arg in args {
+                    if let Some(arg) = arg {
+                        unwrapped_args.push(arg);
+                    } else {
+                        // We're lax, meaning that if any arg is unknown, the constraint might
+                        // hold.
+                        return true;
+                    }
+                }
+                predicate(unwrapped_args)
+            }),
+        });
+    }
+
+    pub fn constraint(
+        &mut self,
+        name: impl Into<String>,
+        params: impl IntoIterator<Item = X>,
+        predicate: impl Fn(Vec<Option<V>>) -> bool + 'static,
+    ) {
+        self.constraints.push(Constraint {
+            name: name.into(),
+            params: params.into_iter().collect::<Vec<_>>(),
+            pred: Box::new(predicate),
+        });
     }
 
     pub fn solve(&mut self) -> Result<Assignment<X, V>, Unsatisfiable<X, V>> {
