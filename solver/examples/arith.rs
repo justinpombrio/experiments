@@ -2,47 +2,24 @@
 //!
 //! Find a 3-digit number ABC such that A + B + C = 9, A * B * C = 12, and ...
 
-use solvomatic::{DomainTrait, Mapping, Solvomatic, Value, Var};
-
-struct SimpleDomain<X: Var, V: Value> {
-    domain: Vec<X>,
-    display: fn(&Mapping<X, V>) -> String,
-}
-
-impl<X: Var, V: Value> DomainTrait<X, V> for SimpleDomain<X, V> {
-    fn domain(&self) -> &[X] {
-        &self.domain
-    }
-
-    fn display(&self, mapping: &Mapping<X, V>) -> String {
-        (self.display)(mapping)
-    }
-}
+use solvomatic::{Mapping, Solvomatic};
+use std::fmt;
 
 fn main() {
-    fn display_number(mapping: &Mapping<char, i8>) -> String {
-        use std::fmt::Write;
+    let mut solver = Solvomatic::new(
+        |f: &mut String, mapping: &Mapping<char, i8>| -> fmt::Result {
+            use std::fmt::Write;
 
-        fn write_digit(s: &mut String, digit: Option<i8>) {
-            if let Some(digit) = digit {
-                write!(s, "{}", digit).unwrap();
-            } else {
-                write!(s, "_").unwrap();
+            for letter in "ABCDE".chars() {
+                if let Some(digit) = mapping.get(&letter) {
+                    write!(f, "{}", digit)?;
+                } else {
+                    write!(f, "_")?;
+                }
             }
-        }
-
-        let mut s = String::new();
-        for letter in "ABCDE".chars() {
-            write_digit(&mut s, mapping.get(&letter));
-        }
-        s
-    }
-    let five_digit_number = SimpleDomain {
-        domain: vec!['A', 'B', 'C', 'D', 'E'],
-        display: display_number,
-    };
-
-    let mut solver = Solvomatic::new(five_digit_number);
+            Ok(())
+        },
+    );
 
     solver.var('A', 1..9);
     solver.var('B', 1..9);
@@ -56,5 +33,5 @@ fn main() {
     solver.simple_constraint("sum", ['D', 'E'], |args| args[0] + args[1] == 1);
 
     let assignment = solver.solve().unwrap();
-    println!("{}", solver.display(&assignment));
+    println!("{}", solver.display(&assignment).unwrap());
 }

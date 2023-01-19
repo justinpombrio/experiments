@@ -1,23 +1,19 @@
 mod cartesian_prod;
+mod writer;
 
 use cartesian_prod::cartesian_prod;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::Hash;
 
-pub trait Var: fmt::Debug + Hash + Eq + fmt::Display + Clone {}
+pub trait Var: fmt::Debug + Hash + Eq + Clone {}
 pub trait Value: fmt::Debug + PartialEq + Clone {}
 
-impl Var for String {}
-impl Value for String {}
+impl<X: fmt::Debug + Hash + Eq + Clone> Var for X {}
+impl<V: fmt::Debug + PartialEq + Clone> Value for V {}
 
 #[derive(Debug, Clone)]
 struct Domain<X: Var>(HashSet<X>);
-
-pub trait DomainTrait<X: Var, V: Value> {
-    fn domain(&self) -> &[X];
-    fn display(&self, mapping: &Mapping<X, V>) -> String;
-}
 
 /// Constants union cross product of Components
 #[derive(Debug, Clone)]
@@ -121,16 +117,6 @@ impl<X: Var, V: Value> Mapping<X, V> {
         }
         Mapping(map)
     }
-
-    fn display(&self, domain: &impl DomainTrait<X, V>) -> String {
-        use std::fmt::Write;
-
-        let mut out = String::new();
-        for line in domain.display(&self).lines() {
-            write!(&mut out, "    {}", line).unwrap();
-        }
-        out
-    }
 }
 
 impl<X: Var, V: Value> Component<X, V> {
@@ -168,14 +154,15 @@ impl<X: Var, V: Value> Component<X, V> {
         self.mappings.len() == 1 && self.mappings[0].0.is_empty()
     }
 
-    fn display(&self, domain: &impl DomainTrait<X, V>) -> String {
-        use std::fmt::Write;
-
-        let mut out = String::new();
+    fn display(
+        &self,
+        out: &mut String,
+        display_fn: impl Fn(&mut String, &Mapping<X, V>) -> fmt::Result,
+    ) -> fmt::Result {
         for mapping in &self.mappings {
-            writeln!(out, "{}", mapping.display(domain)).unwrap();
+            display_fn(out, mapping)?;
         }
-        out
+        Ok(())
     }
 }
 
@@ -188,16 +175,19 @@ impl<X: Var, V: Value> Assignment<X, V> {
         }
     }
 
-    fn display(&self, domain: &impl DomainTrait<X, V>) -> String {
+    fn display(
+        &self,
+        out: &mut String,
+        display_fn: &impl Fn(&mut String, &Mapping<X, V>) -> fmt::Result,
+    ) -> fmt::Result {
         use std::fmt::Write;
 
-        let mut out = String::new();
-        writeln!(out, "{}", self.constants.display(domain)).unwrap();
+        display_fn(out, &self.constants)?;
         for component in &self.components {
-            writeln!(out, "\nAnd one of:\n").unwrap();
-            writeln!(out, "{}", component.display(domain)).unwrap();
+            writeln!(out, "\nAnd one of:\n")?;
+            component.display(out, display_fn)?;
         }
-        out
+        Ok(())
     }
 
     pub fn possibilities(&self) -> usize {
@@ -211,7 +201,7 @@ impl<X: Var, V: Value> Assignment<X, V> {
     fn assign_var(&mut self, x: X, values: impl IntoIterator<Item = V>) {
         if self.domain.contains(&x) {
             panic!(
-                "Variable '{}' is already in the Assignment, and can't be added again.",
+                "Variable '{:?}' is already in the Assignment, and can't be added again.",
                 x
             );
         }
@@ -263,16 +253,18 @@ impl<X: Var, V: Value> Assignment<X, V> {
     }
 }
 
-pub struct Solvomatic<X: Var, V: Value, D: DomainTrait<X, V>> {
-    domain: D,
+pub struct Solvomatic<X: Var, V: Value> {
+    display_fn: Box<dyn Fn(&mut String, &Mapping<X, V>) -> fmt::Result>,
     variables: Vec<(X, Vec<V>)>,
     constraints: Vec<Constraint<X, V>>,
 }
 
-impl<X: Var, V: Value, D: DomainTrait<X, V>> Solvomatic<X, V, D> {
-    pub fn new(domain: D) -> Solvomatic<X, V, D> {
+impl<X: Var, V: Value> Solvomatic<X, V> {
+    pub fn new(
+        display_fn: impl Fn(&mut String, &Mapping<X, V>) -> fmt::Result + 'static,
+    ) -> Solvomatic<X, V> {
         Solvomatic {
-            domain,
+            display_fn: Box::new(display_fn),
             variables: Vec::new(),
             constraints: Vec::new(),
         }
@@ -343,16 +335,13 @@ impl<X: Var, V: Value, D: DomainTrait<X, V>> Solvomatic<X, V, D> {
         Ok(assignment)
     }
 
-    pub fn display(&self, assignment: &Assignment<X, V>) -> String {
+    pub fn display(&self, assignment: &Assignment<X, V>) -> Result<String, fmt::Error> {
         use std::fmt::Write;
 
         let mut out = String::new();
-        writeln!(&mut out, "Result:").unwrap();
-        writeln!(&mut out).unwrap();
-        write!(&mut out, "{}", assignment.display(&self.domain)).unwrap();
-        out
+        writeln!(&mut out, "Result:")?;
+        writeln!(&mut out)?;
+        assignment.display(&mut out, &self.display_fn)?;
+        Ok(out)
     }
 }
-
-impl Var for char {}
-impl Value for i8 {}
