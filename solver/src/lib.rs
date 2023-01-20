@@ -1,5 +1,4 @@
 mod cartesian_prod;
-mod writer;
 
 use cartesian_prod::cartesian_prod;
 use std::collections::{HashMap, HashSet};
@@ -19,7 +18,7 @@ struct Domain<X: Var>(HashSet<X>);
 #[derive(Debug, Clone)]
 pub struct Assignment<X: Var, V: Value> {
     domain: Domain<X>,
-    constants: Mapping<X, V>,
+    constants: HashMap<X, V>,
     components: Vec<Component<X, V>>,
 }
 
@@ -28,13 +27,8 @@ pub struct Assignment<X: Var, V: Value> {
 #[derive(Debug, Clone)]
 struct Component<X: Var, V: Value> {
     domain: Domain<X>,
-    mappings: Vec<Mapping<X, V>>,
+    mappings: Vec<HashMap<X, V>>,
 }
-
-/// Map from var (X) to value (V)
-// INVARIANT: never empty
-#[derive(Debug, Clone)]
-pub struct Mapping<X: Var, V: Value>(HashMap<X, V>);
 
 struct Constraint<X: Var, V: Value> {
     name: String,
@@ -87,36 +81,14 @@ impl<X: Var> Domain<X> {
     }
 }
 
-impl<X: Var, V: Value> Mapping<X, V> {
-    fn new() -> Mapping<X, V> {
-        Mapping(HashMap::new())
+fn merge_mappings<X: Var, V: Value>(
+    mappings: impl IntoIterator<Item = HashMap<X, V>>,
+) -> HashMap<X, V> {
+    let mut result = HashMap::new();
+    for mapping in mappings {
+        result.extend(mapping.iter().map(|(k, v)| (k.clone(), v.clone())));
     }
-
-    fn singleton(x: X, val: V) -> Mapping<X, V> {
-        let mut map = HashMap::new();
-        map.insert(x, val);
-        Mapping(map)
-    }
-
-    pub fn get(&self, x: &X) -> Option<V> {
-        self.0.get(x).cloned()
-    }
-
-    fn insert(&mut self, x: X, val: V) {
-        self.0.insert(x, val);
-    }
-
-    fn remove(&mut self, x: &X) {
-        self.0.remove(x);
-    }
-
-    fn merge(mappings: impl IntoIterator<Item = Mapping<X, V>>) -> Mapping<X, V> {
-        let mut map = HashMap::new();
-        for mapping in mappings {
-            map.extend(mapping.0.iter().map(|(k, v)| (k.clone(), v.clone())));
-        }
-        Mapping(map)
-    }
+    result
 }
 
 impl<X: Var, V: Value> Component<X, V> {
@@ -129,38 +101,49 @@ impl<X: Var, V: Value> Component<X, V> {
         Component {
             domain: Domain::merge(domain_list),
             mappings: cartesian_prod(&mappings_list)
-                .map(|ms| Mapping::merge(ms))
+                .map(|ms| merge_mappings(ms))
                 .collect::<Vec<_>>(),
         }
     }
 
-    fn retain(&mut self, pred: impl Fn(&Mapping<X, V>) -> bool) {
+    fn retain(&mut self, pred: impl Fn(&HashMap<X, V>) -> bool) {
         self.mappings.retain(pred)
     }
 
-    fn factor_constants(&mut self) -> Mapping<X, V> {
-        let mut constants = Mapping::new();
+    fn factor_constants(&mut self) -> HashMap<X, V> {
+        let mut constants = HashMap::new();
         for x in &self.domain.0 {
-            let val = &self.mappings[0].0[x];
-            if self.mappings.iter().all(|m| &m.0[x] == val) {
+            let val = &self.mappings[0][x];
+            if self.mappings.iter().all(|m| &m[x] == val) {
                 constants.insert(x.clone(), val.clone());
-                self.mappings.iter_mut().for_each(|m| m.remove(x));
+                self.mappings.iter_mut().for_each(|m| {
+                    m.remove(x);
+                });
             }
         }
         constants
     }
 
     fn is_trivial(&self) -> bool {
-        self.mappings.len() == 1 && self.mappings[0].0.is_empty()
+        self.mappings.len() == 1 && self.mappings[0].is_empty()
     }
 
     fn display(
         &self,
         out: &mut String,
-        display_fn: impl Fn(&mut String, &Mapping<X, V>) -> fmt::Result,
+        display_fn: Option<&impl Fn(&mut String, &HashMap<X, V>) -> fmt::Result>,
     ) -> fmt::Result {
-        for mapping in &self.mappings {
-            display_fn(out, mapping)?;
+        use std::fmt::Write;
+
+        if let Some(display_fn) = display_fn {
+            for mapping in &self.mappings {
+                display_fn(out, mapping)?;
+                writeln!(out)?;
+            }
+        } else {
+            for mapping in &self.mappings {
+                writeln!(out, "{:?}", mapping)?;
+            }
         }
         Ok(())
     }
@@ -170,7 +153,7 @@ impl<X: Var, V: Value> Assignment<X, V> {
     fn new() -> Assignment<X, V> {
         Assignment {
             domain: Domain::new(),
-            constants: Mapping::new(),
+            constants: HashMap::new(),
             components: Vec::new(),
         }
     }
@@ -178,11 +161,16 @@ impl<X: Var, V: Value> Assignment<X, V> {
     fn display(
         &self,
         out: &mut String,
-        display_fn: &impl Fn(&mut String, &Mapping<X, V>) -> fmt::Result,
+        display_fn: Option<&impl Fn(&mut String, &HashMap<X, V>) -> fmt::Result>,
     ) -> fmt::Result {
         use std::fmt::Write;
 
-        display_fn(out, &self.constants)?;
+        if let Some(display_fn) = display_fn {
+            display_fn(out, &self.constants)?;
+            writeln!(out)?;
+        } else {
+            writeln!(out, "{:?}", self.constants)?;
+        }
         for component in &self.components {
             writeln!(out, "\nAnd one of:\n")?;
             component.display(out, display_fn)?;
@@ -211,7 +199,11 @@ impl<X: Var, V: Value> Assignment<X, V> {
             domain: Domain::singleton(x.clone()),
             mappings: values
                 .into_iter()
-                .map(|val| Mapping::singleton(x.clone(), val))
+                .map(|val| {
+                    let mut mapping = HashMap::new();
+                    mapping.insert(x.clone(), val);
+                    mapping
+                })
                 .collect::<Vec<_>>(),
         });
     }
@@ -230,8 +222,8 @@ impl<X: Var, V: Value> Assignment<X, V> {
             let args = constraint
                 .params
                 .iter()
-                .map(|x| self.constants.get(x).or_else(|| mapping.get(x)))
-                .collect::<Vec<_>>();
+                .map(|x| self.constants.get(x).or_else(|| mapping.get(x)).cloned())
+                .collect::<Vec<Option<V>>>();
             (constraint.pred)(args)
         });
         if shared_comp.mappings.len() == 0 {
@@ -240,7 +232,7 @@ impl<X: Var, V: Value> Assignment<X, V> {
                 constraint: (constraint.name.clone(), constraint.params.clone()),
             });
         } else {
-            for (x, val) in shared_comp.factor_constants().0.into_iter() {
+            for (x, val) in shared_comp.factor_constants().into_iter() {
                 self.constants.insert(x, val);
             }
         }
@@ -254,20 +246,25 @@ impl<X: Var, V: Value> Assignment<X, V> {
 }
 
 pub struct Solvomatic<X: Var, V: Value> {
-    display_fn: Box<dyn Fn(&mut String, &Mapping<X, V>) -> fmt::Result>,
+    display_fn: Option<Box<dyn Fn(&mut String, &HashMap<X, V>) -> fmt::Result>>,
     variables: Vec<(X, Vec<V>)>,
     constraints: Vec<Constraint<X, V>>,
 }
 
 impl<X: Var, V: Value> Solvomatic<X, V> {
-    pub fn new(
-        display_fn: impl Fn(&mut String, &Mapping<X, V>) -> fmt::Result + 'static,
-    ) -> Solvomatic<X, V> {
+    pub fn new() -> Solvomatic<X, V> {
         Solvomatic {
-            display_fn: Box::new(display_fn),
+            display_fn: None,
             variables: Vec::new(),
             constraints: Vec::new(),
         }
+    }
+
+    pub fn set_display(
+        &mut self,
+        display_fn: impl Fn(&mut String, &HashMap<X, V>) -> fmt::Result + 'static,
+    ) {
+        self.display_fn = Some(Box::new(display_fn));
     }
 
     pub fn var(&mut self, x: X, values: impl IntoIterator<Item = V>) {
@@ -341,7 +338,7 @@ impl<X: Var, V: Value> Solvomatic<X, V> {
         let mut out = String::new();
         writeln!(&mut out, "Result:")?;
         writeln!(&mut out)?;
-        assignment.display(&mut out, &self.display_fn)?;
+        assignment.display(&mut out, self.display_fn.as_ref())?;
         Ok(out)
     }
 }
