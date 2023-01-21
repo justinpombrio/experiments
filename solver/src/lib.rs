@@ -1,4 +1,8 @@
+mod arith;
 mod cartesian_prod;
+mod constraint;
+mod knowledge;
+mod ring;
 
 use cartesian_prod::cartesian_prod;
 use std::collections::{HashMap, HashSet};
@@ -36,21 +40,7 @@ struct Constraint<X: Var, V: Value> {
     pred: Box<dyn Fn(Vec<Option<V>>) -> bool>,
 }
 
-/*
-/// A constraint, saying that the values that certain variables have obey some predicate.
-pub struct Constraint<X: Var, V: Value> {
-    /// The set of variables that are constrained.
-    domain: Domain<X>,
-    /// The set of variables that are constrained, in the same order as they will be passed to
-    /// `pred`.
-    params: Vec<X>,
-    /// The predicate, saying whether this constraint is satisfied when the variables `self.vars()`
-    /// are given the values in the function arg (`Vec<Option<V>>`). `None` represents unspecified
-    /// values; `pred` must return true if there is _any_ assignment of them that would yield true.
-    pred: Box<dyn Fn(Vec<Option<V>>) -> bool>,
-}
-*/
-
+#[allow(unused)]
 #[derive(Debug, Clone)]
 pub struct Unsatisfiable<X: Var, V: Value> {
     component: Component<X, V>,
