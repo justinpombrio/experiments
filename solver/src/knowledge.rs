@@ -1,7 +1,7 @@
 // TODO: temporary
 #![allow(unused)]
 
-use crate::constraint::{Value, Var};
+use crate::constraint::{PartialKnowledge, Value, Var};
 use std::iter;
 
 struct Knowledge<X: Var, V: Value> {
@@ -54,6 +54,49 @@ impl<X: Var, V: Value> Knowledge<X, V> {
         }
 
         self.components.push((domain, union));
+    }
+
+    fn get_partial_knowledge(&self, partial_domain: &Vec<X>) -> PartialKnowledge<V> {
+        let mut pknown: Vec<(Vec<usize>, Vec<Vec<V>>)> = Vec::new();
+        for (domain, union) in &self.components {
+            let overlaps = partial_domain.iter().any(|x| domain.contains(x));
+            if !overlaps {
+                continue;
+            }
+            let mut domain_indices = Vec::new();
+            let mut indices = Vec::new();
+            for (i, x) in domain.iter().enumerate() {
+                if let Some(j) = partial_domain.iter().position(|y| y == x) {
+                    domain_indices.push(i);
+                    indices.push(j);
+                }
+            }
+
+            let mut sub_union = Vec::new();
+            for tuple in union {
+                let mut sub_tuple = Vec::new();
+                for i in &domain_indices {
+                    sub_tuple.push(tuple[*i].clone());
+                }
+                sub_union.push(sub_tuple);
+            }
+            sub_union.sort();
+            sub_union.dedup();
+
+            pknown.push((indices, sub_union));
+        }
+
+        PartialKnowledge(pknown)
+    }
+
+    fn apply_partial_knowledge(
+        &mut self,
+        partial_domain: &Vec<X>,
+        known: PartialKnowledge<V>,
+    ) -> Result<(), ()> {
+        // TODO
+
+        Ok(())
     }
 
     fn filter(&mut self, comp: usize, pred: impl Fn(&[V]) -> bool) -> Result<(), ()> {

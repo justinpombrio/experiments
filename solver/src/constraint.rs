@@ -8,15 +8,17 @@ use std::hash::Hash;
 use std::ops::Add;
 
 pub trait Var: fmt::Debug + Hash + Eq + Ord + Clone + 'static {}
-pub trait Value: fmt::Debug + PartialEq + Clone + 'static {}
+pub trait Value: fmt::Debug + Eq + Ord + Clone + 'static {}
 
 impl<X: fmt::Debug + Hash + Eq + Ord + Clone + 'static> Var for X {}
-impl<V: fmt::Debug + PartialEq + Clone + 'static> Value for V {}
+impl<V: fmt::Debug + Eq + Ord + Clone + 'static> Value for V {}
+
+pub struct PartialKnowledge<V: Value>(pub Vec<(Vec<usize>, Vec<Vec<V>>)>);
 
 struct Constraint<X: Var, V: Value> {
     name: String,
     params: Vec<X>,
-    pred: Box<dyn Fn(Vec<(Vec<usize>, Vec<Vec<V>>)>) -> bool>,
+    pred: Box<dyn Fn(PartialKnowledge<V>) -> bool>,
 }
 
 fn ring_constraint<X: Var, V: Value, R: Ring>(
@@ -32,20 +34,25 @@ fn ring_constraint<X: Var, V: Value, R: Ring>(
         .map(|x| mapping.iter().find(|(x2, _)| x2 == x).unwrap().1.clone())
         .collect::<Vec<_>>();
 
-    let pred = move |known: Vec<(Vec<usize>, Vec<Vec<V>>)>| -> bool {
-        let mut accum = R::one();
-        for (indices, union) in known {
-            let mut accum_union = R::zero();
-            for tuple in union {
-                let mut accum_tuple = R::one();
-                for (i, v) in indices.iter().copied().zip(tuple) {
-                    accum_tuple = R::mul(accum_tuple, param_mapping[i].clone());
-                }
-                accum_union = R::add(accum_union, accum_tuple);
-            }
-            accum = R::mul(accum, accum_union);
+    let tuple_prod = move |indices: &Vec<usize>, tuple: Vec<V>| -> R {
+        let mut prod = R::one();
+        for (i, v) in indices.iter().copied().zip(tuple) {
+            prod = R::mul(prod, param_mapping[i].clone());
         }
-        pred(accum)
+        prod
+    };
+
+    let pred = move |known: PartialKnowledge<V>| -> bool {
+        let mut total = R::one();
+        for (indices, union) in known.0 {
+            let mut tuples = union.into_iter();
+            let mut sum = tuple_prod(&indices, tuples.next().unwrap());
+            for tuple in tuples {
+                sum = R::add(sum, tuple_prod(&indices, tuple));
+            }
+            total = R::mul(total, sum);
+        }
+        pred(total)
     };
 
     Constraint {
@@ -90,72 +97,6 @@ fn known_constraint<X: Var, V: Value>(
         name: name.into(),
         params: params_copy,
         pred: Box::new(pred),
-    }
-}
-*/
-
-/*
-
-impl<N: Addable> Ring for SumRing<N> {
-    const ZERO: SumRing<N> = SumRing::Empty;
-    const ONE: SumRing<N> = SumRing::Range(N::ZERO, N::ZERO);
-
-    fn mul(a: Self, b: Self) -> Self {
-        use SumRing::{Empty, Range};
-
-        match (a, b) {
-            (Empty, Empty) | (Empty, Range(_, _)) | (Range(_, _), Empty) => Empty,
-            (Range(a0, a1), Range(b0, b1)) => Range(a0 + b0, a1 + b1),
-        }
-    }
-
-    fn add(a: Self, b: Self) -> Self {
-        use SumRing::{Empty, Range};
-
-        match (a, b) {
-            (Empty, Empty) => Empty,
-            (Empty, Range(b0, b1)) => Range(b0, b1),
-            (Range(a0, a1), Empty) => Range(a0, a1),
-            (Range(a0, a1), Range(b0, b1)) => {
-                let c0 = if a0 < b0 { a0 } else { b0 };
-                let c1 = if a1 < b1 { a1 } else { b1 };
-                Range(c0, c1)
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MultisetRing<T: Hash + Eq + Clone>(HashMap<T, i32>);
-
-impl<T: Hash + Eq + Clone> Ring for MultisetRing<T> {
-    const ZERO: MultisetRing =
-
-    const ZERO: SumRing<N> = SumRing::Empty;
-    const ONE: SumRing<N> = SumRing::Range(N::ZERO, N::ZERO);
-
-    fn mul(a: Self, b: Self) -> Self {
-        use SumRing::{Empty, Range};
-
-        match (a, b) {
-            (Empty, Empty) | (Empty, Range(_, _)) | (Range(_, _), Empty) => Empty,
-            (Range(a0, a1), Range(b0, b1)) => Range(a0 + b0, a1 + b1),
-        }
-    }
-
-    fn add(a: Self, b: Self) -> Self {
-        use SumRing::{Empty, Range};
-
-        match (a, b) {
-            (Empty, Empty) => Empty,
-            (Empty, Range(b0, b1)) => Range(b0, b1),
-            (Range(a0, a1), Empty) => Range(a0, a1),
-            (Range(a0, a1), Range(b0, b1)) => {
-                let c0 = if a0 < b0 { a0 } else { b0 };
-                let c1 = if a1 < b1 { a1 } else { b1 };
-                Range(c0, c1)
-            }
-        }
     }
 }
 */
