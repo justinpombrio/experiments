@@ -8,8 +8,15 @@ pub trait Ring: Clone + 'static {
     fn add(self, other: Self) -> Self;
 }
 
+// TODO: private
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct RangeRing<N: Arith>(N, N);
+pub struct RangeRing<N: Arith>(pub N, pub N);
+
+impl<N: Arith> RangeRing<N> {
+    pub fn new(n: N) -> RangeRing<N> {
+        RangeRing(n.clone(), n)
+    }
+}
 
 impl<N: Arith> Ring for RangeRing<N> {
     fn one() -> RangeRing<N> {
