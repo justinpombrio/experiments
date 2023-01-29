@@ -1,14 +1,11 @@
 use super::Constraint;
 use crate::state::State;
+use std::ops::{Add, Mul, Sub};
 
-pub trait Summable {
+pub trait Summable:
+    Add<Self, Output = Self> + Sub<Self, Output = Self> + Mul<Self, Output = Self> + Ord + Sized
+{
     fn zero() -> Self;
-    fn add(self, other: Self) -> Self;
-    fn sub(self, other: Self) -> Self;
-    fn mul(self, other: Self) -> Self;
-    fn min(self, other: Self) -> Self;
-    fn max(self, other: Self) -> Self;
-    fn leq(self, other: Self) -> bool;
 }
 
 pub struct Sum<S: State>
@@ -38,9 +35,7 @@ where
         coefficients: impl IntoIterator<Item = S::Value>,
     ) -> Sum<S> {
         let coefficients = coefficients.into_iter().collect::<Vec<_>>();
-        Sum::new_generic(params, expected, move |i, n| {
-            S::Value::mul(coefficients[i].clone(), n)
-        })
+        Sum::new_generic(params, expected, move |i, n| coefficients[i].clone() * n)
     }
 
     pub fn new_generic(
@@ -88,15 +83,15 @@ where
     }
 
     fn and(&self, a: (S::Value, S::Value), b: (S::Value, S::Value)) -> (S::Value, S::Value) {
-        (Summable::add(a.0, b.0), Summable::add(a.1, b.1))
+        (a.0 + b.0, a.1 + b.1)
     }
 
     fn andnot(&self, a: (S::Value, S::Value), b: (S::Value, S::Value)) -> (S::Value, S::Value) {
-        (Summable::sub(a.0, b.0), Summable::sub(a.1, b.1))
+        (a.0 - b.0, a.1 - b.1)
     }
 
     fn or(&self, a: (S::Value, S::Value), b: (S::Value, S::Value)) -> (S::Value, S::Value) {
-        (Summable::min(a.0, b.0), Summable::max(a.1, b.1))
+        (a.0.min(b.0), a.1.max(b.1))
     }
 
     fn params(&self) -> &[S::Var] {
@@ -104,7 +99,7 @@ where
     }
 
     fn check(&self, set: (S::Value, S::Value)) -> bool {
-        Summable::leq(set.0, self.expected.clone()) && Summable::leq(self.expected.clone(), set.1)
+        set.0 <= self.expected.clone() && self.expected.clone() <= set.1
     }
 }
 
@@ -113,30 +108,6 @@ macro_rules! define_sum {
         impl Summable for $ty {
             fn zero() -> $ty {
                 0
-            }
-
-            fn add(self, other: $ty) -> $ty {
-                self + other
-            }
-
-            fn sub(self, other: $ty) -> $ty {
-                self - other
-            }
-
-            fn mul(self, other: $ty) -> $ty {
-                self * other
-            }
-
-            fn min(self, other: $ty) -> $ty {
-                std::cmp::min(self, other)
-            }
-
-            fn max(self, other: $ty) -> $ty {
-                std::cmp::max(self, other)
-            }
-
-            fn leq(self, other: $ty) -> bool {
-                self <= other
             }
         }
     };
