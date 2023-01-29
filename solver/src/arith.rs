@@ -6,6 +6,7 @@ pub trait Arith: fmt::Debug + Clone + 'static {
     fn identity() -> Self;
 
     fn add(self, other: Self) -> Self;
+    fn sub(self, other: Self) -> Self;
     fn min(self, other: Self) -> Self;
     fn max(self, other: Self) -> Self;
 }
@@ -19,6 +20,9 @@ macro_rules! define_arith {
 
             fn add(self, other: $ty) -> $ty {
                 self + other
+            }
+            fn sub(self, other: $ty) -> $ty {
+                self - other
             }
             fn min(self, other: $ty) -> $ty {
                 Ord::min(self, other)
@@ -50,6 +54,9 @@ impl Arith for f32 {
     fn add(self, other: f32) -> f32 {
         self + other
     }
+    fn sub(self, other: f32) -> f32 {
+        self - other
+    }
     fn min(self, other: f32) -> f32 {
         f32::min(self, other)
     }
@@ -65,6 +72,9 @@ impl Arith for f64 {
 
     fn add(self, other: f64) -> f64 {
         self + other
+    }
+    fn sub(self, other: f64) -> f64 {
+        self - other
     }
     fn min(self, other: f64) -> f64 {
         f64::min(self, other)
@@ -94,6 +104,10 @@ impl<V: fmt::Debug + Hash + Eq + Clone + 'static> Arith for Multiset<V> {
 
     fn add(self, other: Multiset<V>) -> Multiset<V> {
         self.merge(other, |c1, c2| c1 + c2)
+    }
+
+    fn sub(self, other: Multiset<V>) -> Multiset<V> {
+        self.merge(other, |c1, c2| c1 - c2)
     }
 
     fn min(self, other: Multiset<V>) -> Multiset<V> {

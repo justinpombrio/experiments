@@ -3,6 +3,8 @@ mod cartesian_prod;
 mod constraint;
 mod knowledge;
 mod ring;
+mod state;
+mod table;
 
 use cartesian_prod::cartesian_prod;
 use std::collections::{HashMap, HashSet};

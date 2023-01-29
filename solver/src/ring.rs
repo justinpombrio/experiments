@@ -3,8 +3,9 @@ use crate::arith::Arith;
 pub trait Ring: Clone + 'static {
     fn one() -> Self;
 
-    fn mul(a: Self, b: Self) -> Self;
-    fn add(a: Self, b: Self) -> Self;
+    fn mul(self, other: Self) -> Self;
+    fn div(self, other: Self) -> Self;
+    fn add(self, other: Self) -> Self;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,11 +16,15 @@ impl<N: Arith> Ring for RangeRing<N> {
         RangeRing(N::identity(), N::identity())
     }
 
-    fn mul(a: RangeRing<N>, b: RangeRing<N>) -> RangeRing<N> {
-        RangeRing(N::add(a.0, b.0), N::add(a.1, b.1))
+    fn mul(self, other: RangeRing<N>) -> RangeRing<N> {
+        RangeRing(N::add(self.0, other.0), N::add(self.1, other.1))
     }
 
-    fn add(a: RangeRing<N>, b: RangeRing<N>) -> RangeRing<N> {
-        RangeRing(N::min(a.0, b.0), N::max(a.1, b.1))
+    fn div(self, other: RangeRing<N>) -> RangeRing<N> {
+        RangeRing(N::sub(self.0, other.0), N::sub(self.1, other.1))
+    }
+
+    fn add(self, other: RangeRing<N>) -> RangeRing<N> {
+        RangeRing(N::min(self.0, other.0), N::max(self.1, other.1))
     }
 }
