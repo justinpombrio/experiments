@@ -85,6 +85,14 @@ impl<S: State> Solvomatic<S> {
 
         self.table = table;
     }
+
+    pub fn size(&self) -> u64 {
+        self.table.size()
+    }
+
+    pub fn possibilities(&self) -> u64 {
+        self.table.possibilities()
+    }
 }
 
 impl<S: State> fmt::Display for Solvomatic<S> {

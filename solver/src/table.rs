@@ -1,6 +1,3 @@
-// TODO: temporary
-#![allow(unused)]
-
 use crate::constraints::Constraint;
 use crate::state::State;
 use std::collections::HashMap;
