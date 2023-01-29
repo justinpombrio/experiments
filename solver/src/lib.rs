@@ -1,6 +1,5 @@
 // TODO: check for emptiness
 
-mod constraints;
 mod state;
 mod table;
 
@@ -9,7 +8,8 @@ use std::collections::HashMap;
 use std::fmt;
 use table::Table;
 
-pub use constraints::Sum;
+pub mod constraints;
+
 pub use state::State;
 
 struct DynConstraint<S: State> {

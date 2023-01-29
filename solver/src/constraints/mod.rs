@@ -2,7 +2,7 @@ mod sum;
 
 use crate::state::State;
 
-pub use sum::Sum;
+pub use sum::{Sum, Summable};
 
 pub trait Constraint<S: State>: 'static {
     type Set: Clone;

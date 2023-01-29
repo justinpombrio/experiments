@@ -29,16 +29,17 @@ where
         }
     }
 
-    pub fn new_linear(
-        params: impl IntoIterator<Item = S::Var>,
+    pub fn linear(
+        coefficients_and_params: impl IntoIterator<Item = (S::Value, S::Var)>,
         expected: S::Value,
-        coefficients: impl IntoIterator<Item = S::Value>,
     ) -> Sum<S> {
-        let coefficients = coefficients.into_iter().collect::<Vec<_>>();
-        Sum::new_generic(params, expected, move |i, n| coefficients[i].clone() * n)
+        let (coefficients, params) = coefficients_and_params
+            .into_iter()
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+        Sum::generic(params, expected, move |i, n| coefficients[i].clone() * n)
     }
 
-    pub fn new_generic(
+    pub fn generic(
         params: impl IntoIterator<Item = S::Var>,
         expected: S::Value,
         map: impl Fn(usize, S::Value) -> S::Value + 'static,
@@ -53,7 +54,7 @@ where
         }
     }
 
-    pub fn new_generic_range(
+    pub fn generic_range(
         params: impl IntoIterator<Item = S::Var>,
         expected: S::Value,
         map: impl Fn(usize, S::Value) -> (S::Value, S::Value) + 'static,
