@@ -1,8 +1,9 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
 
-pub trait Arith: fmt::Debug + Clone + 'static {
+pub trait Arith: fmt::Debug + Clone + PartialOrd + 'static {
     fn identity() -> Self;
 
     fn add(self, other: Self) -> Self;
@@ -84,11 +85,12 @@ impl Arith for f64 {
     }
 }
 
+/*
 #[derive(Debug, Clone)]
-struct Multiset<V: fmt::Debug + Hash + Eq + Clone + 'static>(HashMap<V, u32>);
+struct Multiset<V: fmt::Debug + Hash + Eq + Clone + 'static>(HashMap<V, i32>);
 
 impl<V: fmt::Debug + Hash + Eq + Clone + 'static> Multiset<V> {
-    fn merge(self, other: Multiset<V>, f: impl Fn(u32, u32) -> u32) -> Multiset<V> {
+    fn merge(self, other: Multiset<V>, f: impl Fn(i32, i32) -> i32) -> Multiset<V> {
         let mut result = self;
         for (key, count) in other.0 {
             *result.0.get_mut(&key).unwrap() = f(result.0[&key], count);
@@ -118,3 +120,12 @@ impl<V: fmt::Debug + Hash + Eq + Clone + 'static> Arith for Multiset<V> {
         self.merge(other, |c1, c2| Arith::max(c1, c2))
     }
 }
+
+impl<V: fmt::Debug + Hash + Eq + Clone + 'static> PartialOrd for MultiSet<V> {
+    fn partial_cmp(&self, other: &MultiSet<V>) -> Option<Ordering> {
+        for key in self.0.keys().chain(other.0.keys()) {
+            if self.get(key).or(0) >
+        }
+    }
+}
+*/

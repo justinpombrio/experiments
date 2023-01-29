@@ -4,16 +4,15 @@
 // TODO: check for emptiness
 
 mod arith;
+mod property;
 mod ring;
-mod state;
 mod table;
 
 use std::collections::HashMap;
 use std::fmt;
-use table::Table;
+use table::{State, Table};
 
-pub use ring::{RangeRing, Ring};
-pub use state::State;
+pub use ring::{Range, Ring};
 
 struct Constraint<S: State> {
     name: String,
@@ -49,14 +48,37 @@ impl<S: State> Solvomatic<S> {
         &mut self,
         name: impl Into<String>,
         params: impl IntoIterator<Item = S::Var>,
-        map: impl Fn(S::Var, S::Value) -> R + 'static,
+        map: impl Fn(usize, S::Value) -> R + 'static,
         pred: impl Fn(R) -> bool + 'static,
     ) {
         let name = name.into();
         let params = params.into_iter().collect::<Vec<_>>();
-        let params_clone = params.clone();
+        let params_apply = params.clone();
+        let params_map = params.clone();
+        let var_map = move |x, v| map(params_map.iter().position(|y| y == &x).unwrap(), v);
         let apply = Box::new(move |table: &mut Table<S>| {
-            table.apply_ring_constraint(&params_clone, &map, &pred);
+            table.apply_ring_constraint(&params_apply, &var_map, &pred);
+        });
+        self.constraints.push(Constraint {
+            name,
+            params,
+            apply,
+        });
+    }
+
+    pub fn generic_constraint_2<R: Ring>(
+        &mut self,
+        name: impl Into<String>,
+        params: impl IntoIterator<Item = (S::Var, impl Fn(S::Value) -> R + 'static)>,
+        pred: impl Fn(R) -> bool + 'static,
+    ) {
+        let name = name.into();
+        let (params, maps) = params.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
+        let params_map = params.clone();
+        let params_apply = params.clone();
+        let map = move |x, v| maps[params_map.iter().position(|y| y == &x).unwrap()](v);
+        let apply = Box::new(move |table: &mut Table<S>| {
+            table.apply_ring_constraint(&params_apply, &map, &pred);
         });
         self.constraints.push(Constraint {
             name,
