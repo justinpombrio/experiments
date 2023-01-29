@@ -36,18 +36,24 @@ impl<S: State> Table<S> {
             partial_sums.push((i, sum, prods));
         }
 
-        let mut total = constraint.none();
-        for (_, sum, _) in &partial_sums {
-            total = constraint.and(total, sum.clone());
+        let mut all_but_one_prods = Vec::new();
+        for i in 0..partial_sums.len() {
+            let mut prod = constraint.none();
+            for j in 0..partial_sums.len() {
+                if j == i {
+                    continue;
+                }
+                prod = constraint.and(prod, partial_sums[j].1.clone());
+            }
+            all_but_one_prods.push(prod);
         }
 
         let mut keep_lists: Vec<(usize, Vec<bool>)> = Vec::new();
-        for (i, sum, prods) in partial_sums {
+        for (i, (j, _, prods)) in partial_sums.into_iter().enumerate() {
             let keep_list = map_vec(prods, |prod| {
-                constraint
-                    .check(constraint.and(constraint.andnot(total.clone(), sum.clone()), prod))
+                constraint.check(constraint.and(all_but_one_prods[i].clone(), prod))
             });
-            keep_lists.push((i, keep_list));
+            keep_lists.push((j, keep_list));
         }
         self.retain(keep_lists);
     }

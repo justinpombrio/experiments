@@ -1,4 +1,4 @@
-use solvomatic::constraints::Sum;
+use solvomatic::constraints::{Prod, Sum};
 use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
 use std::fmt;
@@ -35,7 +35,8 @@ fn main() {
     solver.constraint(Sum::linear([(2, 'A'), (1, 'B')], 10));
     solver.constraint(Sum::new(['A', 'C'], 8));
     solver.constraint(Sum::new(['B', 'C'], 9));
-    solver.constraint(Sum::new(['D', 'E'], 1));
+    solver.constraint(Sum::new(['D', 'E'], 2));
+    solver.constraint(Prod::new(['D', 'E'], 1));
 
     solver.solve();
     println!("{}", solver);

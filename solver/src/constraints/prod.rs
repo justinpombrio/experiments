@@ -1,46 +1,34 @@
 use super::Constraint;
 use crate::state::State;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Div, Mul};
 
-pub trait Summable:
-    Add<Self, Output = Self> + Sub<Self, Output = Self> + Mul<Self, Output = Self> + Ord + Sized
-{
-    fn zero() -> Self;
+pub trait Mullable: Mul<Self, Output = Self> + Div<Self, Output = Self> + Ord + Sized {
+    fn one() -> Self;
 }
 
-pub struct Sum<S: State>
+pub struct Prod<S: State>
 where
-    S::Value: Summable,
+    S::Value: Mullable,
 {
     expected: S::Value,
     params: Vec<S::Var>,
     map: Box<dyn Fn(usize, S::Value) -> (S::Value, S::Value)>,
 }
 
-impl<S: State> Sum<S>
+impl<S: State> Prod<S>
 where
-    S::Value: Summable,
+    S::Value: Mullable,
 {
-    pub fn new(params: impl IntoIterator<Item = S::Var>, expected: S::Value) -> Sum<S> {
-        Sum::generic(params, expected, |_, n| n)
-    }
-
-    pub fn linear(
-        coefficients_and_params: impl IntoIterator<Item = (S::Value, S::Var)>,
-        expected: S::Value,
-    ) -> Sum<S> {
-        let (coefficients, params) = coefficients_and_params
-            .into_iter()
-            .unzip::<_, _, Vec<_>, Vec<_>>();
-        Sum::generic(params, expected, move |i, n| coefficients[i].clone() * n)
+    pub fn new(params: impl IntoIterator<Item = S::Var>, expected: S::Value) -> Prod<S> {
+        Prod::generic(params, expected, |_, n| n)
     }
 
     pub fn generic(
         params: impl IntoIterator<Item = S::Var>,
         expected: S::Value,
         map: impl Fn(usize, S::Value) -> S::Value + 'static,
-    ) -> Sum<S> {
-        Sum::generic_range(params, expected, move |i, n| {
+    ) -> Prod<S> {
+        Prod::generic_range(params, expected, move |i, n| {
             let n2 = map(i, n);
             (n2.clone(), n2)
         })
@@ -50,8 +38,8 @@ where
         params: impl IntoIterator<Item = S::Var>,
         expected: S::Value,
         map: impl Fn(usize, S::Value) -> (S::Value, S::Value) + 'static,
-    ) -> Sum<S> {
-        Sum {
+    ) -> Prod<S> {
+        Prod {
             params: params.into_iter().collect::<Vec<_>>(),
             expected,
             map: Box::new(map),
@@ -59,9 +47,9 @@ where
     }
 }
 
-impl<S: State> Constraint<S> for Sum<S>
+impl<S: State> Constraint<S> for Prod<S>
 where
-    S::Value: Summable,
+    S::Value: Mullable,
 {
     type Set = (S::Value, S::Value);
 
@@ -72,11 +60,11 @@ where
     }
 
     fn none(&self) -> (S::Value, S::Value) {
-        (Summable::zero(), Summable::zero())
+        (Mullable::one(), Mullable::one())
     }
 
     fn and(&self, a: (S::Value, S::Value), b: (S::Value, S::Value)) -> (S::Value, S::Value) {
-        (a.0 + b.0, a.1 + b.1)
+        (a.0 * b.0, a.1 * b.1)
     }
 
     fn or(&self, a: (S::Value, S::Value), b: (S::Value, S::Value)) -> (S::Value, S::Value) {
@@ -92,24 +80,18 @@ where
     }
 }
 
-macro_rules! define_sum {
+macro_rules! define_prod {
     ($ty:ident) => {
-        impl Summable for $ty {
-            fn zero() -> $ty {
-                0
+        impl Mullable for $ty {
+            fn one() -> $ty {
+                1
             }
         }
     };
 }
 
-define_sum!(u8);
-define_sum!(u16);
-define_sum!(u32);
-define_sum!(u64);
-define_sum!(u128);
-
-define_sum!(i8);
-define_sum!(i16);
-define_sum!(i32);
-define_sum!(i64);
-define_sum!(i128);
+define_prod!(u8);
+define_prod!(u16);
+define_prod!(u32);
+define_prod!(u64);
+define_prod!(u128);
