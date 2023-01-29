@@ -1,4 +1,4 @@
-use solvomatic::{Range, Solvomatic, State};
+use solvomatic::{Solvomatic, State, Sum};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -31,15 +31,10 @@ fn main() {
     solver.var('D', 0..9);
     solver.var('E', 0..9);
 
-    solver.generic_constraint("sumAB", ['A', 'B'], |_, n| Range::new(n), |r| r.pred(7));
-    solver.generic_constraint("sumAB", ['A', 'C'], |_, n| Range::new(n), |r| r.pred(8));
-    solver.generic_constraint("sumAB", ['B', 'C'], |_, n| Range::new(n), |r| r.pred(9));
-    solver.generic_constraint("sumAB", ['D', 'E'], |_, n| Range::new(n), |r| r.pred(1));
-
-    // solver.simple_constraint("sumAB", ['A', 'B'], |args| args[0] + args[1] == 7);
-    // solver.simple_constraint("sumAC", ['A', 'C'], |args| args[0] + args[1] == 8);
-    // solver.simple_constraint("sumBC", ['B', 'C'], |args| args[0] + args[1] == 9);
-    // solver.simple_constraint("sumDE", ['D', 'E'], |args| args[0] + args[1] == 1);
+    solver.constraint(['A', 'B'], Sum::new(7u8));
+    solver.constraint(['A', 'C'], Sum::new(8u8));
+    solver.constraint(['B', 'C'], Sum::new(9u8));
+    solver.constraint(['D', 'E'], Sum::new(1u8));
 
     solver.solve();
     println!("{}", solver);

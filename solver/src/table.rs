@@ -1,20 +1,9 @@
 // TODO: temporary
 #![allow(unused)]
 
-use crate::ring::Ring;
+use crate::constraints::Constraint;
+use crate::state::State;
 use std::collections::HashMap;
-use std::fmt;
-use std::hash::Hash;
-
-pub trait State {
-    type Var: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
-    type Value: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
-
-    fn display(f: &mut String, state: &HashMap<Self::Var, Self::Value>) -> fmt::Result {
-        use fmt::Write;
-        write!(f, "{:#?}", state)
-    }
-}
 
 #[derive(Debug)]
 pub struct Table<S: State> {
@@ -43,22 +32,28 @@ impl<S: State> Table<S> {
         });
     }
 
-    pub fn apply_ring_constraint<R: Ring>(
+    pub fn apply_constraint<C: Constraint<Element = S::Value>>(
         &mut self,
         header: &[S::Var],
-        map: impl Fn(S::Var, S::Value) -> R,
-        pred: impl Fn(R) -> bool,
+        constraint: &C,
     ) {
-        let partial_sums = self.apply_ring(header, map);
+        let mut partial_sums = Vec::new();
+        for (i, subsection) in self.project(header) {
+            let (sum, prods) = subsection.apply_constraint(constraint);
+            partial_sums.push((i, sum, prods));
+        }
 
-        let mut total = R::one();
+        let mut total = constraint.none();
         for (_, sum, _) in &partial_sums {
-            total = total.mul(sum.clone());
+            total = constraint.and(total, sum.clone());
         }
 
         let mut keep_lists: Vec<(usize, Vec<bool>)> = Vec::new();
         for (i, sum, prods) in partial_sums {
-            let keep_list = map_vec(prods, |prod| pred(total.clone().div(sum.clone()).mul(prod)));
+            let keep_list = map_vec(prods, |prod| {
+                constraint
+                    .check(constraint.and(constraint.andnot(total.clone(), sum.clone()), prod))
+            });
             keep_lists.push((i, keep_list));
         }
         self.retain(keep_lists);
@@ -138,19 +133,6 @@ impl<S: State> Table<S> {
             self.sections[section_index].retain(keep_list);
         }
     }
-
-    fn apply_ring<R: Ring>(
-        &self,
-        header: &[S::Var],
-        map: impl Fn(S::Var, S::Value) -> R,
-    ) -> Vec<(usize, R, Vec<R>)> {
-        let mut result = Vec::new();
-        for (i, subsection) in self.project(header) {
-            let (sum, prods) = subsection.apply_ring(&map);
-            result.push((i, sum, prods));
-        }
-        result
-    }
 }
 
 impl<S: State> Section<S> {
@@ -174,11 +156,14 @@ impl<S: State> Section<S> {
         }
     }
 
-    fn apply_ring<R: Ring>(&self, map: impl Fn(S::Var, S::Value) -> R) -> (R, Vec<R>) {
-        let tuple_prod = |tuple: &Vec<S::Value>| -> R {
-            let mut prod = R::one();
+    fn apply_constraint<C: Constraint<Element = S::Value>>(
+        &self,
+        constraint: &C,
+    ) -> (C::Set, Vec<C::Set>) {
+        let tuple_prod = |tuple: &Vec<S::Value>| -> C::Set {
+            let mut prod = constraint.none();
             for (i, val) in tuple.iter().enumerate() {
-                prod = prod.mul(map(self.header[i].clone(), val.clone()));
+                prod = constraint.and(prod, constraint.new_set(i, val.clone()));
             }
             prod
         };
@@ -187,7 +172,7 @@ impl<S: State> Section<S> {
 
         let mut sum = products[0].clone();
         for prod in products.iter().skip(1) {
-            sum = sum.add(prod.clone());
+            sum = constraint.or(sum, prod.clone());
         }
         (sum, products)
     }
