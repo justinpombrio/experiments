@@ -42,14 +42,10 @@ impl<S: State> Solvomatic<S> {
         self.table.add_column(x, values);
     }
 
-    pub fn constraint<C: Constraint<Element = S::Value>>(
-        &mut self,
-        params: impl IntoIterator<Item = S::Var>,
-        constraint: C,
-    ) {
+    pub fn constraint<C: Constraint<S>>(&mut self, constraint: C) {
         let name = C::NAME.to_owned();
-        let params = params.into_iter().collect::<Vec<_>>();
-        let params_copy = params.clone();
+        let params = constraint.params().to_owned();
+        let params_copy = constraint.params().to_owned();
         let apply = Box::new(move |table: &mut Table<S>| {
             table.apply_constraint(&params_copy, &constraint);
         });

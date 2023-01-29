@@ -29,11 +29,7 @@ impl<S: State> Table<S> {
         });
     }
 
-    pub fn apply_constraint<C: Constraint<Element = S::Value>>(
-        &mut self,
-        header: &[S::Var],
-        constraint: &C,
-    ) {
+    pub fn apply_constraint<C: Constraint<S>>(&mut self, header: &[S::Var], constraint: &C) {
         let mut partial_sums = Vec::new();
         for (i, subsection) in self.project(header) {
             let (sum, prods) = subsection.apply_constraint(constraint);
@@ -153,10 +149,7 @@ impl<S: State> Section<S> {
         }
     }
 
-    fn apply_constraint<C: Constraint<Element = S::Value>>(
-        &self,
-        constraint: &C,
-    ) -> (C::Set, Vec<C::Set>) {
+    fn apply_constraint<C: Constraint<S>>(&self, constraint: &C) -> (C::Set, Vec<C::Set>) {
         let tuple_prod = |tuple: &Vec<S::Value>| -> C::Set {
             let mut prod = constraint.none();
             for (i, val) in tuple.iter().enumerate() {

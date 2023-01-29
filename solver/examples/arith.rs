@@ -31,10 +31,10 @@ fn main() {
     solver.var('D', 0..9);
     solver.var('E', 0..9);
 
-    solver.constraint(['A', 'B'], Sum::new(7u8));
-    solver.constraint(['A', 'C'], Sum::new(8u8));
-    solver.constraint(['B', 'C'], Sum::new(9u8));
-    solver.constraint(['D', 'E'], Sum::new(1u8));
+    solver.constraint(Sum::new_generic(['A', 'B'], 10, |i, n| [2, 1][i] * n));
+    solver.constraint(Sum::new(['A', 'C'], 8));
+    solver.constraint(Sum::new(['B', 'C'], 9));
+    solver.constraint(Sum::new(['D', 'E'], 1));
 
     solver.solve();
     println!("{}", solver);

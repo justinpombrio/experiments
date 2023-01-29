@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
 
-pub trait State {
+pub trait State: 'static {
     type Var: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
     type Value: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
 
