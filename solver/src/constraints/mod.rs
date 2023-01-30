@@ -10,8 +10,6 @@ pub trait Constraint<T>: 'static {
     const NAME: &'static str;
 
     fn singleton(&self, elem: T) -> Self::Set;
-    // TODO: remove
-    fn none(&self) -> Self::Set;
     fn and(&self, set_1: Self::Set, set_2: Self::Set) -> Self::Set;
     fn or(&self, set_1: Self::Set, set_2: Self::Set) -> Self::Set;
 

@@ -4,7 +4,6 @@ use std::ops::{Add, Mul};
 pub trait Summable:
     Add<Self, Output = Self> + Mul<Self, Output = Self> + Ord + Sized + Clone + 'static
 {
-    fn zero() -> Self;
 }
 
 pub struct Sum<N: Summable> {
@@ -26,10 +25,6 @@ impl<N: Summable> Constraint<N> for Sum<N> {
         (elem.clone(), elem)
     }
 
-    fn none(&self) -> (N, N) {
-        (Summable::zero(), Summable::zero())
-    }
-
     fn and(&self, a: (N, N), b: (N, N)) -> (N, N) {
         (a.0 + b.0, a.1 + b.1)
     }
@@ -45,11 +40,7 @@ impl<N: Summable> Constraint<N> for Sum<N> {
 
 macro_rules! define_sum {
     ($ty:ident) => {
-        impl Summable for $ty {
-            fn zero() -> $ty {
-                0
-            }
-        }
+        impl Summable for $ty {}
     };
 }
 

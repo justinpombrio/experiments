@@ -1,9 +1,7 @@
 use super::Constraint;
 use std::ops::Mul;
 
-pub trait Mullable: Mul<Self, Output = Self> + Ord + Clone + Sized + 'static {
-    fn one() -> Self;
-}
+pub trait Mullable: Mul<Self, Output = Self> + Ord + Clone + Sized + 'static {}
 
 pub struct Prod<N: Mullable> {
     expected: N,
@@ -24,10 +22,6 @@ impl<N: Mullable> Constraint<N> for Prod<N> {
         (elem.clone(), elem)
     }
 
-    fn none(&self) -> (N, N) {
-        (Mullable::one(), Mullable::one())
-    }
-
     fn and(&self, a: (N, N), b: (N, N)) -> (N, N) {
         (a.0 * b.0, a.1 * b.1)
     }
@@ -43,11 +37,7 @@ impl<N: Mullable> Constraint<N> for Prod<N> {
 
 macro_rules! define_prod {
     ($ty:ident) => {
-        impl Mullable for $ty {
-            fn one() -> $ty {
-                1
-            }
-        }
+        impl Mullable for $ty {}
     };
 }
 

@@ -41,14 +41,21 @@ impl<S: State> Table<S> {
             partial_sums.push((i, sum, prods));
         }
 
+        assert!(!partial_sums.is_empty());
+        if partial_sums.len() == 1 {
+            let (i, _, prods) = partial_sums.remove(0);
+            let keep_list = map_vec(prods, |prod| constraint.check(prod));
+            let keep_lists = vec![(i, keep_list)];
+            self.retain(keep_lists);
+            return;
+        }
+
         let mut all_but_one_prods = Vec::new();
         for i in 0..partial_sums.len() {
-            let mut prod = constraint.none();
-            for j in 0..partial_sums.len() {
-                if j == i {
-                    continue;
-                }
-                prod = constraint.and(prod, partial_sums[j].1.clone());
+            let nth_partial_sum = |j: usize| partial_sums[(i + j) % partial_sums.len()].1.clone();
+            let mut prod = nth_partial_sum(1);
+            for j in 2..partial_sums.len() {
+                prod = constraint.and(prod, nth_partial_sum(j));
             }
             all_but_one_prods.push(prod);
         }
@@ -166,9 +173,10 @@ impl<S: State> Section<S> {
         constraint: &C,
     ) -> (C::Set, Vec<C::Set>) {
         let tuple_prod = |tuple: &Vec<S::Value>| -> C::Set {
-            let mut prod = constraint.none();
-            for (i, val) in tuple.iter().enumerate() {
-                prod = constraint.and(prod, constraint.singleton(map(i, val.clone())));
+            let nth_elem = |i| constraint.singleton(map(i, tuple[i].clone()));
+            let mut prod = nth_elem(0);
+            for i in 1..tuple.len() {
+                prod = constraint.and(prod, nth_elem(i));
             }
             prod
         };
