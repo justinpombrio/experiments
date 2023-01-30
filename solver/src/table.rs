@@ -29,10 +29,15 @@ impl<S: State> Table<S> {
         });
     }
 
-    pub fn apply_constraint<C: Constraint<S>>(&mut self, header: &[S::Var], constraint: &C) {
+    pub fn apply_constraint<N, C: Constraint<N>>(
+        &mut self,
+        header: &[S::Var],
+        map: &impl Fn(usize, S::Value) -> N,
+        constraint: &C,
+    ) {
         let mut partial_sums = Vec::new();
         for (i, subsection) in self.project(header) {
-            let (sum, prods) = subsection.apply_constraint(constraint);
+            let (sum, prods) = subsection.apply_constraint(map, constraint);
             partial_sums.push((i, sum, prods));
         }
 
@@ -155,11 +160,15 @@ impl<S: State> Section<S> {
         }
     }
 
-    fn apply_constraint<C: Constraint<S>>(&self, constraint: &C) -> (C::Set, Vec<C::Set>) {
+    fn apply_constraint<N, C: Constraint<N>>(
+        &self,
+        map: impl Fn(usize, S::Value) -> N,
+        constraint: &C,
+    ) -> (C::Set, Vec<C::Set>) {
         let tuple_prod = |tuple: &Vec<S::Value>| -> C::Set {
             let mut prod = constraint.none();
             for (i, val) in tuple.iter().enumerate() {
-                prod = constraint.and(prod, constraint.new_set(i, val.clone()));
+                prod = constraint.and(prod, constraint.singleton(map(i, val.clone())));
             }
             prod
         };

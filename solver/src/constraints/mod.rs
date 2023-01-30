@@ -1,22 +1,19 @@
 mod prod;
 mod sum;
 
-use crate::state::State;
-
 pub use prod::{Mullable, Prod};
 pub use sum::{Sum, Summable};
 
-pub trait Constraint<S: State>: 'static {
+pub trait Constraint<T>: 'static {
     type Set: Clone;
 
     const NAME: &'static str;
 
-    fn new_set(&self, index: usize, elem: S::Value) -> Self::Set;
+    fn singleton(&self, elem: T) -> Self::Set;
+    // TODO: remove
     fn none(&self) -> Self::Set;
     fn and(&self, set_1: Self::Set, set_2: Self::Set) -> Self::Set;
     fn or(&self, set_1: Self::Set, set_2: Self::Set) -> Self::Set;
-
-    fn params(&self) -> &[S::Var];
 
     fn check(&self, set: Self::Set) -> bool;
 }

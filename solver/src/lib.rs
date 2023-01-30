@@ -42,12 +42,25 @@ impl<S: State> Solvomatic<S> {
         self.table.add_column(x, values);
     }
 
-    pub fn constraint<C: Constraint<S>>(&mut self, constraint: C) {
+    pub fn constraint<C: Constraint<S::Value>>(
+        &mut self,
+        params: impl IntoIterator<Item = S::Var> + 'static,
+        constraint: C,
+    ) {
+        self.mapped_constraint(params, |_, v| v, constraint)
+    }
+
+    pub fn mapped_constraint<N, C: Constraint<N>>(
+        &mut self,
+        params: impl IntoIterator<Item = S::Var> + 'static,
+        map: impl Fn(usize, S::Value) -> N + 'static,
+        constraint: C,
+    ) {
         let name = C::NAME.to_owned();
-        let params = constraint.params().to_owned();
-        let params_copy = constraint.params().to_owned();
+        let params = params.into_iter().collect::<Vec<_>>();
+        let params_copy = params.clone();
         let apply = Box::new(move |table: &mut Table<S>| {
-            table.apply_constraint(&params_copy, &constraint);
+            table.apply_constraint(&params_copy, &map, &constraint);
         });
         self.constraints.push(DynConstraint {
             name,

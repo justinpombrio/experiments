@@ -32,11 +32,11 @@ fn main() {
     solver.var('D', 0..9);
     solver.var('E', 0..9);
 
-    solver.constraint(Sum::linear([(2, 'A'), (1, 'B')], 10));
-    solver.constraint(Sum::new(['A', 'C'], 8));
-    solver.constraint(Sum::new(['B', 'C'], 9));
-    solver.constraint(Sum::new(['D', 'E'], 2));
-    solver.constraint(Prod::new(['D', 'E'], 1));
+    solver.mapped_constraint(['A', 'B'], |i, n| [2, 1][i] * n, Sum::new(10));
+    solver.constraint(['A', 'C'], Sum::new(8));
+    solver.constraint(['B', 'C'], Sum::new(9));
+    solver.constraint(['D', 'E'], Sum::new(2));
+    solver.constraint(['D', 'E'], Prod::new(1));
 
     solver.solve();
     println!("{}", solver);
