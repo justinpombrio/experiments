@@ -3,6 +3,7 @@ use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
 use std::fmt;
 
+#[derive(Debug)]
 struct PuzzleState;
 
 impl State for PuzzleState {
@@ -38,6 +39,6 @@ fn main() {
     solver.constraint(['D', 'E'], Sum::new(2));
     solver.constraint(['D', 'E'], Prod::new(1));
 
-    solver.solve();
+    solver.solve().unwrap();
     println!("{}", solver);
 }

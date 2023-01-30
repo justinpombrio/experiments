@@ -1,5 +1,3 @@
-// TODO: check for emptiness
-
 mod state;
 mod table;
 
@@ -15,14 +13,15 @@ pub use state::State;
 struct DynConstraint<S: State> {
     name: String,
     params: Vec<S::Var>,
-    apply: Box<dyn Fn(&mut Table<S>)>,
+    apply: Box<dyn Fn(&mut Table<S>) -> Result<(), ()>>,
 }
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub struct Unsatisfiable<S: State> {
     state: HashMap<S::Var, S::Value>,
-    constraint: (String, Vec<S::Var>),
+    header: Vec<S::Var>,
+    constraint: String,
 }
 
 pub struct Solvomatic<S: State> {
@@ -60,7 +59,7 @@ impl<S: State> Solvomatic<S> {
         let params = params.into_iter().collect::<Vec<_>>();
         let params_copy = params.clone();
         let apply = Box::new(move |table: &mut Table<S>| {
-            table.apply_constraint(&params_copy, &map, &constraint);
+            table.apply_constraint(&params_copy, &map, &constraint)
         });
         self.constraints.push(DynConstraint {
             name,
@@ -69,7 +68,7 @@ impl<S: State> Solvomatic<S> {
         });
     }
 
-    pub fn solve(&mut self) {
+    pub fn solve(&mut self) -> Result<(), Unsatisfiable<S>> {
         let mut table = self.table.clone();
 
         while table.num_sections() > 1 {
@@ -82,7 +81,16 @@ impl<S: State> Solvomatic<S> {
                     while new_table.size() < last_size {
                         last_size = new_table.size();
                         for constraint in &self.constraints {
-                            (constraint.apply)(&mut new_table);
+                            match (constraint.apply)(&mut new_table) {
+                                Ok(()) => (),
+                                Err(()) => {
+                                    return Err(Unsatisfiable {
+                                        state: table.state(),
+                                        constraint: constraint.name.clone(),
+                                        header: constraint.params.clone(),
+                                    })
+                                }
+                            }
                         }
                     }
                     options.push(new_table);
@@ -93,6 +101,7 @@ impl<S: State> Solvomatic<S> {
         }
 
         self.table = table;
+        Ok(())
     }
 
     pub fn size(&self) -> u64 {

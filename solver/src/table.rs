@@ -34,7 +34,7 @@ impl<S: State> Table<S> {
         header: &[S::Var],
         map: &impl Fn(usize, S::Value) -> N,
         constraint: &C,
-    ) {
+    ) -> Result<(), ()> {
         let mut partial_sums = Vec::new();
         for (i, subsection) in self.project(header) {
             let (sum, prods) = subsection.apply_constraint(map, constraint);
@@ -46,8 +46,7 @@ impl<S: State> Table<S> {
             let (i, _, prods) = partial_sums.remove(0);
             let keep_list = map_vec(prods, |prod| constraint.check(prod));
             let keep_lists = vec![(i, keep_list)];
-            self.retain(keep_lists);
-            return;
+            return self.retain(keep_lists);
         }
 
         let mut all_but_one_prods = Vec::new();
@@ -67,7 +66,7 @@ impl<S: State> Table<S> {
             });
             keep_lists.push((j, keep_list));
         }
-        self.retain(keep_lists);
+        self.retain(keep_lists)
     }
 
     pub fn size(&self) -> u64 {
@@ -113,6 +112,9 @@ impl<S: State> Table<S> {
     pub fn state(&self) -> HashMap<S::Var, S::Value> {
         let mut map = HashMap::new();
         for section in &self.sections {
+            if section.tuples.is_empty() {
+                continue;
+            }
             for (i, x) in section.header.iter().enumerate() {
                 let v = &section.tuples[0][i];
                 let mut v_varies = false;
@@ -139,10 +141,11 @@ impl<S: State> Table<S> {
         sections
     }
 
-    fn retain(&mut self, keep_lists: Vec<(usize, Vec<bool>)>) {
+    fn retain(&mut self, keep_lists: Vec<(usize, Vec<bool>)>) -> Result<(), ()> {
         for (section_index, keep_list) in keep_lists {
-            self.sections[section_index].retain(keep_list);
+            self.sections[section_index].retain(keep_list)?;
         }
+        Ok(())
     }
 }
 
@@ -158,12 +161,17 @@ impl<S: State> Section<S> {
         })
     }
 
-    fn retain(&mut self, keep_list: Vec<bool>) {
+    fn retain(&mut self, keep_list: Vec<bool>) -> Result<(), ()> {
         assert_eq!(self.tuples.len(), keep_list.len());
         for (i, keep) in keep_list.iter().enumerate().rev() {
             if !keep {
                 self.tuples.swap_remove(i);
             }
+        }
+        if self.tuples.is_empty() {
+            Err(())
+        } else {
+            Ok(())
         }
     }
 
