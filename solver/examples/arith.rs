@@ -37,8 +37,7 @@ fn main() {
     solver.constraint(['A', 'C'], Sum::new(8));
     solver.constraint(['B', 'C'], Sum::new(9));
     solver.constraint(['D', 'E'], Sum::new(2));
-    solver.constraint(['D', 'E'], Prod::new(1));
 
     solver.solve().unwrap();
-    println!("{}", solver);
+    println!("{}", solver.table());
 }

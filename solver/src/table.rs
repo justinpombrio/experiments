@@ -1,6 +1,7 @@
 use crate::constraints::Constraint;
 use crate::state::State;
 use std::collections::HashMap;
+use std::fmt;
 
 /// A state of knowledge about the `Value`s that a set of `Var`s might have, represented as a cross
 /// product of unions of tuples.
@@ -310,5 +311,54 @@ impl<S: State> Clone for Table<S> {
         Table {
             sections: self.sections.clone(),
         }
+    }
+}
+
+impl<S: State> fmt::Display for Table<S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let show_tuple =
+            |f: &mut fmt::Formatter, header: &[S::Var], tuple: &[S::Value]| -> fmt::Result {
+                // Construct HashMap from Var to Value for the tuple
+                let mut map = HashMap::new();
+                for (i, x) in header.iter().enumerate() {
+                    map.insert(x.clone(), tuple[i].clone());
+                }
+
+                // Write the tuple to a string using State::display
+                let mut string = String::new();
+                S::display(&mut string, &map)?;
+
+                // Indent each line, and write them out
+                for line in string.lines() {
+                    write!(f, "    {}", line)?;
+                }
+                Ok(())
+            };
+
+        let show_section = |f: &mut fmt::Formatter, section: &Section<S>| -> fmt::Result {
+            if section.tuples.len() == 1 {
+                show_tuple(f, &section.header, &section.tuples[0])
+            } else {
+                for tuple in &section.tuples {
+                    show_tuple(f, &section.header, &tuple)?;
+                    writeln!(f)?;
+                }
+                Ok(())
+            }
+        };
+
+        writeln!(f, "TABLE IS ONE OF:")?;
+        let mut sections = self.sections.iter();
+        let section = match sections.next() {
+            None => return write!(f, "[empty]"),
+            Some(section) => section,
+        };
+        show_section(f, section)?;
+        while let Some(section) = sections.next() {
+            writeln!(f)?;
+            writeln!(f, "AND ONE OF:")?;
+            show_section(f, section)?;
+        }
+        Ok(())
     }
 }

@@ -8,9 +8,9 @@ mod state;
 mod table;
 
 // TODO:
-// - better printing
 // - more constraints!
 // - testing!
+// - command line args, including `--log` that prints after each step
 
 use constraints::Constraint;
 use std::fmt;
@@ -137,13 +137,5 @@ impl<S: State> Solvomatic<S> {
     /// The current table of possibilities.
     pub fn table(&self) -> &Table<S> {
         &self.table
-    }
-}
-
-impl<S: State> fmt::Display for Solvomatic<S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut s = String::new();
-        S::display(&mut s, &self.table.state())?;
-        write!(f, "{}", s)
     }
 }
