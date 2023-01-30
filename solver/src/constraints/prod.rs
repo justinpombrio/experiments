@@ -1,8 +1,10 @@
 use super::Constraint;
 use std::ops::Mul;
 
+/// Numbers that can be multiplied (plus other conveniences)
 pub trait Mullable: Mul<Self, Output = Self> + Ord + Clone + Sized + 'static {}
 
+/// The constraint that `X1 * ... * Xn = expected`
 pub struct Prod<N: Mullable> {
     expected: N,
 }

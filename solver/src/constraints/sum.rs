@@ -1,11 +1,13 @@
 use super::Constraint;
 use std::ops::{Add, Mul};
 
+/// Numbers that can be summed (plus other conveniences)
 pub trait Summable:
     Add<Self, Output = Self> + Mul<Self, Output = Self> + Ord + Sized + Clone + 'static
 {
 }
 
+/// The constraint that `X1 + ... + Xn = expected`
 pub struct Sum<N: Summable> {
     expected: N,
 }

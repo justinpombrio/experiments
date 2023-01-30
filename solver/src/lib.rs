@@ -1,14 +1,40 @@
+//! Some puzzles ask from you a spark of insight, or a delightful recognition.
+//!
+//! For all the others, there's solvOmatic.
+//!
+//! TODO: Overview and examples
+
 mod state;
 mod table;
 
+// TODO:
+// - better printing
+// - more constraints!
+// - testing!
+
 use constraints::Constraint;
-use std::collections::HashMap;
 use std::fmt;
-use table::Table;
 
 pub mod constraints;
 
 pub use state::State;
+pub use table::Table;
+
+/// Solves puzzles in much the same way that hitting them with a brick doesn't.
+pub struct Solvomatic<S: State> {
+    table: Table<S>,
+    constraints: Vec<DynConstraint<S>>,
+}
+
+/// The problem was over constrained! Contained is a snapshot of the Table just before a constraint
+/// was applied that shrunk that Table's number of possibilities to zero, together with information
+/// about that constraint.
+#[derive(Debug, Clone)]
+pub struct Unsatisfiable<S: State> {
+    pub table: Table<S>,
+    pub header: Vec<S::Var>,
+    pub constraint: String,
+}
 
 struct DynConstraint<S: State> {
     name: String,
@@ -16,20 +42,9 @@ struct DynConstraint<S: State> {
     apply: Box<dyn Fn(&mut Table<S>) -> Result<(), ()>>,
 }
 
-#[allow(unused)]
-#[derive(Debug, Clone)]
-pub struct Unsatisfiable<S: State> {
-    state: HashMap<S::Var, S::Value>,
-    header: Vec<S::Var>,
-    constraint: String,
-}
-
-pub struct Solvomatic<S: State> {
-    table: Table<S>,
-    constraints: Vec<DynConstraint<S>>,
-}
-
 impl<S: State> Solvomatic<S> {
+    /// Construct an empty solver. Call `var()` and `constraint()` to give it variables and
+    /// constraints, then `solve()` to solve for them.
     pub fn new() -> Solvomatic<S> {
         Solvomatic {
             table: Table::new(),
@@ -37,21 +52,25 @@ impl<S: State> Solvomatic<S> {
         }
     }
 
+    /// Add a new variable, with a set of possible values.
     pub fn var(&mut self, x: S::Var, values: impl IntoIterator<Item = S::Value>) {
         self.table.add_column(x, values);
     }
 
+    /// Add the requirement that the variables `params` must obey `constraint`.
     pub fn constraint<C: Constraint<S::Value>>(
         &mut self,
-        params: impl IntoIterator<Item = S::Var> + 'static,
+        params: impl IntoIterator<Item = S::Var>,
         constraint: C,
     ) {
         self.mapped_constraint(params, |_, v| v, constraint)
     }
 
+    /// Add the requirement that the variables `params`, after being `map`ed, must obey
+    /// `constraint`.
     pub fn mapped_constraint<N, C: Constraint<N>>(
         &mut self,
-        params: impl IntoIterator<Item = S::Var> + 'static,
+        params: impl IntoIterator<Item = S::Var>,
         map: impl Fn(usize, S::Value) -> N + 'static,
         constraint: C,
     ) {
@@ -68,48 +87,56 @@ impl<S: State> Solvomatic<S> {
         });
     }
 
+    /// Solves the constraints! Returns `Err(Unsatisfiable)` if it discovers that the constraints
+    /// are not, in fact, possible to satisfy. Otherwise, call `.table()` to see the solution(s).
     pub fn solve(&mut self) -> Result<(), Unsatisfiable<S>> {
-        let mut table = self.table.clone();
-
-        while table.num_sections() > 1 {
-            let mut options = Vec::new();
-            for i in 0..table.num_sections() - 1 {
-                for j in i + 1..table.num_sections() {
-                    let mut new_table = table.clone();
-                    new_table.merge(i, j);
-                    let mut last_size = new_table.size() + 1;
-                    while new_table.size() < last_size {
-                        last_size = new_table.size();
-                        for constraint in &self.constraints {
-                            match (constraint.apply)(&mut new_table) {
-                                Ok(()) => (),
-                                Err(()) => {
-                                    return Err(Unsatisfiable {
-                                        state: table.state(),
-                                        constraint: constraint.name.clone(),
-                                        header: constraint.params.clone(),
-                                    })
-                                }
-                            }
-                        }
-                    }
-                    options.push(new_table);
-                }
-            }
-
-            table = options.into_iter().min_by_key(|t| t.size()).unwrap();
+        while self.table.num_sections() > 1 {
+            self.step()?;
         }
 
-        self.table = table;
         Ok(())
     }
 
-    pub fn size(&self) -> u64 {
-        self.table.size()
+    /// Perform one step of solving. You probably just want to skip ahead to the final answer with
+    /// `solve()`, intead of calling this.
+    pub fn step(&mut self) -> Result<(), Unsatisfiable<S>> {
+        // Consider merging all combinations of two Sections of the table
+        let mut options = Vec::new();
+        for i in 0..self.table.num_sections() - 1 {
+            for j in i + 1..self.table.num_sections() {
+                let mut new_table = self.table.clone();
+                new_table.merge(i, j);
+
+                // Repeatedly apply all constraints to `new_table` until that stops having any
+                // effect.
+                let mut last_size = new_table.size() + 1;
+                while new_table.size() < last_size {
+                    last_size = new_table.size();
+                    for constraint in &self.constraints {
+                        match (constraint.apply)(&mut new_table) {
+                            Ok(()) => (),
+                            Err(()) => {
+                                return Err(Unsatisfiable {
+                                    table: self.table.clone(),
+                                    constraint: constraint.name.clone(),
+                                    header: constraint.params.clone(),
+                                })
+                            }
+                        }
+                    }
+                }
+                options.push(new_table);
+            }
+        }
+
+        // Merge the two sections that minimize the resulting table size
+        self.table = options.into_iter().min_by_key(|t| t.size()).unwrap();
+        Ok(())
     }
 
-    pub fn possibilities(&self) -> u64 {
-        self.table.possibilities()
+    /// The current table of possibilities.
+    pub fn table(&self) -> &Table<S> {
+        &self.table
     }
 }
 
