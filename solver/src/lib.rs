@@ -13,7 +13,6 @@ mod table;
 // - command line args, including `--log` that prints after each step
 
 use constraints::Constraint;
-use std::fmt;
 
 pub mod constraints;
 

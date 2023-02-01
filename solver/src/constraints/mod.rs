@@ -3,8 +3,8 @@
 mod prod;
 mod sum;
 
-pub use prod::{Mullable, Prod};
-pub use sum::{Sum, Summable};
+pub use prod::Prod;
+pub use sum::Sum;
 
 /// A constraint on a set of elements `T`. A naive implementation would use a predicate: it would
 /// take a `Vec<T>` and return a `bool`. However, there are often far too many possibilities under

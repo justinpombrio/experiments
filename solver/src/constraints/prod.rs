@@ -1,24 +1,21 @@
 use super::Constraint;
 use std::ops::Mul;
 
-/// Numbers that can be multiplied (plus other conveniences)
-pub trait Mullable: Mul<Self, Output = Self> + Ord + Clone + Sized + 'static {}
-
 /// The constraint that `X1 * ... * Xn = expected`
-pub struct Prod<N: Mullable> {
+pub struct Prod<N: Mul<Output = N> + Ord + Clone + Sized + 'static> {
     expected: N,
 }
 
-impl<N: Mullable> Prod<N> {
+impl<N: Mul<Output = N> + Ord + Clone + Sized + 'static> Prod<N> {
     pub fn new(expected: N) -> Prod<N> {
         Prod { expected }
     }
 }
 
-impl<N: Mullable> Constraint<N> for Prod<N> {
+impl<N: Mul<Output = N> + Ord + Clone + Sized + 'static> Constraint<N> for Prod<N> {
     type Set = (N, N);
 
-    const NAME: &'static str = "Sum";
+    const NAME: &'static str = "Prod";
 
     fn singleton(&self, elem: N) -> (N, N) {
         (elem.clone(), elem)
@@ -36,15 +33,3 @@ impl<N: Mullable> Constraint<N> for Prod<N> {
         set.0 <= self.expected.clone() && self.expected.clone() <= set.1
     }
 }
-
-macro_rules! define_prod {
-    ($ty:ident) => {
-        impl Mullable for $ty {}
-    };
-}
-
-define_prod!(u8);
-define_prod!(u16);
-define_prod!(u32);
-define_prod!(u64);
-define_prod!(u128);
