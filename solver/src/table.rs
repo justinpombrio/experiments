@@ -140,6 +140,11 @@ impl<S: State> Table<S> {
         possibilities
     }
 
+    /// The total number of columns this table has.
+    pub fn num_columns(&self) -> usize {
+        self.sections.iter().map(|s| s.header.len()).sum()
+    }
+
     /// The number of sections this table has.
     pub fn num_sections(&self) -> usize {
         self.sections.len()
@@ -330,7 +335,7 @@ impl<S: State> fmt::Display for Table<S> {
 
                 // Indent each line, and write them out
                 for line in string.lines() {
-                    write!(f, "    {}", line)?;
+                    writeln!(f, "    {}", line)?;
                 }
                 Ok(())
             };
@@ -347,7 +352,7 @@ impl<S: State> fmt::Display for Table<S> {
             }
         };
 
-        writeln!(f, "TABLE IS ONE OF:")?;
+        writeln!(f, "Table is one of:")?;
         let mut sections = self.sections.iter();
         let section = match sections.next() {
             None => return write!(f, "[empty]"),
@@ -356,7 +361,7 @@ impl<S: State> fmt::Display for Table<S> {
         show_section(f, section)?;
         while let Some(section) = sections.next() {
             writeln!(f)?;
-            writeln!(f, "AND ONE OF:")?;
+            writeln!(f, "and one of:")?;
             show_section(f, section)?;
         }
         Ok(())

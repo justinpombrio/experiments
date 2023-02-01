@@ -1,8 +1,10 @@
 //! Intelligently computed restrictions on the `Value`s that `Var`s can have.
 
+mod bag;
 mod prod;
 mod sum;
 
+pub use bag::Bag;
 pub use prod::Prod;
 pub use sum::Sum;
 

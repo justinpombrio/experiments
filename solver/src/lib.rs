@@ -89,6 +89,8 @@ impl<S: State> Solvomatic<S> {
     /// Solves the constraints! Returns `Err(Unsatisfiable)` if it discovers that the constraints
     /// are not, in fact, possible to satisfy. Otherwise, call `.table()` to see the solution(s).
     pub fn solve(&mut self) -> Result<(), Unsatisfiable<S>> {
+        self.table = self.apply_constraints(self.table.clone())?;
+
         while self.table.num_sections() > 1 {
             self.step()?;
         }
@@ -96,34 +98,23 @@ impl<S: State> Solvomatic<S> {
         Ok(())
     }
 
-    /// Perform one step of solving. You probably just want to skip ahead to the final answer with
-    /// `solve()`, intead of calling this.
-    pub fn step(&mut self) -> Result<(), Unsatisfiable<S>> {
+    /// Apply one step of solving. It's important to `apply_constraints()` _before_ the first step
+    /// though!
+    fn step(&mut self) -> Result<(), Unsatisfiable<S>> {
+        let step_num = self.table.num_columns() - self.table.num_sections();
+        println!(
+            "Step {:2}: size = {:4} possibilities = {}",
+            step_num,
+            self.table.size(),
+            self.table.possibilities(),
+        );
         // Consider merging all combinations of two Sections of the table
         let mut options = Vec::new();
         for i in 0..self.table.num_sections() - 1 {
             for j in i + 1..self.table.num_sections() {
                 let mut new_table = self.table.clone();
                 new_table.merge(i, j);
-
-                // Repeatedly apply all constraints to `new_table` until that stops having any
-                // effect.
-                let mut last_size = new_table.size() + 1;
-                while new_table.size() < last_size {
-                    last_size = new_table.size();
-                    for constraint in &self.constraints {
-                        match (constraint.apply)(&mut new_table) {
-                            Ok(()) => (),
-                            Err(()) => {
-                                return Err(Unsatisfiable {
-                                    table: self.table.clone(),
-                                    constraint: constraint.name.clone(),
-                                    header: constraint.params.clone(),
-                                })
-                            }
-                        }
-                    }
-                }
+                new_table = self.apply_constraints(new_table)?;
                 options.push(new_table);
             }
         }
@@ -131,6 +122,27 @@ impl<S: State> Solvomatic<S> {
         // Merge the two sections that minimize the resulting table size
         self.table = options.into_iter().min_by_key(|t| t.size()).unwrap();
         Ok(())
+    }
+
+    /// Repeatedly apply all constraints until that stops having any effect.
+    fn apply_constraints(&self, mut table: Table<S>) -> Result<Table<S>, Unsatisfiable<S>> {
+        let mut last_size = table.size() + 1;
+        while table.size() < last_size {
+            last_size = table.size();
+            for constraint in &self.constraints {
+                match (constraint.apply)(&mut table) {
+                    Ok(()) => (),
+                    Err(()) => {
+                        return Err(Unsatisfiable {
+                            table,
+                            constraint: constraint.name.clone(),
+                            header: constraint.params.clone(),
+                        })
+                    }
+                }
+            }
+        }
+        Ok(table)
     }
 
     /// The current table of possibilities.

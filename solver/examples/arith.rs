@@ -1,42 +1,75 @@
-use solvomatic::constraints::{Prod, Sum};
+//! Find all 4x4 associative magic squares that start with 7.
+
+use solvomatic::constraints::{Bag, Sum};
 use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug)]
-struct PuzzleState;
+struct MagicSquare4;
 
-impl State for PuzzleState {
-    type Var = char;
+impl State for MagicSquare4 {
+    type Var = (i8, i8);
     type Value = u8;
 
-    fn display(f: &mut String, state: &HashMap<char, u8>) -> fmt::Result {
+    fn display(f: &mut String, state: &HashMap<(i8, i8), u8>) -> fmt::Result {
         use std::fmt::Write;
 
-        for letter in "ABCDE".chars() {
-            if let Some(digit) = state.get(&letter) {
-                write!(f, "{}", digit)?;
+        fn show_cell(f: &mut String, i: i8, j: i8, state: &HashMap<(i8, i8), u8>) -> fmt::Result {
+            if let Some(n) = state.get(&(i, j)) {
+                write!(f, "{:3}", n)
             } else {
-                write!(f, "_")?;
+                write!(f, "_")
             }
+        }
+
+        for i in 0..4 {
+            for j in 0..4 {
+                show_cell(f, i, j, state)?;
+            }
+            writeln!(f)?;
         }
         Ok(())
     }
 }
 
 fn main() {
-    let mut solver = Solvomatic::<PuzzleState>::new();
+    let mut solver = Solvomatic::<MagicSquare4>::new();
 
-    solver.var('A', 1..9);
-    solver.var('B', 0..9);
-    solver.var('C', 0..9);
-    solver.var('D', 0..9);
-    solver.var('E', 0..9);
+    let mut all_cells = Vec::new();
+    for i in 0..4 {
+        for j in 0..4 {
+            all_cells.push((i, j));
+        }
+    }
 
-    solver.mapped_constraint(['A', 'B'], |i, n| [2, 1][i] * n, Sum::new(10));
-    solver.constraint(['A', 'C'], Sum::new(8));
-    solver.constraint(['B', 'C'], Sum::new(9));
-    solver.constraint(['D', 'E'], Prod::new(2));
+    // Every cell is a number 1..16
+    for cell in &all_cells {
+        solver.var(*cell, 1..=16);
+    }
+
+    // The grid is a permutation of 1..16
+    solver.constraint(all_cells.iter().copied(), Bag::new(1..=16));
+
+    // Each row sums to 34
+    for i in 0..4 {
+        solver.constraint([(i, 0), (i, 1), (i, 2), (i, 3)], Sum::new(34));
+    }
+    // Each col sums to 34
+    for j in 0..4 {
+        solver.constraint([(0, j), (1, j), (2, j), (3, j)], Sum::new(34));
+    }
+    // So do the diagonals
+    solver.constraint([(0, 0), (1, 1), (2, 2), (3, 3)], Sum::new(34));
+    solver.constraint([(0, 3), (1, 2), (2, 1), (3, 0)], Sum::new(34));
+
+    // It's an Associative magic square: opposite squares must all have the same sum.
+    for i in 0..4 {
+        for j in i..4 {
+            solver.constraint([(i, j), (3 - i, 3 - j)], Sum::new(17));
+        }
+    }
+    solver.constraint([(0, 0)], Sum::new(7));
 
     solver.solve().unwrap();
     println!("{}", solver.table());
