@@ -17,7 +17,7 @@ impl<N: Mul<Output = N> + Ord + Clone + Sized + 'static> Constraint<N> for Prod<
 
     const NAME: &'static str = "Prod";
 
-    fn singleton(&self, elem: N) -> (N, N) {
+    fn singleton(&self, _index: usize, elem: N) -> (N, N) {
         (elem.clone(), elem)
     }
 

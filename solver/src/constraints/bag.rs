@@ -23,7 +23,7 @@ impl<N: Debug + Hash + Eq + Clone + Sized + 'static> Constraint<N> for Bag<N> {
 
     const NAME: &'static str = "Bag";
 
-    fn singleton(&self, elem: N) -> Self::Set {
+    fn singleton(&self, _index: usize, elem: N) -> Self::Set {
         (
             HashMap::from([(elem.clone(), 1)]),
             HashMap::from([(elem, 1)]),

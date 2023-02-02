@@ -8,11 +8,16 @@ mod state;
 mod table;
 
 // TODO:
+// - printing: multiple states on one line
+// - printing: show column grouping?
+// - printing: log vs. stdout? Stdout vs. stderr?
 // - more constraints!
 // - testing!
 // - command line args, including `--log` that prints after each step
 
 use constraints::Constraint;
+
+use std::time::Instant;
 
 pub mod constraints;
 
@@ -23,6 +28,8 @@ pub use table::Table;
 pub struct Solvomatic<S: State> {
     table: Table<S>,
     constraints: Vec<DynConstraint<S>>,
+    start_time: Instant,
+    last_step_time: Instant,
 }
 
 /// The problem was over constrained! Contained is a snapshot of the Table just before a constraint
@@ -48,6 +55,8 @@ impl<S: State> Solvomatic<S> {
         Solvomatic {
             table: Table::new(),
             constraints: Vec::new(),
+            start_time: Instant::now(),
+            last_step_time: Instant::now(),
         }
     }
 
@@ -108,6 +117,15 @@ impl<S: State> Solvomatic<S> {
             self.table.size(),
             self.table.possibilities(),
         );
+        let total_time = self.start_time.elapsed().as_millis();
+        let elapsed_time = self.last_step_time.elapsed().as_millis();
+        self.last_step_time = Instant::now();
+        println!(
+            "  elapsed: {:5?}ms total: {:5?}ms",
+            elapsed_time, total_time
+        );
+        println!();
+
         // Consider merging all combinations of two Sections of the table
         let mut options = Vec::new();
         for i in 0..self.table.num_sections() - 1 {

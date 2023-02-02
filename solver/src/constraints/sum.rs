@@ -17,7 +17,7 @@ impl<N: Add<Output = N> + Ord + Sized + Clone + 'static> Constraint<N> for Sum<N
 
     const NAME: &'static str = "Sum";
 
-    fn singleton(&self, elem: N) -> (N, N) {
+    fn singleton(&self, _index: usize, elem: N) -> (N, N) {
         (elem.clone(), elem)
     }
 

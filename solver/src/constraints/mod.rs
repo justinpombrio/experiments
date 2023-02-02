@@ -1,10 +1,12 @@
 //! Intelligently computed restrictions on the `Value`s that `Var`s can have.
 
 mod bag;
+mod pred;
 mod prod;
 mod sum;
 
 pub use bag::Bag;
+pub use pred::Pred;
 pub use prod::Prod;
 pub use sum::Sum;
 
@@ -39,7 +41,7 @@ pub trait Constraint<T>: 'static {
     const NAME: &'static str;
 
     /// Construct a set containing just one element.
-    fn singleton(&self, elem: T) -> Self::Set;
+    fn singleton(&self, index: usize, elem: T) -> Self::Set;
     /// The cross product of two sets.
     fn and(&self, set_1: Self::Set, set_2: Self::Set) -> Self::Set;
     /// The union of two sets.

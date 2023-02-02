@@ -1,6 +1,6 @@
-//! Find all 4x4 associative magic squares that start with 7.
+//! Find all 4x4 associative magic squares
 
-use solvomatic::constraints::{Bag, Sum};
+use solvomatic::constraints::{Bag, Pred, Sum};
 use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
 use std::fmt;
@@ -19,7 +19,7 @@ impl State for MagicSquare4 {
             if let Some(n) = state.get(&(i, j)) {
                 write!(f, "{:3}", n)
             } else {
-                write!(f, "_")
+                write!(f, "  _")
             }
         }
 
@@ -34,6 +34,9 @@ impl State for MagicSquare4 {
 }
 
 fn main() {
+    println!("Going to search for all associative 4x4 magic squares.");
+    println!();
+
     let mut solver = Solvomatic::<MagicSquare4>::new();
 
     let mut all_cells = Vec::new();
@@ -69,7 +72,15 @@ fn main() {
             solver.constraint([(i, j), (3 - i, 3 - j)], Sum::new(17));
         }
     }
-    solver.constraint([(0, 0)], Sum::new(7));
+
+    // WLOG, rotate the magic square so that the upper-left cell is least.
+    solver.constraint([(0, 0), (0, 3)], Pred::new(|[x, y]| x < y));
+    solver.constraint([(0, 0), (3, 0)], Pred::new(|[x, y]| x < y));
+    solver.constraint([(0, 0), (3, 3)], Pred::new(|[x, y]| x < y));
+
+    // WLOG, reflect the magic square so that the upper-right cell is less than the lower-left
+    // cell.
+    solver.constraint([(0, 3), (3, 0)], Pred::new(|[x, y]| x < y));
 
     solver.solve().unwrap();
     println!("{}", solver.table());

@@ -132,10 +132,10 @@ impl<S: State> Table<S> {
     }
 
     /// The total number of possible states that have not yet been ruled out.
-    pub fn possibilities(&self) -> u64 {
+    pub fn possibilities(&self) -> u128 {
         let mut possibilities = 1;
         for section in &self.sections {
-            possibilities *= section.tuples.len() as u64;
+            possibilities *= section.tuples.len() as u128;
         }
         possibilities
     }
@@ -261,7 +261,7 @@ impl<S: State> Section<S> {
         constraint: &C,
     ) -> (Vec<C::Set>, C::Set) {
         let tuple_prod = |tuple: &Vec<S::Value>| -> C::Set {
-            let nth_elem = |i| constraint.singleton(map(i, tuple[i].clone()));
+            let nth_elem = |i| constraint.singleton(i, map(i, tuple[i].clone()));
             let mut prod = nth_elem(0);
             for i in 1..tuple.len() {
                 prod = constraint.and(prod, nth_elem(i));
@@ -352,7 +352,7 @@ impl<S: State> fmt::Display for Table<S> {
             }
         };
 
-        writeln!(f, "Table is one of:")?;
+        writeln!(f, "State is one of:")?;
         let mut sections = self.sections.iter();
         let section = match sections.next() {
             None => return write!(f, "[empty]"),
