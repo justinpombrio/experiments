@@ -1,5 +1,5 @@
 use crate::constraints::Constraint;
-use crate::state::State;
+use crate::state::{display_states, State};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -321,35 +321,25 @@ impl<S: State> Clone for Table<S> {
 
 impl<S: State> fmt::Display for Table<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let show_tuple =
-            |f: &mut fmt::Formatter, header: &[S::Var], tuple: &[S::Value]| -> fmt::Result {
-                // Construct HashMap from Var to Value for the tuple
-                let mut map = HashMap::new();
-                for (i, x) in header.iter().enumerate() {
-                    map.insert(x.clone(), tuple[i].clone());
-                }
-
-                // Write the tuple to a string using State::display
-                let mut string = String::new();
-                S::display(&mut string, &map)?;
-
-                // Indent each line, and write them out
-                for line in string.lines() {
-                    writeln!(f, "    {}", line)?;
-                }
-                Ok(())
-            };
+        let tuple_to_state = |header: &[S::Var], tuple: &[S::Value]| -> HashMap<S::Var, S::Value> {
+            let mut map = HashMap::new();
+            for (i, x) in header.iter().enumerate() {
+                map.insert(x.clone(), tuple[i].clone());
+            }
+            map
+        };
 
         let show_section = |f: &mut fmt::Formatter, section: &Section<S>| -> fmt::Result {
+            let mut states = Vec::new();
             if section.tuples.len() == 1 {
-                show_tuple(f, &section.header, &section.tuples[0])
+                states.push(tuple_to_state(&section.header, &section.tuples[0]));
             } else {
                 for tuple in &section.tuples {
-                    show_tuple(f, &section.header, &tuple)?;
-                    writeln!(f)?;
+                    states.push(tuple_to_state(&section.header, &tuple));
                 }
-                Ok(())
             }
+
+            display_states::<S>(f, states)
         };
 
         writeln!(f, "State is one of:")?;
