@@ -8,21 +8,24 @@ use std::fmt;
 ///
 /// You can think of this as a Table made of Sections. For example, this Table:
 ///
+/// ```text
 ///     A C | B | D E F
 ///     ----+---+------
 ///     1 1 | 1 | 7 8 9
 ///     1 2 | 2 |
 ///     2 1 | 3 |
 ///         | 4 |
+/// ```
 ///
 /// represents the state of knowledge:
 ///
-///     - A and C are either 1,1 or 1,2 or 2,1 respectively.
-///     - B is between 1 and 4 inclusive.
-///     - D=7, E=8, and F=9
+///  - A and C are either 1,1 or 1,2 or 2,1 respectively.
+///  - B is between 1 and 4 inclusive.
+///  - D=7, E=8, and F=9
 ///
 /// The table has three sections `(AC, B, DEF)`, and it represents 12 possible states:
 ///
+/// ```text
 ///     A C B D E F
 ///     -----------
 ///     1 1 1 7 8 9
@@ -37,6 +40,7 @@ use std::fmt;
 ///     1 1 4 7 8 9
 ///     1 2 4 7 8 9
 ///     2 1 4 7 8 9
+/// ```
 #[derive(Debug)]
 pub struct Table<S: State> {
     sections: Vec<Section<S>>,
@@ -211,8 +215,10 @@ impl<S: State> Table<S> {
 
     /// Discard tuples such that:
     ///
+    /// ```text
     ///     for some (i, keep_list) in keep_lists:
     ///         self.sections[i].tuples[j] not in keep_list
+    /// ```
     ///
     /// `Err` iff any tuple list becomes empty (i.e. `possibilities()` becomes 0).
     fn retain(&mut self, keep_lists: Vec<(usize, Vec<bool>)>) -> Result<(), ()> {

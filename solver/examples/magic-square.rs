@@ -34,7 +34,7 @@ impl State for MagicSquare4 {
 }
 
 fn main() {
-    println!("Going to search for all associative 4x4 magic squares.");
+    println!("Finding all associative 4x4 magic squares.");
     println!();
 
     let mut solver = Solvomatic::<MagicSquare4>::new();

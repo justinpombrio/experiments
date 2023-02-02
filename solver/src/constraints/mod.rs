@@ -1,11 +1,11 @@
 //! Intelligently computed restrictions on the `Value`s that `Var`s can have.
 
-mod bag;
+mod ordbag;
 mod pred;
 mod prod;
 mod sum;
 
-pub use bag::Bag;
+pub use ordbag::Bag;
 pub use pred::Pred;
 pub use prod::Prod;
 pub use sum::Sum;
@@ -16,6 +16,7 @@ pub use sum::Sum;
 /// in `singleton`, unions are combined with `or`, cross products are combined with `and`, and at
 /// the end the result is checked with `check`. For example, this set of 60 possibilities:
 ///
+/// ```text
 ///     A C | B | D
 ///     ----+---+---
 ///     1 1 | 2 | 10
@@ -23,12 +24,15 @@ pub use sum::Sum;
 ///     2 1 | 4 | 30
 ///         | 5 | 40
 ///         | 6 |
+/// ```
 ///
 /// would be combined together into:
 ///
+/// ```text
 ///       (s(1) * s(1) + s(1) * s(2) + s(2) * s(1))
 ///     * (s(2) + s(3) + s(4) + s(5) + s(6))
 ///     * (s(10) + s(20) + s(30) + s(40))
+/// ```
 ///
 /// where `s` is `singleton`, `+` is `or`, and `*` is `and`.
 pub trait Constraint<T>: 'static {

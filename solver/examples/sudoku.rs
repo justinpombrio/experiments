@@ -23,11 +23,19 @@ impl State for Sudoku {
             }
         }
 
+        writeln!(f, "+---+---+---+")?;
         for i in 1..=9 {
+            write!(f, "|")?;
             for j in 1..=9 {
                 show_cell(f, i, j, state)?;
+                if j % 3 == 0 {
+                    write!(f, "|")?;
+                }
             }
             writeln!(f)?;
+            if i % 3 == 0 {
+                writeln!(f, "+---+---+---+")?;
+            }
         }
         Ok(())
     }

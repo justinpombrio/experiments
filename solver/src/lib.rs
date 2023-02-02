@@ -8,7 +8,6 @@ mod state;
 mod table;
 
 // TODO:
-// - printing: multiple states on one line
 // - printing: show column grouping?
 // - printing: log vs. stdout? Stdout vs. stderr?
 // - more constraints!
