@@ -37,8 +37,8 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Bag
     }
 
     fn check(&self, set: Self::Set) -> bool {
-        SeqPair::new(set.0.into_iter(), self.expected.clone().into_iter()).is_subset()
-            && SeqPair::new(self.expected.clone().into_iter(), set.1.into_iter()).is_subset()
+        SeqPair::new(set.0.iter(), self.expected.iter()).is_subset()
+            && SeqPair::new(self.expected.iter(), set.1.iter()).is_subset()
     }
 }
 

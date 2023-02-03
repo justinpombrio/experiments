@@ -155,10 +155,12 @@ impl<S: State> Table<S> {
     }
 
     /// Merge two table sections (identified by index) together.
-    pub fn merge(&mut self, section_1: usize, section_2: usize) {
-        assert!(section_2 > section_1);
-        let section_2 = self.sections.swap_remove(section_2);
-        let section_1 = self.sections.swap_remove(section_1);
+    pub fn merge(&mut self, sec_1: usize, sec_2: usize) {
+        let (section_1, section_2) = if sec_1 < sec_2 {
+            (self.sections.remove(sec_2), self.sections.remove(sec_1))
+        } else {
+            (self.sections.remove(sec_1), self.sections.remove(sec_1))
+        };
 
         let mut header = section_1.header;
         header.extend(section_2.header);
