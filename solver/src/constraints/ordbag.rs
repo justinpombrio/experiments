@@ -1,4 +1,4 @@
-use super::Constraint;
+use super::{Constraint, YesNoMaybe};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -36,9 +36,10 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Bag
         )
     }
 
-    fn check(&self, set: Self::Set) -> bool {
-        SeqPair::new(set.0.iter(), self.expected.iter()).is_subset()
-            && SeqPair::new(self.expected.iter(), set.1.iter()).is_subset()
+    fn check(&self, set: Self::Set) -> YesNoMaybe {
+        let min = SeqPair::new(set.0.iter(), self.expected.iter()).subset_cmp();
+        let max = SeqPair::new(self.expected.iter(), set.1.iter()).subset_cmp();
+        min.and(max)
     }
 }
 
@@ -76,13 +77,22 @@ impl<T: Ord, I: Iterator<Item = T>, J: Iterator<Item = T>> SeqPair<T, I, J> {
         }
     }
 
-    fn is_subset(&mut self) -> bool {
+    fn subset_cmp(&mut self) -> YesNoMaybe {
+        use YesNoMaybe::{Maybe, No, Yes};
+
+        let mut equal = true;
         while let Some((_, ord)) = self.next() {
-            if ord == Ordering::Less {
-                return false;
+            match ord {
+                Ordering::Equal => (),
+                Ordering::Greater => equal = false,
+                Ordering::Less => return No,
             }
         }
-        true
+        if equal {
+            Yes
+        } else {
+            Maybe
+        }
     }
 }
 
@@ -127,4 +137,48 @@ fn test_seq_pair() {
     assert_eq!(pair.next(), Some((4, Ordering::Greater)));
     assert_eq!(pair.next(), None);
     assert_eq!(pair.next(), None);
+}
+
+#[test]
+fn test_ordbag() {
+    use YesNoMaybe::{Maybe, No, Yes};
+
+    let s = Bag::new([1, 2, 3, 3]);
+
+    let one = || s.singleton(0, 1);
+    let two = || s.singleton(0, 2);
+    let three = || s.singleton(0, 3);
+    let four = || s.singleton(0, 4);
+
+    assert_eq!(one(), (vec![1], vec![1]));
+    assert_eq!(s.or(one(), one()), one());
+    assert_eq!(s.or(one(), two()), (vec![], vec![1, 2]));
+    assert_eq!(s.and(one(), two()), (vec![1, 2], vec![1, 2]));
+    assert_eq!(
+        s.and(s.or(one(), two()), s.or(two(), three())),
+        (vec![], vec![1, 2, 2, 3])
+    );
+    assert_eq!(s.and(two(), s.or(one(), four())), (vec![2], vec![1, 2, 4]));
+    assert_eq!(s.and(one(), one()), (vec![1, 1], vec![1, 1]));
+
+    assert_eq!(
+        s.check(s.and(one(), s.and(two(), s.and(three(), three())))),
+        Yes
+    );
+    assert_eq!(s.check(s.and(one(), s.and(two(), three()))), No);
+
+    let or14 = || s.or(one(), four());
+    let or13 = || s.or(one(), three());
+    let or23 = || s.or(two(), three());
+
+    assert_eq!(
+        s.check(s.and(or14(), s.and(or13(), s.and(or23(), or13())))),
+        Maybe
+    );
+
+    // Actually Yes, but the the reasoning isn't strong enough to determine that
+    assert_eq!(
+        s.check(s.and(or14(), s.and(or13(), s.and(or23(), s.and(or13(), or13()))))),
+        Maybe
+    );
 }

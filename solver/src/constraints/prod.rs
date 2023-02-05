@@ -1,18 +1,19 @@
-use super::Constraint;
+use super::{Constraint, YesNoMaybe};
+use std::fmt::Debug;
 use std::ops::Mul;
 
 /// The constraint that `X1 * ... * Xn = expected`
-pub struct Prod<N: Mul<Output = N> + Ord + Clone + Sized + 'static> {
+pub struct Prod<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> {
     expected: N,
 }
 
-impl<N: Mul<Output = N> + Ord + Clone + Sized + 'static> Prod<N> {
+impl<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> Prod<N> {
     pub fn new(expected: N) -> Prod<N> {
         Prod { expected }
     }
 }
 
-impl<N: Mul<Output = N> + Ord + Clone + Sized + 'static> Constraint<N> for Prod<N> {
+impl<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> Constraint<N> for Prod<N> {
     type Set = (N, N);
 
     const NAME: &'static str = "Prod";
@@ -29,7 +30,14 @@ impl<N: Mul<Output = N> + Ord + Clone + Sized + 'static> Constraint<N> for Prod<
         (a.0.min(b.0), a.1.max(b.1))
     }
 
-    fn check(&self, set: (N, N)) -> bool {
-        set.0 <= self.expected.clone() && self.expected.clone() <= set.1
+    fn check(&self, set: (N, N)) -> YesNoMaybe {
+        use std::cmp::Ordering::{Equal, Greater, Less};
+        use YesNoMaybe::{Maybe, No, Yes};
+
+        match (set.0.cmp(&self.expected), self.expected.cmp(&set.1)) {
+            (Equal, Equal) => Yes,
+            (Less, Equal) | (Equal, Less) | (Less, Less) => Maybe,
+            (Greater, _) | (_, Greater) => No,
+        }
     }
 }

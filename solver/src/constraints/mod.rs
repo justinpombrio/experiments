@@ -5,6 +5,8 @@ mod pred;
 mod prod;
 mod sum;
 
+use std::fmt::Debug;
+
 pub use ordbag::Bag;
 pub use pred::Pred;
 pub use prod::Prod;
@@ -39,7 +41,7 @@ pub trait Constraint<T>: 'static {
     /// A "set" of elements. This typically won't actually contain all of the elements! Instead, it
     /// will be a _conservative_ representation. For example, the `Set` for the `Sum` constraint is
     /// a minimum and maximum of the numbers "in the set".
-    type Set: Clone;
+    type Set: Debug + Clone;
 
     /// A name for this kind of constraint, for debugging purposes.
     const NAME: &'static str;
@@ -52,5 +54,24 @@ pub trait Constraint<T>: 'static {
     fn or(&self, set_1: Self::Set, set_2: Self::Set) -> Self::Set;
 
     /// Might the given set satisfy the constraint? If uncertain, return true.
-    fn check(&self, set: Self::Set) -> bool;
+    fn check(&self, set: Self::Set) -> YesNoMaybe;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum YesNoMaybe {
+    Yes,
+    No,
+    Maybe,
+}
+
+impl YesNoMaybe {
+    pub fn and(&self, other: YesNoMaybe) -> YesNoMaybe {
+        use YesNoMaybe::{Maybe, No, Yes};
+
+        match (self, other) {
+            (Yes, Yes) => Yes,
+            (Maybe, Maybe) | (Yes, Maybe) | (Maybe, Yes) => Maybe,
+            (No, _) | (_, No) => No,
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use crate::constraints::Constraint;
+use crate::constraints::{Constraint, YesNoMaybe};
 use crate::state::{display_states, State};
 use std::collections::HashMap;
 use std::fmt;
@@ -76,12 +76,15 @@ impl<S: State> Table<S> {
     /// obey. Remove table rows (tuples) that violate this constraint.
     ///
     /// `Err` if some section runs out of tuples (i.e. number of possibilities becomes zero).
+    ///
+    /// Returns `Ok(true)` if the constraint _always_ holds, and can thus be dropped. Otherwise
+    /// `Ok(false)`.
     pub fn apply_constraint<N, C: Constraint<N>>(
         &mut self,
         header: &[S::Var],
         map: &impl Fn(usize, S::Value) -> N,
         constraint: &C,
-    ) -> Result<(), ()> {
+    ) -> Result<bool, ()> {
         // For each section#i present in the projection, compute (i, prods, sum)
         // where `prod` is the product(and) of each tuple, and `sum` is the sum(or) of those prods.
         let mut partial_sums = Vec::new();
@@ -91,12 +94,24 @@ impl<S: State> Table<S> {
         }
         assert!(!partial_sums.is_empty());
 
+        // Check if the constraint is guranteed to hold from now on
+        let mut total_prod = partial_sums[0].2.clone();
+        for i in 1..partial_sums.len() {
+            total_prod = constraint.and(total_prod, partial_sums[i].2.clone());
+        }
+        if constraint.check(total_prod) == YesNoMaybe::Yes {
+            return Ok(true);
+        }
+
         // Need to special case the len=1 case because the code below needs at least len=2.
         if partial_sums.len() == 1 {
             let (i, prods, _) = partial_sums.remove(0);
-            let keep_list = map_vec(prods, |prod| constraint.check(prod));
+            let keep_list = map_vec(prods.clone(), |prod| {
+                constraint.check(prod) != YesNoMaybe::No
+            });
             let keep_lists = vec![(i, keep_list)];
-            return self.retain(keep_lists);
+            self.retain(keep_lists)?;
+            return Ok(false);
         }
 
         // If the partial sums computed above are `A,B,C,D`, then compute `BCD, CDA, DAB, ABC`.
@@ -115,13 +130,15 @@ impl<S: State> Table<S> {
         let mut keep_lists: Vec<(usize, Vec<bool>)> = Vec::new();
         for (i, (j, prods, _)) in partial_sums.into_iter().enumerate() {
             let keep_list = map_vec(prods, |prod| {
-                constraint.check(constraint.and(all_but_one_prods[i].clone(), prod))
+                let total = constraint.and(all_but_one_prods[i].clone(), prod);
+                constraint.check(total) != YesNoMaybe::No
             });
             keep_lists.push((j, keep_list));
         }
 
         // Apply the keep_lists, discarding tuples that violate the constraint.
-        self.retain(keep_lists)
+        self.retain(keep_lists)?;
+        Ok(false)
     }
 
     /// A measure of the size of this table: the sum of the number of rows in each section. The

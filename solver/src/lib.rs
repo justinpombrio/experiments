@@ -44,7 +44,8 @@ pub struct Unsatisfiable<S: State> {
 struct DynConstraint<S: State> {
     name: String,
     params: Vec<S::Var>,
-    apply: Box<dyn Fn(&mut Table<S>) -> Result<(), ()>>,
+    apply: Box<dyn Fn(&mut Table<S>) -> Result<bool, ()>>,
+    done: bool,
 }
 
 impl<S: State> Solvomatic<S> {
@@ -91,6 +92,7 @@ impl<S: State> Solvomatic<S> {
             name,
             params,
             apply,
+            done: false,
         });
     }
 
@@ -125,6 +127,9 @@ impl<S: State> Solvomatic<S> {
         );
         println!();
 
+        // Mark completed constraints as done
+        self.mark_completed_constraints();
+
         // Consider merging all combinations of two Sections of the table
         let mut options = Vec::new();
         for i in 0..self.table.num_sections() - 1 {
@@ -147,8 +152,11 @@ impl<S: State> Solvomatic<S> {
         while table.size() < last_size {
             last_size = table.size();
             for constraint in &self.constraints {
+                if constraint.done {
+                    continue;
+                }
                 match (constraint.apply)(&mut table) {
-                    Ok(()) => (),
+                    Ok(_) => (),
                     Err(()) => {
                         return Err(Unsatisfiable {
                             table,
@@ -160,6 +168,19 @@ impl<S: State> Solvomatic<S> {
             }
         }
         Ok(table)
+    }
+
+    /// Mark constraints that will _always_ hold as done.
+    pub fn mark_completed_constraints(&mut self) {
+        for constraint in &mut self.constraints {
+            if constraint.done {
+                continue;
+            }
+            if (constraint.apply)(&mut self.table.clone()) == Ok(true) {
+                println!("{} constraint completed.", constraint.name);
+                constraint.done = true;
+            }
+        }
     }
 
     /// The current table of possibilities.
