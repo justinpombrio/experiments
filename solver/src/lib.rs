@@ -15,7 +15,7 @@ mod table;
 // - command line args, including `--log` that prints after each step
 
 use constraints::Constraint;
-
+use std::default::Default;
 use std::time::Instant;
 
 pub mod constraints;
@@ -27,8 +27,7 @@ pub use table::Table;
 pub struct Solvomatic<S: State> {
     table: Table<S>,
     constraints: Vec<DynConstraint<S>>,
-    start_time: Instant,
-    last_step_time: Instant,
+    config: Config,
 }
 
 /// The problem was over constrained! Contained is a snapshot of the Table just before a constraint
@@ -48,6 +47,29 @@ struct DynConstraint<S: State> {
     done: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct Config {
+    /// Log when each step completed (default true)
+    pub log_steps: bool,
+    /// Log when a constraint is completed
+    pub log_completed: bool,
+    /// Log how long each step took
+    pub log_elapsed: bool,
+    /// Log intermediate states (can be very large!)
+    pub log_states: bool,
+}
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            log_steps: true,
+            log_completed: false,
+            log_elapsed: false,
+            log_states: false,
+        }
+    }
+}
+
 impl<S: State> Solvomatic<S> {
     /// Construct an empty solver. Call `var()` and `constraint()` to give it variables and
     /// constraints, then `solve()` to solve for them.
@@ -55,9 +77,12 @@ impl<S: State> Solvomatic<S> {
         Solvomatic {
             table: Table::new(),
             constraints: Vec::new(),
-            start_time: Instant::now(),
-            last_step_time: Instant::now(),
+            config: Config::default(),
         }
+    }
+
+    pub fn config(&mut self) -> &mut Config {
+        &mut self.config
     }
 
     /// Add a new variable, with a set of possible values.
@@ -99,11 +124,14 @@ impl<S: State> Solvomatic<S> {
     /// Solves the constraints! Returns `Err(Unsatisfiable)` if it discovers that the constraints
     /// are not, in fact, possible to satisfy. Otherwise, call `.table()` to see the solution(s).
     pub fn solve(&mut self) -> Result<(), Unsatisfiable<S>> {
-        self.table = self.apply_constraints(self.table.clone())?;
+        let start_time = Instant::now();
 
+        self.table = self.apply_constraints(self.table.clone())?;
         while self.table.num_sections() > 1 {
             self.step()?;
         }
+
+        println!("time: {}ms", start_time.elapsed().as_millis());
 
         Ok(())
     }
@@ -111,38 +139,47 @@ impl<S: State> Solvomatic<S> {
     /// Apply one step of solving. It's important to `apply_constraints()` _before_ the first step
     /// though!
     fn step(&mut self) -> Result<(), Unsatisfiable<S>> {
+        let start_time = Instant::now();
+
         let step_num = self.table.num_columns() - self.table.num_sections();
-        println!(
-            "Step {:2}: size = {:4} possibilities = {}",
-            step_num,
-            self.table.size(),
-            self.table.possibilities(),
-        );
-        let total_time = self.start_time.elapsed().as_millis();
-        let elapsed_time = self.last_step_time.elapsed().as_millis();
-        self.last_step_time = Instant::now();
-        println!(
-            "  elapsed: {:5?}ms total: {:5?}ms",
-            elapsed_time, total_time
-        );
-        println!();
+        if self.config.log_steps {
+            println!(
+                "Step {:2}: size = {:4} possibilities = {}",
+                step_num,
+                self.table.size(),
+                self.table.possibilities(),
+            );
+        }
 
         // Mark completed constraints as done
         self.mark_completed_constraints();
 
+        // Merge all constant sections together
+        self.table.merge_constants();
+
         // Consider merging all combinations of two Sections of the table
-        let mut options = Vec::new();
-        for i in 0..self.table.num_sections() - 1 {
-            for j in i + 1..self.table.num_sections() {
-                let mut new_table = self.table.clone();
-                new_table.merge(i, j);
-                new_table = self.apply_constraints(new_table)?;
-                options.push(new_table);
+        if self.table.num_sections() > 1 {
+            let mut options = Vec::new();
+            for i in 0..self.table.num_sections() - 1 {
+                for j in i + 1..self.table.num_sections() {
+                    let mut new_table = self.table.clone();
+                    new_table.merge(i, j);
+                    new_table = self.apply_constraints(new_table)?;
+                    options.push(new_table);
+                }
             }
+
+            // Merge the two sections that minimize the resulting table size
+            self.table = options.into_iter().min_by_key(|t| t.size()).unwrap();
         }
 
-        // Merge the two sections that minimize the resulting table size
-        self.table = options.into_iter().min_by_key(|t| t.size()).unwrap();
+        // Log how long it took
+        if self.config.log_elapsed {
+            let elapsed_time = start_time.elapsed().as_millis();
+            println!("  elapsed: {:5?}ms", elapsed_time);
+            println!();
+        }
+
         Ok(())
     }
 
@@ -177,7 +214,12 @@ impl<S: State> Solvomatic<S> {
                 continue;
             }
             if (constraint.apply)(&mut self.table.clone()) == Ok(true) {
-                println!("{} constraint completed.", constraint.name);
+                if self.config.log_completed {
+                    println!(
+                        "  completed constraint {} {:?}",
+                        constraint.name, constraint.params
+                    );
+                }
                 constraint.done = true;
             }
         }

@@ -3,7 +3,7 @@ use std::fmt;
 use std::hash::Hash;
 
 const TEXT_BOX_PADDING: usize = 4;
-const TEXT_BOX_WIDTH: usize = 60;
+const TEXT_BOX_WIDTH: usize = 70;
 
 /// A state is a mapping from `State::Var` to `State::Value`.
 ///

@@ -38,6 +38,7 @@ fn main() {
     println!();
 
     let mut solver = Solvomatic::<MagicSquare4>::new();
+    solver.config().log_completed = true;
 
     let mut all_cells = Vec::new();
     for i in 0..4 {

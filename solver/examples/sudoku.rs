@@ -46,6 +46,7 @@ fn main() {
     println!();
 
     let mut solver = Solvomatic::<Sudoku>::new();
+    solver.config().log_elapsed = true;
 
     let mut all_cells = Vec::new();
     for i in 1..=9 {

@@ -171,13 +171,30 @@ impl<S: State> Table<S> {
         self.sections.len()
     }
 
-    /// Merge two table sections (identified by index) together.
+    /// Merge all constant sections (those of height 1) together.
+    pub fn merge_constants(&mut self) {
+        let mut const_secs = Vec::new();
+        for (i, sec) in self.sections.iter().enumerate() {
+            if sec.tuples.len() == 1 {
+                const_secs.push(i);
+            }
+        }
+        if const_secs.len() <= 1 {
+            return;
+        }
+
+        for i in (0..const_secs.len() - 1).rev() {
+            // Relying on the merge being put back at index `const_secs[i]`!
+            self.merge(const_secs[i], const_secs[i + 1]);
+        }
+    }
+
+    /// Merge two table sections (identified by index) together. Places the merged section at the
+    /// index `sec_1.min(sec_2)`.
     pub fn merge(&mut self, sec_1: usize, sec_2: usize) {
-        let (section_1, section_2) = if sec_1 < sec_2 {
-            (self.sections.remove(sec_2), self.sections.remove(sec_1))
-        } else {
-            (self.sections.remove(sec_1), self.sections.remove(sec_1))
-        };
+        let (sec_1, sec_2) = (sec_1.min(sec_2), sec_1.max(sec_2));
+        let section_2 = self.sections.remove(sec_2);
+        let section_1 = self.sections.remove(sec_1);
 
         let mut header = section_1.header;
         header.extend(section_2.header);
@@ -191,7 +208,7 @@ impl<S: State> Table<S> {
             }
         }
 
-        self.sections.push(Section { header, tuples });
+        self.sections.insert(sec_1, Section { header, tuples });
     }
 
     // TODO: remove?
