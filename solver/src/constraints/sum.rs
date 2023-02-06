@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::ops::Add;
 
 /// The constraint that `X1 + ... + Xn = expected`
+#[derive(Debug, Clone)]
 pub struct Sum<N: Debug + Add<Output = N> + Ord + Sized + Clone + 'static> {
     expected: N,
 }

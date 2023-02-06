@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 /// The constraint that `{X1, ..., Xn} = expected`
+#[derive(Debug, Clone)]
 pub struct Bag<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
     expected: Vec<T>,
 }

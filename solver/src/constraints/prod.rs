@@ -2,7 +2,10 @@ use super::{Constraint, YesNoMaybe};
 use std::fmt::Debug;
 use std::ops::Mul;
 
-/// The constraint that `X1 * ... * Xn = expected`
+/// The constraint that `X1 * ... * Xn = expected` **The numbers must be non-negative!** Negative
+/// numbers will lead to either the solver saying there is no answer when there is, or giving bogus
+/// answers.
+#[derive(Debug, Clone)]
 pub struct Prod<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> {
     expected: N,
 }

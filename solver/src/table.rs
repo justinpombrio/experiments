@@ -71,7 +71,7 @@ impl<S: State> Table<S> {
         });
     }
 
-    /// `header` names a subset of columns of this table; `map` is a function to apply to the
+    /// `params` names a subset of columns of this table; `map` is a function to apply to the
     /// elements of those columns, and `constraint` is a constraint that those mapped elements must
     /// obey. Remove table rows (tuples) that violate this constraint.
     ///
@@ -81,15 +81,15 @@ impl<S: State> Table<S> {
     /// `Ok(false)`.
     pub fn apply_constraint<N, C: Constraint<N>>(
         &mut self,
-        header: &[S::Var],
+        params: &[S::Var],
         map: &impl Fn(usize, S::Value) -> N,
         constraint: &C,
     ) -> Result<bool, ()> {
         // For each section#i present in the projection, compute (i, prods, sum)
         // where `prod` is the product(and) of each tuple, and `sum` is the sum(or) of those prods.
         let mut partial_sums = Vec::new();
-        for (i, subsection) in self.project(header) {
-            let (prods, sum) = subsection.apply_constraint(map, constraint);
+        for (i, subsection) in self.project(params) {
+            let (prods, sum) = subsection.apply_constraint(params, map, constraint);
             partial_sums.push((i, prods, sum));
         }
         assert!(!partial_sums.is_empty());
@@ -234,15 +234,15 @@ impl<S: State> Table<S> {
         map
     }
 
-    /// Construct new sections that are limited to the columns present in `header` and also in
+    /// Construct new sections that are limited to the columns present in `params` and also in
     /// `self`. Return these new sections together with the index of the section they came from.
     /// Each new section has the same number of tuples, in the same order, as the section it came
     /// from. (This way a `keep_list` constructed from the new section can safely be applied to the
     /// original section.)
-    fn project(&self, header: &[S::Var]) -> Vec<(usize, Section<S>)> {
+    fn project(&self, params: &[S::Var]) -> Vec<(usize, Section<S>)> {
         let mut sections = Vec::new();
         for (section_index, section) in self.sections.iter().enumerate() {
-            if let Some(subsection) = section.project(header) {
+            if let Some(subsection) = section.project(params) {
                 sections.push((section_index, subsection));
             }
         }
@@ -266,10 +266,10 @@ impl<S: State> Table<S> {
 }
 
 impl<S: State> Section<S> {
-    /// Construct a `Section` using only the columns present in `header`. Return `None` if there
+    /// Construct a `Section` using only the columns present in `params`. Return `None` if there
     /// would be zero columns.
-    fn project(&self, header: &[S::Var]) -> Option<Section<S>> {
-        let (subheader, mapping) = project_header::<S>(&self.header, header)?;
+    fn project(&self, params: &[S::Var]) -> Option<Section<S>> {
+        let (subheader, mapping) = project_header::<S>(&self.header, params)?;
         let subtuples = map_vec(&self.tuples, |tuple| {
             map_vec(&mapping, |i| tuple[*i].clone())
         });
@@ -299,11 +299,18 @@ impl<S: State> Section<S> {
     /// (ii) the sum(or) of all those products
     fn apply_constraint<N, C: Constraint<N>>(
         &self,
+        params: &[S::Var],
         map: impl Fn(usize, S::Value) -> N,
         constraint: &C,
     ) -> (Vec<C::Set>, C::Set) {
         let tuple_prod = |tuple: &Vec<S::Value>| -> C::Set {
-            let nth_elem = |i| constraint.singleton(i, map(i, tuple[i].clone()));
+            let nth_elem = |i| {
+                let var = &self.header[i];
+                let param_index = params.iter().position(|v| v == var).unwrap();
+                let val_ref: &S::Value = &tuple[i];
+                let mapped_val: N = map(param_index, val_ref.clone());
+                constraint.singleton(param_index, mapped_val)
+            };
             let mut prod = nth_elem(0);
             for i in 1..tuple.len() {
                 prod = constraint.and(prod, nth_elem(i));
@@ -384,16 +391,16 @@ impl<S: State> fmt::Display for Table<S> {
             display_states::<S>(f, states)
         };
 
-        writeln!(f, "State is one of:")?;
         let mut sections = self.sections.iter();
         let section = match sections.next() {
-            None => return write!(f, "[empty]"),
+            None => return write!(f, "State is empty!"),
             Some(section) => section,
         };
+        writeln!(f, "State is one of {}:", section.tuples.len())?;
         show_section(f, section)?;
         while let Some(section) = sections.next() {
             writeln!(f)?;
-            writeln!(f, "and one of:")?;
+            writeln!(f, "and one of {}:", section.tuples.len())?;
             show_section(f, section)?;
         }
         Ok(())

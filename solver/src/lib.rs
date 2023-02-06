@@ -127,9 +127,10 @@ impl<S: State> Solvomatic<S> {
         let start_time = Instant::now();
 
         self.table = self.apply_constraints(self.table.clone())?;
-        while self.table.num_sections() > 1 {
+        while self.table.num_sections() > 1 && self.table.possibilities() > 1 {
             self.step()?;
         }
+        self.table.merge_constants();
 
         println!("time: {}ms", start_time.elapsed().as_millis());
 
@@ -177,7 +178,6 @@ impl<S: State> Solvomatic<S> {
         if self.config.log_elapsed {
             let elapsed_time = start_time.elapsed().as_millis();
             println!("  elapsed: {:5?}ms", elapsed_time);
-            println!();
         }
 
         Ok(())

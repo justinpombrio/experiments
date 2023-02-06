@@ -3,6 +3,7 @@
 mod ordbag;
 mod pred;
 mod prod;
+mod seq;
 mod sum;
 
 use std::fmt::Debug;
@@ -10,6 +11,7 @@ use std::fmt::Debug;
 pub use ordbag::Bag;
 pub use pred::Pred;
 pub use prod::Prod;
+pub use seq::Seq;
 pub use sum::Sum;
 
 /// A constraint on a set of elements `T`. A naive implementation would use a predicate: it would
