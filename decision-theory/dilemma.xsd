@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+    <!-- TODO: probability distributions -->
+
+    <xs:element name="dilemma">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="agent" type="xs:string" maxOccurs="10" />
+                <xs:element name="event" type="event" maxOccurs="100"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="xs:string" use="required"/>
+            <xs:attribute name="author" type="xs:string" use="required"/>
+            <xs:attribute name="start" type="xs:string" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="event">
+        <xs:sequence>
+            <xs:group ref="Node"/>
+        </xs:sequence>
+        <xs:attribute name="name" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <xs:group name="Node">
+        <xs:choice>
+            <xs:element name="do" type="do"/>
+            <xs:element name="predict" type="predict"/>
+            <xs:element name="decide" type="decide"/>
+            <xs:element name="outcome" type="outcome"/>
+        </xs:choice>
+    </xs:group>
+    
+    <!-- TODO: cycle check? -->
+    <xs:complexType name="do">
+        <xs:attribute name="event" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <xs:complexType name="predict">
+        <xs:sequence>
+            <xs:element name="case" maxOccurs="10">
+                <xs:complexType>
+                    <xs:group ref="Node"/>
+                    <xs:attribute name="choice" type="xs:string" use="required"/>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="agent" type="xs:string" use="required"/>
+        <xs:attribute name="making-decision" type="xs:string"/>
+        <xs:attribute name="in-scenario" type="xs:string"/>
+    </xs:complexType>
+    
+    <xs:complexType name="decide">
+        <xs:sequence>
+            <xs:element name="case" maxOccurs="10">
+                <xs:complexType>
+                    <xs:group ref="Node"/>
+                    <xs:attribute name="choice" type="xs:string" use="required"/>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="agent" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <xs:complexType name="outcome">
+        <xs:sequence>
+            <xs:element name="utility" maxOccurs="10">
+                <xs:complexType>
+                    <xs:attribute name="agent" type="xs:string" use="required"/>
+                    <xs:attribute name="amount" type="utilityAmount" use="required"/>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:simpleType name="utilityAmount">
+      <xs:restriction base="xs:integer">
+        <xs:minExclusive value="-2000000"/>
+        <xs:maxExclusive value="2000000"/>
+      </xs:restriction>
+    </xs:simpleType>
+
+</xs:schema>
