@@ -1,8 +1,6 @@
 <?xml version="1.0"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
-    <!-- TODO: probability distributions -->
-
     <xs:element name="dilemma">
         <xs:complexType>
             <xs:sequence>
@@ -28,12 +26,24 @@
             <xs:element name="predict" type="predict"/>
             <xs:element name="decide" type="decide"/>
             <xs:element name="outcome" type="outcome"/>
+            <xs:element name="random" type="random"/>
         </xs:choice>
     </xs:group>
     
     <!-- TODO: cycle check? -->
     <xs:complexType name="do">
         <xs:attribute name="event" type="xs:string" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="random">
+        <xs:sequence>
+            <xs:element name="case" maxOccurs="10">
+                <xs:complexType>
+                    <xs:group ref="Node"/>
+                    <xs:attribute name="prob" type="probabilityDecimal" use="required"/>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
     </xs:complexType>
     
     <xs:complexType name="predict">
@@ -77,6 +87,13 @@
       <xs:restriction base="xs:integer">
         <xs:minExclusive value="-2000000"/>
         <xs:maxExclusive value="2000000"/>
+      </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="probabilityDecimal">
+      <xs:restriction base="xs:decimal">
+        <xs:minInclusive value="0.0"/>
+        <xs:maxInclusive value="1.0"/>
       </xs:restriction>
     </xs:simpleType>
 
