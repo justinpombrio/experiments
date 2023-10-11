@@ -83,26 +83,26 @@ class Dilemma:
             scenario = json["@in-scenario"]
             decision = json["@making-decision"]
             with self.logger.group(f"Predicting {agent_name}'s decision in scenario '{scenario}' for the decision at '{decision}':"):
-                choice = agent.decide(self.events, scenario, decision)
-            self.logger.log(f"{agent_name} predicted to choose to {choice}")
+                action = agent.decide(self.events, scenario, decision)
+            self.logger.log(f"{agent_name} predicted to choose to {action}")
             for elem in json["case"]:
-                if elem["@choice"] == choice:
+                if elem["@action"] == action:
                     return self.__run(agents, elem, None)
             self.logger.log(f"{agent_name}'s predicted decision is invalid.")
             return None # Invalid decision: agent explodes.
 
         elif node_type == "decide":
             if event is None:
-                raise Exception("Bad dilemma. To make it easy to refer to choices,"
+                raise Exception("Bad dilemma. To make it easy to refer to decisions,"
                   + "'decide' can only be the top-level node in an event. "
                   + "To fix this, add a new event for the decision.")
             agent_name = json["@agent"]
             agent = agents[agent_name]
             with self.logger.group(f"{agent_name} is making a decision:"):
-                choice = agent.decide(self.events, self.start_event, event)
-            self.logger.log(f"{agent_name} chooses to {choice}")
+                action = agent.decide(self.events, self.start_event, event)
+            self.logger.log(f"{agent_name} chooses to {action}")
             for elem in json["case"]:
-                if elem["@choice"] == choice:
+                if elem["@action"] == action:
                     return self.__run(agents, elem, None)
             self.logger.log(f"{agent_name}'s decision is invalid.")
             return None # Invalid decision: agent explodes.

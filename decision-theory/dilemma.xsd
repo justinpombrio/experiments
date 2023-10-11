@@ -51,7 +51,7 @@
             <xs:element name="case" maxOccurs="10">
                 <xs:complexType>
                     <xs:group ref="Node"/>
-                    <xs:attribute name="choice" type="xs:string" use="required"/>
+                    <xs:attribute name="action" type="xs:string" use="required"/>
                 </xs:complexType>
             </xs:element>
         </xs:sequence>
@@ -65,7 +65,7 @@
             <xs:element name="case" maxOccurs="10">
                 <xs:complexType>
                     <xs:group ref="Node"/>
-                    <xs:attribute name="choice" type="xs:string" use="required"/>
+                    <xs:attribute name="action" type="xs:string" use="required"/>
                 </xs:complexType>
             </xs:element>
         </xs:sequence>

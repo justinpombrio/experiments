@@ -11,6 +11,7 @@ import cdt_agent
 # TODO: hypothetical depth?
 # TODO: timeout?
 # TODO: guard against agents running the dilemma
+# TODO: terminology: decision vs. choice vs. action
 
 def validate(dilemma_filepath):
     situation = dilemma.Dilemma(dilemma_filepath)
