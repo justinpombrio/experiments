@@ -7,9 +7,10 @@ from log import Logger
 from parse import Dilemma
 from simulate import Simulator
 from decision_theories.cdt import CDT
+from decision_theories.edt import EDT
 from decision_theories.fdt import FDT
 
-DECISION_THEORY_LIST = [CDT, FDT]
+DECISION_THEORY_LIST = [CDT, EDT, FDT]
 DECISION_THEORIES = {
     dt.name() : dt
     for dt in DECISION_THEORY_LIST

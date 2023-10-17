@@ -1,3 +1,4 @@
+from decimal import Decimal
 
 class EDT:
     def __init__(self, logger, decision_exception_table = None):
@@ -35,12 +36,20 @@ class EDT:
             for action in actions:
                 decision_exception_table = self.decision_exception_table.copy()
                 decision_exception_table[agent_name, decision_name] = action
-                theory = FDT(self.logger, decision_exception_table)
+                theory = EDT(self.logger, decision_exception_table)
                 decision_proc = theory.decide
                 start_event = scenario.events[scenario.start_event]
-                with self.logger.group(f"Simulating the effects of having had '{agent_name}, {decision_name} -> {action}' in my decision exception table:"):
-                    outcome = sim.simulate(decision_proc, decision_proc, scenario, start_event)
-                action_to_utility[action] = outcome[agent_name]
+                stop = lambda event: event.label == "decide" and event.decision_name == decision_name
+                with self.logger.group(f"Simulating the effects of having had '{agent_name}, {decision_name} -> {action}' in my decision exception table, up to the current moment:"):
+                    distr = sim.simulate(decision_proc, decision_proc, scenario, start_event, stop)
+                with self.logger.group(f"Now simulating the expected outcome from this moment on:"):
+                    expected_utility = Decimal(0.0)
+                    for event, prob in distr.items():
+                        with self.logger.group(f"Considering a possibility:"):
+                            outcome = sim.simulate(decision_proc, decision_proc, scenario, event)
+                            expected_utility += prob * outcome[agent_name]
+                    self.logger.log(f"Total expected utility: {expected_utility}")
+                    action_to_utility[action] = expected_utility
 
         with self.logger.group(f"Tabulating the results:"):
             for action, utility in action_to_utility.items():
