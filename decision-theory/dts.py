@@ -4,7 +4,7 @@ import argparse
 # Local modules
 from pretty import pretty_json, pretty_compact_json
 from log import Logger
-from parse import Dilemma
+from dilemma import Dilemma
 from simulate import Simulator
 from decision_theories.cdt import CDT
 from decision_theories.edt import EDT

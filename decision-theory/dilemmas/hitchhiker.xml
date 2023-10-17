@@ -3,15 +3,9 @@
         <agent>Alice</agent>
 
         <event name="desert">
-            <random>
-                <case prob="0.01">
-                    <do event="death-in-desert"/>
-                </case>
-                <case prob="0.01">
-                    <do event="city"/>
-                </case>
+            <random id="in-desert">
                 <case prob="0.98">
-                    <predict agent="Alice" decision="pay-or-leave">
+                    <predict agent="Alice" decision="pay-or-leave" id="prediction">
                         <scenario start="desert">
                             <agent>Alice</agent>
                             <event>desert</event>
@@ -19,31 +13,37 @@
                             <event>city</event>
                         </scenario>
                         <case action="leave">
-                            <do event="death-in-desert"/>
+                            <do event="death-in-desert" id="correct-prediction-leave"/>
                         </case>
                         <case action="pay">
-                            <do event="city"/>
+                            <do event="city" id="correct-prediction-pay"/>
                         </case>
                     </predict>
+                </case>
+                <case prob="0.01">
+                    <do event="death-in-desert" id="wrong-prediction-leave"/>
+                </case>
+                <case prob="0.01">
+                    <do event="city" id="wrong-prediction-pay"/>
                 </case>
             </random>
         </event>
     
         <event name="death-in-desert">
-            <outcome>
+            <outcome id="death-in-desert">
                 <utility agent="Alice" amount="-1000000"/>
             </outcome>
         </event>
     
         <event name="city">
-            <decide agent="Alice" decision="pay-or-leave">
+            <decide agent="Alice" decision="pay-or-leave" id="in-city">
                 <case action="pay">
-                    <outcome>
+                    <outcome id="choose-to-pay">
                         <utility agent="Alice" amount="-1000"/>
                     </outcome>
                 </case>
                 <case action="leave">
-                    <outcome>
+                    <outcome id="choose-to-leave">
                         <utility agent="Alice" amount="0"/>
                     </outcome>
                 </case>

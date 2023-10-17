@@ -3,11 +3,13 @@ import xmlschema
 class Do:
     def __init__(self, json):
         self.label = "do"
+        self.id = json["@id"]
         self.event_name = json["@event"]
 
 class Random:
     def __init__(self, json):
         self.label = "random"
+        self.id = json["@id"]
         self.cases = [
             (case["@prob"], parse_event(case))
             for case in json["case"]
@@ -16,6 +18,7 @@ class Random:
 class Predict:
     def __init__(self, json):
         self.label = "predict"
+        self.id = json["@id"]
         self.agent_name = json["@agent"]
         self.decision_name = json["@decision"]
         self.start_event = json["scenario"]["@start"]
@@ -29,6 +32,7 @@ class Predict:
 class Decide:
     def __init__(self, json):
         self.label = "decide"
+        self.id = json["@id"]
         self.agent_name = json["@agent"]
         self.decision_name = json["@decision"]
         self.cases = {
@@ -39,6 +43,7 @@ class Decide:
 class Outcome:
     def __init__(self, json):
         self.label = "outcome"
+        self.id = json["@id"]
         self.utilities = {
             elem["@agent"]: elem["@amount"]
             for elem in json["utility"]

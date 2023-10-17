@@ -1,7 +1,7 @@
 # TODO: decimal.Decimal?
 
 # Local modules
-from parse import Scenario
+from dilemma import Scenario
 
 # Standard library
 from decimal import Decimal
@@ -36,19 +36,24 @@ class Simulator:
           Note that the probabilities for events might add up to less than or
           more than 1.
         """
+        with self.logger.group(f"SIMULATE {event.id}", "|"):
+            result = self.__sim(decide, predict, scenario, event, stop)
+        return result
+
+    def __sim(self, decide, predict, scenario, event, stop=None):
 
         if event.label == "do":
             # TODO: cycle detection
-            with self.logger.group(f"Event '{event.event_name}':"):
-                event = scenario.events[event.event_name]
-                outcome = self.simulate(decide, predict, scenario, event, stop)
+            with self.logger.group(f"DO {event.event_name}:"):
+                inner_event = scenario.events[event.event_name]
+                outcome = self.__sim(decide, predict, scenario, inner_event, stop)
 
         elif event.label == "random":
             outcome = {} # map from agent name to expected utility
-            with self.logger.group("Random event:"):
+            with self.logger.group("RANDOM:"):
                 for prob, case in event.cases:
-                    with self.logger.group(f"With probability {prob}:"):
-                        conditional_outcome = self.simulate(decide, predict, scenario, case, stop)
+                    with self.logger.group(f"with probability {prob}:"):
+                        conditional_outcome = self.__sim(decide, predict, scenario, case, stop)
                         for key, val in conditional_outcome.items():
                             outcome.setdefault(key, Decimal(0.0))
                             outcome[key] += prob * val
@@ -67,24 +72,22 @@ class Simulator:
                 },
                 event.start_event
             )
-            with self.logger.group(f"Predicting {event.agent_name}'s making decision '{event.decision_name}' in scenario '{event.start_event}':"):
+            with self.logger.group(f"PREDICT {event.decision_name} by {event.agent_name} from {event.start_event}:", "?"):
                 action = predict(new_scenario, event.decision_name, self)
             outcome = self.do_action(decide, predict, scenario, event, stop, action)
 
         elif event.label == "decide":
-            with self.logger.group(f"{event.agent_name} is making decision '{event.decision_name}':"):
+            with self.logger.group(f"DECIDE {event.decision_name} by {event.agent_name}:", "!"):
                 action = decide(scenario, event.decision_name, self)
             outcome = self.do_action(decide, predict, scenario, event, stop, action)
 
         elif event.label == "outcome":
-            if stop is not None:
-                self.logger.log("Ignoring outcome")
-                outcome = {}
-            else:
-                with self.logger.group("Outcome"):
-                    outcome = event.utilities
-                    for agent, utility in outcome.items():
-                        self.logger.log(f"{agent} -> {utility}")
+            with self.logger.group("OUTCOME:"):
+                outcome = event.utilities
+                for agent, utility in outcome.items():
+                    self.logger.log(f"{agent} -> {utility}")
+                if stop is not None:
+                    outcome = {}
 
         else:
             raise Exception(f"Bug! Invalid label '{label}'")
@@ -92,23 +95,24 @@ class Simulator:
         if stop is not None and stop(event):
             outcome.setdefault(event, Decimal(0.0))
             outcome[event] += Decimal(1.0)
+            self.logger.log(f"Yielding event {event.id}.")
 
         return outcome
 
     def do_action(self, decide, predict, scenario, event, stop, action):
-        verb = "chooses to" if event.label == "prediction" else "is predicted to"
+        verb = "is predicted to" if event.label == "prediction" else "chooses to"
         adj = "predicted " if event.label == "prediction" else ""
         agent = scenario.decision_table[event.decision_name][0]
 
         if type(action) is str:
             # 1. Log action
-            self.logger.log(f"{agent} {verb} {action}")
+            self.logger.log(f"{agent} {verb} {action}.")
             # 2. Validate action
             if action not in event.cases:
                 self.logger.log(f"{agent} {adj}decision is invalid!")
                 return None
             # 3. Compute outcome from action
-            return self.simulate(decide, predict, scenario, event.cases[action], stop)
+            return self.__sim(decide, predict, scenario, event.cases[action], stop)
 
         else:
             # 1. Log action probability distribution
@@ -126,7 +130,7 @@ class Simulator:
             for act, prob in action_distr.items():
                 verb = "is predicted to" if event.label == "prediction" else "will"
                 with self.logger.group(f"{agent} {verb} {act} with probability {prob}:"):
-                    conditional_outcome = self.simulate(decide, predict, scenario, event.cases[act], stop)
+                    conditional_outcome = self.__sim(decide, predict, scenario, event.cases[act], stop)
                     for key, val in conditional_outcome:
                         outcome.setdefault(key, Decimal(0.0))
                         outcome[key] += prob * val
