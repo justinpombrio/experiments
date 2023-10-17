@@ -1,10 +1,43 @@
 class CDT:
-    def __init__(self, agent_name, logger):
-        self.agent_name = agent_name
+    def __init__(self, logger):
         self.logger = logger
 
     def name():
-        return "CDT"
+        return "cdt"
+
+    def decide(self, scenario, agent_name, decision_name, sim):
+        # Step 1: In what possible worlds am I making this decision? What are their relative probabilities?
+        start_event = scenario.events[scenario.start_event]
+
+
+        start_event = scenario.events[scenario.start_event]
+        decision_paths = scenario.paths_to_decision(start_event, decision_name)
+        prob_of_decisions = []
+        self.logger.log(f"I am {agent_name}, and I need to make decision '{decision_name}'.")
+        with self.logger.group(f"Calculating the probabilities of the different situations I may be in, while making this decision:"):
+            for path in decision_paths:
+                prob = 1.0
+                for event, info in path:
+                    if event.label == "random":
+                        prob *= info
+                    elif event.label == "decide" and info is None:
+                        # end of list
+                        prob_of_decisions.append((prob, event))
+                    elif event.label == "decide" or event.label == "predict":
+                        if self.decide(scenario, event.agent_name, event.decision_name) == info:
+                            # accurate; carry on
+                            continue
+                        else:
+                            verb = "decides to" if event.label == "decide" else "is predicted to"
+                            self.logger.log(f"Ignoring the impossible situation where {event.agent_name} {verb} {info}")
+                            break
+                    else:
+                        raise Exception("CDT: bad decision event")
+        with self.logger.group("While making this decision, I'm in one of {len(prob_of_decisions)} possibilities, with respective probabilities:"):
+            for prob, _ in prob_of_decisions:
+                self.logger.log(f"{prob}", prob)
+
+        # Step 2: For each possibility, what are the outcomes of the actions I could take?
 
     def decide(self, events, situation, decision):
         with self.logger.group(f"Considering all my options, starting from '{decision}'..."):

@@ -1,0 +1,53 @@
+<dilemma name="Parfit's Hitchhiker Problem" xml-author="Justin Pombrio">
+    <scenario start="desert">
+        <agent>Alice</agent>
+
+        <event name="desert">
+            <random>
+                <case prob="0.01">
+                    <do event="death-in-desert"/>
+                </case>
+                <case prob="0.01">
+                    <do event="city"/>
+                </case>
+                <case prob="0.98">
+                    <predict agent="Alice" decision="pay-or-leave">
+                        <scenario start="desert">
+                            <agent>Alice</agent>
+                            <event>desert</event>
+                            <event>death-in-desert</event>
+                            <event>city</event>
+                        </scenario>
+                        <case action="leave">
+                            <do event="death-in-desert"/>
+                        </case>
+                        <case action="pay">
+                            <do event="city"/>
+                        </case>
+                    </predict>
+                </case>
+            </random>
+        </event>
+    
+        <event name="death-in-desert">
+            <outcome>
+                <utility agent="Alice" amount="-1000000"/>
+            </outcome>
+        </event>
+    
+        <event name="city">
+            <decide agent="Alice" decision="pay-or-leave">
+                <case action="pay">
+                    <outcome>
+                        <utility agent="Alice" amount="-1000"/>
+                    </outcome>
+                </case>
+                <case action="leave">
+                    <outcome>
+                        <utility agent="Alice" amount="0"/>
+                    </outcome>
+                </case>
+            </decide>
+        </event>
+    </scenario>
+</dilemma>

@@ -4,14 +4,20 @@
     <xs:element name="dilemma">
         <xs:complexType>
             <xs:sequence>
-                <xs:element name="agent" type="xs:string" maxOccurs="10" />
-                <xs:element name="event" type="event" maxOccurs="100"/>
+                <xs:element name="scenario" type="scenario"/>
             </xs:sequence>
             <xs:attribute name="name" type="xs:string" use="required"/>
-            <xs:attribute name="author" type="xs:string" use="required"/>
-            <xs:attribute name="start" type="xs:string" use="required"/>
+            <xs:attribute name="xml-author" type="xs:string" use="required"/>
         </xs:complexType>
     </xs:element>
+
+    <xs:complexType name="scenario">
+        <xs:sequence>
+            <xs:element name="agent" type="xs:string" maxOccurs="10"/>
+            <xs:element name="event" type="event" maxOccurs="100"/>
+        </xs:sequence>
+        <xs:attribute name="start" type="xs:string" use="required"/>
+    </xs:complexType>
 
     <xs:complexType name="event">
         <xs:sequence>
@@ -48,6 +54,15 @@
     
     <xs:complexType name="predict">
         <xs:sequence>
+            <xs:element name="scenario">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="agent" type="xs:string" maxOccurs="10"/>
+                        <xs:element name="event" type="xs:string" maxOccurs="10"/>
+                    </xs:sequence>
+                    <xs:attribute name="start" type="xs:string" use="required"/>
+                </xs:complexType>
+            </xs:element>
             <xs:element name="case" maxOccurs="10">
                 <xs:complexType>
                     <xs:group ref="Node"/>
@@ -56,8 +71,7 @@
             </xs:element>
         </xs:sequence>
         <xs:attribute name="agent" type="xs:string" use="required"/>
-        <xs:attribute name="making-decision" type="xs:string"/>
-        <xs:attribute name="in-scenario" type="xs:string"/>
+        <xs:attribute name="decision" type="xs:string"/>
     </xs:complexType>
     
     <xs:complexType name="decide">
@@ -69,6 +83,7 @@
                 </xs:complexType>
             </xs:element>
         </xs:sequence>
+        <xs:attribute name="decision" type="xs:string" use="required"/>
         <xs:attribute name="agent" type="xs:string" use="required"/>
     </xs:complexType>
     
