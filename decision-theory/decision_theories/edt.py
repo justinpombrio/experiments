@@ -50,7 +50,7 @@ class EDT:
                         for event, prob in normal_distr.items():
                             self.logger.log(f"  {event.id} -> {prob}")
 
-                    with self.logger.group(f"Computing utility starting from the current situation:"):
+                    with self.logger.group(f"Computing utility starting from my current situation:"):
                         expected_utility = Decimal(0.0)
                         for event, prob in normal_distr.items():
                             with self.logger.group(f"Considering possibility {event.id}:"):
