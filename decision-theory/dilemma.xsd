@@ -4,6 +4,7 @@
     <xs:element name="dilemma">
         <xs:complexType>
             <xs:sequence>
+                <xs:element name="description" type="xs:string"/>
                 <xs:element name="scenario" type="scenario"/>
             </xs:sequence>
             <xs:attribute name="name" type="xs:string" use="required"/>

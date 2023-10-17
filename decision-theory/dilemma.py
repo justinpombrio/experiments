@@ -157,6 +157,7 @@ class Dilemma:
         dilemma = Dilemma.schema.decode(dilemma_filepath) # errors on invalid
         self.name = dilemma["@name"]
         self.xml_author = dilemma["@xml-author"]
+        self.description = dilemma["description"]
         self.json = dilemma
 
         agent_names = dilemma["scenario"]["agent"]
