@@ -7,9 +7,12 @@
         extraordinary ability to detect lies with 98% accuracy. Being left to
         die causes the agent to lose the equivalent of $1,000,000. In the case
         where the agent gets to the city, should she proceed to visit the ATM
-        and pay the driver?  [Wording taken from Yudkowski and Soares' FDT
-        paper, with accuracy reduced from 99% to 98% so that it could be 1%
-        inaccurate in each direction.]
+        and pay the driver?
+        ------
+        Wording taken from Yudkowski and Soares' FDT paper, with the following
+        modifications:
+        - Accuracy reduced from 99% to 98% so that it can be 1% inaccurate
+          in each direction.
     </description>
     <scenario start="desert">
         <agent>Alice</agent>

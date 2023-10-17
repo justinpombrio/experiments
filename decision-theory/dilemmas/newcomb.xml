@@ -1,0 +1,79 @@
+<dilemma name="Newcomb's Problem" xml-author="Justin Pombrio">
+    <description>
+        An agent finds herself standing in front of a transparent box labeled
+        "A" that contains $1,000, and an opaque box labeled "B" that contains
+        either $1,000,000 or $0. A reliable predictor, who has made similar
+        predictions in the past and has been correct 98% of the time, claims
+        to have placed $1,000,000 in box B iff She predicted that the agent
+        would leave box A behind. The predictor has already made Her
+        prediction and left. Box B is now empty or full. Should the agent take
+        both boxes ("two-boxing"), or only box B, leaving the transparent box
+        containing $1,000 behind ("one-boxing")?
+        ------
+        Wording taken from Yudkowski and Soares' FDT paper, with the following
+        modifications:
+        - Accuracy reduced from 99% to 98% so that it can be 1% inaccurate
+          in each direction.
+        - Capitalize "She", in proper deference to God-like entities.
+    </description>
+    <scenario start="yesterday">
+        <agent>Alice</agent>
+
+        <event name="yesterday">
+            <random id="predictor-is-predicting">
+                <case prob="0.98">
+                    <predict agent="Alice" decision="one-or-two-box" id="prediction">
+                        <scenario start="yesterday">
+                            <agent>Alice</agent>
+                            <event>yesterday</event>
+                            <event>box-B-full</event>
+                            <event>box-B-empty</event>
+                        </scenario>
+                        <case action="one-box">
+                            <do event="box-B-full" id="correct-prediction-one-box"/>
+                        </case>
+                        <case action="two-box">
+                            <do event="box-B-empty" id="correct-prediction-two-box"/>
+                        </case>
+                    </predict>
+                </case>
+                <case prob="0.01">
+                    <do event="box-B-full" id="wrong-prediction-one-box"/>
+                </case>
+                <case prob="0.01">
+                    <do event="box-B-empty" id="wrong-prediction-two-box"/>
+                </case>
+            </random>
+        </event>
+
+        <event name="box-B-full">
+            <decide agent="Alice" decision="one-or-two-box" id="box-B-full">
+                <case action="one-box">
+                    <outcome id="one-box-when-box-B-full">
+                        <utility agent="Alice" amount="1000000"/>
+                    </outcome>
+                </case>
+                <case action="two-box">
+                    <outcome id="two-box-when-box-B-full">
+                        <utility agent="Alice" amount="1001000"/>
+                    </outcome>
+                </case>
+            </decide>
+        </event>
+
+        <event name="box-B-empty">
+            <decide agent="Alice" decision="one-or-two-box" id="box-B-empty">
+                <case action="one-box">
+                    <outcome id="one-box-when-box-B-empty">
+                        <utility agent="Alice" amount="0"/>
+                    </outcome>
+                </case>
+                <case action="two-box">
+                    <outcome id="two-box-when-box-B-empty">
+                        <utility agent="Alice" amount="1000"/>
+                    </outcome>
+                </case>
+            </decide>
+        </event>
+    </scenario>
+</dilemma>
