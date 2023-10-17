@@ -43,7 +43,7 @@ class FDT:
 
         with self.logger.group(f"Expected utility for each precommitment:"):
             for action, utility in action_to_utility.items():
-                self.logger.log(f"{action} -> {utility}")
+                self.logger.log(f"{action} -> {utility:,}")
 
         best_action = pick_best_action(action_to_utility)
         self.logger.log(f"Thus my best action is to {best_action}.")

@@ -60,7 +60,7 @@ class Simulator:
                 if stop is None:
                     with self.logger.group("Average outcome:"):
                         for agent, utility in outcome.items():
-                            self.logger.log(f"{agent} -> {utility}")
+                            self.logger.log(f"{agent} -> {utility:,}")
 
         elif event.label == "predict":
             new_scenario = Scenario(
@@ -85,7 +85,7 @@ class Simulator:
             with self.logger.group("OUTCOME:"):
                 outcome = event.utilities
                 for agent, utility in outcome.items():
-                    self.logger.log(f"{agent} -> {utility}")
+                    self.logger.log(f"{agent} -> {utility:,}")
                 if stop is not None:
                     outcome = {}
 

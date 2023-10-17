@@ -59,4 +59,4 @@ if __name__ == '__main__':
         outcome = sim.simulate(decide, predict, dilemma.scenario, start_event)
         with logger.group(f"Final outcome:"):
             for agent, utility in outcome.items():
-                logger.log(f"{agent} -> {utility}")
+                logger.log(f"{agent} -> {utility:,}")
