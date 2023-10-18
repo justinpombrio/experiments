@@ -1,0 +1,70 @@
+<dilemma name="Death in Damascus" xml-author="Justin Pombrio">
+    <description>
+        Imagine a deterministic world where Death is known to be able to
+        perfectly predict human behavior based on a detailed past observation
+        of the world’s state. Death works from an appointment book, which
+        lists combinations of people, days, and places. Each day, Death goes to
+        collect the listed people at the listed places. If the listed person is
+        at the corresponding place on that day, they die; otherwise, they
+        survive (which they value at $1,000,000). An agent encounters Death in
+        Damascus and is told that Death is coming for her tomorrow. This agent
+        knows that deciding to flee to Aleppo (at a cost of $1,000) means that
+        Death will be in Aleppo tomorrow, whereas staying in Damascus means that
+        Death will be in Damascus tomorrow. Should she stay, or flee?
+        ------
+        Wording taken from Yudkowski and Soares' FDT paper. Note that I've
+        implemented the utility as +1000,000 for living and +1000 for staying
+        in Damascus.
+    </description>
+    <scenario start="start">
+        <agent>Alice</agent>
+
+        <event name="start">
+            <predict agent="Alice" decision="stay-or-flee" id="prediction">
+                <scenario start="start">
+                    <agent>Alice</agent>
+                    <event>start</event>
+                    <event>death-in-damascus</event>
+                    <event>death-in-aleppo</event>
+                </scenario>
+                <case action="stay">
+                    <do event="death-in-damascus" id="prediction-damascus"/>
+                </case>
+                <case action="flee">
+                    <do event="death-in-aleppo" id="prediction-aleppo"/>
+                </case>
+
+            </predict>
+        </event>
+
+        <event name="death-in-damascus">
+            <decide agent="Alice" decision="stay-or-flee" id="death-in-damascus">
+                <case action="stay">
+                    <outcome id="caught-in-damascus">
+                        <utility agent="Alice" amount="1000"/>
+                    </outcome>
+                </case>
+                <case action="flee">
+                    <outcome id="free-in-aleppo">
+                        <utility agent="Alice" amount="1000000"/>
+                    </outcome>
+                </case>
+            </decide>
+        </event>
+
+        <event name="death-in-aleppo">
+            <decide agent="Alice" decision="stay-or-flee" id="death-in-aleppo">
+                <case action="stay">
+                    <outcome id="free-in-damascus">
+                        <utility agent="Alice" amount="1001000"/>
+                    </outcome>
+                </case>
+                <case action="flee">
+                    <outcome id="caught-in-aleppo">
+                        <utility agent="Alice" amount="0"/>
+                    </outcome>
+                </case>
+            </decide>
+        </event>
+    </scenario>
+</dilemma>
