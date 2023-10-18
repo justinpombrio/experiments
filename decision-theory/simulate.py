@@ -83,10 +83,11 @@ class Simulator:
 
         elif event.label == "outcome":
             with self.logger.group("OUTCOME:"):
-                outcome = event.utilities
-                for agent, utility in outcome.items():
+                for agent, utility in event.utilities.items():
                     self.logger.log(f"{agent} -> {utility:,}")
-                if stop is not None:
+                if stop is None:
+                    outcome = event.utilities
+                else:
                     outcome = {}
 
         else:

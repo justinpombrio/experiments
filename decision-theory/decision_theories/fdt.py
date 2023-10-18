@@ -21,8 +21,8 @@ class FDT:
         self.logger.log(f"I, {agent_name}, am deciding {decision_name} using FDT.")
         if self.precommitments:
             with self.logger.group("Precommitments:"):
-                for (agent_name, decision_name), action in self.precommitments.items():
-                    self.logger.log(f"{agent_name}, {decision_name} -> {action}")
+                for (agent, decision), action in self.precommitments.items():
+                    self.logger.log(f"{agent}, {decision} -> {action}")
 
         if (agent_name, decision_name) in self.precommitments:
             action = self.precommitments[agent_name, decision_name]
