@@ -18,24 +18,20 @@
         <agent>Alice</agent>
 
         <event name="yesterday">
-            <random id="predictor-is-predicting">
-                <case prob="0.98">
-                    <predict agent="Alice" decision="one-or-two-box" id="prediction">
-                        <scenario start="yesterday">
-                            <agent>Alice</agent>
-                            <event>yesterday</event>
-                            <event>box-B-full</event>
-                            <event>box-B-empty</event>
-                        </scenario>
-                        <case action="one-box">
-                            <do event="box-B-full" id="correct-prediction-one-box"/>
-                        </case>
-                        <case action="two-box">
-                            <do event="box-B-empty" id="correct-prediction-two-box"/>
-                        </case>
-                    </predict>
+            <predict agent="Alice" decision="one-or-two-box" id="prediction">
+                <scenario start="yesterday">
+                    <agent>Alice</agent>
+                    <event>yesterday</event>
+                    <event>box-B-full</event>
+                    <event>box-B-empty</event>
+                </scenario>
+                <case action="one-box">
+                    <do event="box-B-full" id="prediction-one-box"/>
                 </case>
-            </random>
+                <case action="two-box">
+                    <do event="box-B-empty" id="prediction-two-box"/>
+                </case>
+            </predict>
         </event>
 
         <event name="box-B-full">
