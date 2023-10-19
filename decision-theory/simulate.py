@@ -110,8 +110,7 @@ class Simulator:
             self.logger.log(f"{agent} {verb} {action}.")
             # 2. Validate action
             if action not in event.cases:
-                self.logger.log(f"{agent} {adj}decision is invalid!")
-                return None
+                raise Exception(f"{agent} {adj}decision to {action} is invalid!")
             # 3. Compute outcome from action
             return self.__sim(decide, predict, scenario, event.cases[action], stop)
 
@@ -124,15 +123,14 @@ class Simulator:
             # 2. Validate possible actions
             for act, _ in action_distr.items():
                 if act not in event.cases:
-                    self.logger.log(f"{agent} {adj}decision (\"{act}\") is invalid!")
-                    return None
+                    raise Exception(f"{agent} {adj}decision to {act} is invalid!")
             # 3. Compute expected outcome from action probability distribution
             outcome = {}
             for act, prob in action_distr.items():
                 verb = "is predicted to" if event.label == "prediction" else "will"
                 with self.logger.group(f"{agent} {verb} {act} with probability {prob}:"):
                     conditional_outcome = self.__sim(decide, predict, scenario, event.cases[act], stop)
-                    for key, val in conditional_outcome:
+                    for key, val in conditional_outcome.items():
                         outcome.setdefault(key, Decimal(0.0))
                         outcome[key] += prob * val
             return outcome
