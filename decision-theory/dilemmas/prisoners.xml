@@ -8,7 +8,7 @@
         has made his. The agents both know the situation they are in, and
         that they use the same decision theory. Should Alice cooperate?
         ------
-        Wording partly taken from Yudkowski and Soares' FDT paper.
+        Wording taken from "Functional Decision Theory" by Yudkowski and Soares.
     </description>
     <scenario start="start">
         <agent>Alice</agent>

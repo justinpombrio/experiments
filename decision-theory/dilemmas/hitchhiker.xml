@@ -9,8 +9,8 @@
         where the agent gets to the city, should she proceed to visit the ATM
         and pay the driver?
         ------
-        Wording taken from Yudkowski and Soares' FDT paper, with the following
-        modifications:
+        Wording taken from "Functional Decision Theory" by Yudkowski and Soares,
+        with the following modifications:
         - Accuracy reduced from 99% to 98% so that it can be 1% inaccurate
           in each direction.
     </description>

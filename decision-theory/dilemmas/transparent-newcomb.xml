@@ -8,11 +8,11 @@
         that both boxes are full. In the case where the agent faces two full
         boxes, should she leave the $1,000 behind?
         ------
-        Wording taken from Yudkowski and Soares' FDT paper, with the following
-        modifications:
-        - Accuracy reduced from 99% to 98% so that it can be 1% inaccurate
-          in each direction.
-        - Capitalize "She", in proper deference to God-like entities.
+        Wording taken from "Functional Decision Theory" by Yudkowski and Soares,
+        with the following modifications:
+        - Reduced predictor's accuracy from 99% to 98% so that it can be 1%
+          inaccurate in each direction.
+        - Capitalized "She", in proper deference to God-like entities.
     </description>
     <scenario start="yesterday">
         <agent>Alice</agent>

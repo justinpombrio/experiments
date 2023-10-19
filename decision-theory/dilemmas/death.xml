@@ -12,9 +12,9 @@
         Death will be in Aleppo tomorrow, whereas staying in Damascus means that
         Death will be in Damascus tomorrow. Should she stay, or flee?
         ------
-        Wording taken from Yudkowski and Soares' FDT paper. Note that I've
-        implemented the utility as +1000,000 for living and +1000 for staying
-        in Damascus.
+        Wording taken from "Functional Decision Theory" by Yudkowski and Soares.
+        Note that I've implemented the utility as +1000,000 for living and +1000
+        for staying in Damascus.
     </description>
     <scenario start="start">
         <agent>Alice</agent>

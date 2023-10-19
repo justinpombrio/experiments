@@ -2,18 +2,16 @@
     <description>
         An agent finds herself standing in front of a transparent box labeled
         "A" that contains $1,000, and an opaque box labeled "B" that contains
-        either $1,000,000 or $0. A reliable predictor, who has made similar
-        predictions in the past and has been correct 98% of the time, claims
-        to have placed $1,000,000 in box B iff She predicted that the agent
-        would leave box A behind. The predictor has already made Her
-        prediction and left. Box B is now empty or full. Should the agent take
-        both boxes ("two-boxing"), or only box B, leaving the transparent box
-        containing $1,000 behind ("one-boxing")?
+        either $1,000,000 or $0. An infallible predictor claims to have placed
+        $1,000,000 in box B iff She predicted that the agent would leave box A
+        behind. The predictor has already made Her prediction and left. Box B
+        is now empty or full. Should the agent take both boxes ("two-boxing"),
+        or only box B, leaving the transparent box containing $1,000 behind
+        ("one-boxing")?
         ------
         Wording taken from "Functional Decision Theory" by Yudkowski and Soares,
         with the following modifications:
-        - Reduced predictor's accuracy from 99% to 98% so that it can be 1%
-          inaccurate in each direction.
+        - Made the Predictor infallible.
         - Capitalized "She", in proper deference to God-like entities.
     </description>
     <scenario start="yesterday">
@@ -36,12 +34,6 @@
                             <do event="box-B-empty" id="correct-prediction-two-box"/>
                         </case>
                     </predict>
-                </case>
-                <case prob="0.01">
-                    <do event="box-B-full" id="wrong-prediction-one-box"/>
-                </case>
-                <case prob="0.01">
-                    <do event="box-B-empty" id="wrong-prediction-two-box"/>
                 </case>
             </random>
         </event>
