@@ -1,0 +1,61 @@
+<dilemma name="Cosmic Ray Problem" xml-author="Justin Pombrio">
+    <description>
+        An agent must choose whether to take $1 or $100. With vanishingly small
+        probability, a cosmic ray will cause her to do the opposite of what she
+        would have done otherwise. If she learns that she has been affected by a
+        cosmic ray in this way, she will need to go to the hospital and pay
+        $1,000 for a check-up. Should she take the $1, or the $100?
+        ------
+        Wording taken from "Functional Decision Theory" by Yudkowski and Soares.
+        I've taken "vanishingly small" as merely "one in a thousand chance",
+        to keep the numbers larger for readability.
+    </description>
+    <scenario start="sidewalk">
+        <agent>Alice</agent>
+
+        <event name="sidewalk">
+            <random id="sidewalk">
+                <case prob="0.999">
+                    <decide agent="Alice" decision="$1-or-$100" id="which-bill">
+                        <case action="$1">
+                            <outcome id="$1">
+                                <utility agent="Alice" amount="1"/>
+                            </outcome>
+                        </case>
+                        <case action="$100">
+                            <outcome id="$100">
+                                <utility agent="Alice" amount="100"/>
+                            </outcome>
+                        </case>
+                    </decide>
+                </case>
+                <case prob="0.001">
+                    <predict agent="Alice" decision="$1-or-$100" id="hit-by-ray">
+                        <scenario start="sidewalk">
+                            <agent>Alice</agent>
+                            <event>sidewalk</event>
+                        </scenario>
+                        <case action="$1">
+                            <forced_decide agent="Alice" decision="$1-or-$100" id="$1-flipped">
+                                <case action="$100">
+                                    <outcome id="ray-$100">
+                                        <utility agent="Alice" amount="-900"/>
+                                    </outcome>
+                                </case>
+                            </forced_decide>
+                        </case>
+                        <case action="$100">
+                            <forced_decide agent="Alice" decision="$1-or-$100" id="$100-flipped">
+                                <case action="$1">
+                                    <outcome id="ray-$1">
+                                        <utility agent="Alice" amount="-999"/>
+                                    </outcome>
+                                </case>
+                            </forced_decide>
+                        </case>
+                    </predict>
+                </case>
+            </random>
+        </event>
+    </scenario>
+</dilemma>

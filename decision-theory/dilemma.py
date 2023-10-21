@@ -40,6 +40,15 @@ class Decide:
             for case in json["case"]
         }
 
+class ForcedDecide:
+    def __init__(self, json):
+        self.label = "forced_decide"
+        self.id = json["@id"]
+        self.agent_name = json["@agent"]
+        self.decision_name = json["@decision"]
+        self.action = json["case"]["@action"]
+        self.case = parse_event(json["case"])
+
 class Outcome:
     def __init__(self, json):
         self.label = "outcome"
@@ -54,6 +63,7 @@ EVENT_TYPES = {
     "random": Random,
     "predict": Predict,
     "decide": Decide,
+    "forced_decide": ForcedDecide,
     "outcome": Outcome
 }
 
@@ -70,6 +80,8 @@ class Scenario:
         agent_names: list of agent names
         events: map from event name to Event
         start_event: name of intitial event
+
+        decision_table: {decision_name : {agent_name, list[action]}}
         """
         self.agent_names = agent_names
         self.events = events
@@ -110,6 +122,8 @@ class Scenario:
                 table[decision_name] = agent_name, actions
             for case in event.cases.values():
                 self.__make_decision_table(table, case)
+        elif event.label == "forced_decide":
+            pass # TODO: check, but it's annoying to do in arbitrary order
         elif event.label == "outcome":
             pass
         else:

@@ -1,0 +1,48 @@
+<dilemma name="Smoking Lesion Problem" xml-author="Justin Pombrio">
+    <description>
+        An agent is debating whether or not to smoke. She knows that smoking is
+        correlated with an invariably fatal variety of lung cancer, but the
+        correlation is (in this imaginary world) entirely due to a common cause:
+        an arterial lesion that causes those afflicted with it to love smoking
+        and also (99% of the time) causes them to develop lung cancer. There is
+        no direct causal link between smoking and lung cancer. Agents without
+        this lesion contract lung cancer only 1% of the time, and an agent can
+        neither directly observe nor control whether she suffers from the lesion.
+        The agent gains utility equivalent to $1,000 by smoking (regardless of
+        whether she dies soon), and gains utility equivalent to $1,000,000 if
+        she doesn’t die of cancer. Should she smoke, or refrain?  
+        ------
+        Wording taken from "Functional Decision Theory" by Yudkowski and Soares.
+    </description>
+    <scenario start="birth">
+        <agent>Alice</agent>
+
+        <event name="birth">
+            <random id="roll-for-lesion">
+                <case prob="0.5">
+                    <forced_decide agent="Alice" decision="smoke-or-not" id="affected-by-lesion">
+                        <case action="yes-smoke">
+                            <outcome id="forced-to-smoke">
+                                <utility agent="Alice" amount="-999000"/>
+                            </outcome>
+                        </case>
+                    </forced_decide>
+                </case>
+                <case prob="0.5">
+                    <decide agent="Alice" decision="smoke-or-not" id="no-lesion">
+                        <case action="yes-smoke">
+                            <outcome id="smoking">
+                                <utility agent="Alice" amount="1000"/>
+                            </outcome>
+                        </case>
+                        <case action="no-smoke">
+                            <outcome id="not-smoking">
+                                <utility agent="Alice" amount="0"/>
+                            </outcome>
+                        </case>
+                    </decide>
+                </case>
+            </random>
+        </event>
+    </scenario>
+</dilemma>
