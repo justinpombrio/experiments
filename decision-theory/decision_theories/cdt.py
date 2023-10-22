@@ -25,19 +25,6 @@ class CDT:
                 and event.decision_name == decision_name)
         distr = sim.simulate_with_distribution(prior, scenario, start_event, stop)
 
-        # # How did I get here, to this moment in my life?
-        # # Who knows! Let's just assume everyone acted and predicted randomly.
-        # def decide_randomly(scenario, decision_name, sim):
-        #     _, actions = scenario.decision_table[decision_name]
-        #     prob = Decimal(1.0) / Decimal(len(actions))
-        #     return {
-        #         action: prob
-        #         for action in actions
-        #     }
-        # start_event = scenario.events[scenario.start_event]
-        # stop = lambda event: event.label == "decide" and event.decision_name == decision_name
-        # distr = sim.simulate(decide_randomly, decide_randomly, scenario, start_event, stop)
-
         with self.logger.group(f"Probability distribution of my current situation:"):
             for event, prob in distr.items():
                 self.logger.log(f"  {event.id} -> {prob}")
