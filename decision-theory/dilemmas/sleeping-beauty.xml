@@ -1,0 +1,239 @@
+<dilemma name="Smoking Lesion Problem" xml-author="Justin Pombrio">
+    <description>
+        Sleeping Beauty volunteers to undergo the following experiment and is
+        told all of the following details: On Sunday she will be put to sleep.
+        Once or twice, during the experiment, Sleeping Beauty will be awakened,
+        interviewed, and put back to sleep with an amnesia-inducing drug that
+        makes her forget that awakening. A fair coin will be tossed to determine
+        which experimental procedure to undertake:
+
+        - If the coin comes up heads, Sleeping Beauty will be awakened and
+          interviewed on Monday only.
+        - If the coin comes up tails, she will be awakened and interviewed on
+          Monday and Tuesday.
+
+        In either case, she will be awakened on Wednesday without interview and
+        the experiment ends.
+
+        Any time Sleeping Beauty is awakened and interviewed she will not be
+        able to tell which day it is or whether she has been awakened before.
+        During the interview Sleeping Beauty is asked: "What is your credence
+        now for the proposition that the coin landed heads?"
+        ------
+        Wording taken from Wikipedia
+        (https://en.wikipedia.org/wiki/Sleeping_Beauty_problem).
+
+        INFOHAZARD: This question is a [scissors statement]
+        (https://slatestarcodex.com/2018/10/30/sort-by-controversial/).
+        Be careful discussing it with others, as it easily leads to heated
+        arguments.
+
+        The Decision Theory Simulator, however, will not confront the crux of
+        the problem (whether the 'credence' is 1/2 or 1/3). Instead, we'll
+        embed two bets into the dilemma, and check that the agent makes the bets
+        correctly. (Readers who say the 'credence' is 1/2 vs. 1/3 will give
+        different probabilities for everything, and each will think that one of
+        the two bets is unfair. However, they will both ultimately agree with
+        each other on how to bet.)
+
+        The two bets are:
+
+        - Bet1: On Monday, Sleeping Beauty will be offered to pay $4, and
+          receive $10 if the coin landed on heads. On Tuesday, she will also be
+          "offered" this bet, but it won't count and if she takes it her $4 will
+          be returned to her later. This is so that she can't tell whether it's
+          Monday or Tuesday based on whether she received this offer to bet.
+          (She should take this bet.)
+        - Bet2: Each day she is awakened, Sleeping Beauty will be offered to pay
+          $4, and receive $10 if the coin landed on heads. This bet is real on
+          both Mondays and Tuesdays. (She should not take this bet.)
+    </description>
+    <scenario start="going-to-sleep">
+        <agent>Alice</agent>
+
+        <event name="going-to-sleep">
+            <random id="coin-flip">
+                <case prob="0.5">
+                    <goto event="heads" id="heads"/>
+                </case>
+                <case prob="0.5">
+                    <goto event="tails" id="tails"/>
+                </case>
+            </random>
+        </event>
+
+        <event name="heads">
+            <decide agent="Alice" decision="bet1" id="heads-Monday">
+                <case action="yes-bet">
+                    <decide agent="Alice" decision="bet2" id="heads-Monday-Y1">
+                        <case action="yes-bet">
+                            <outcome id="heads-Y1-Y2">
+                                <utility agent="Alice" amount="12"/>
+                            </outcome>
+                        </case>
+                        <case action="no-bet">
+                            <outcome id="heads-Y1-N2">
+                                <utility agent="Alice" amount="6"/>
+                            </outcome>
+                        </case>
+                    </decide>
+                </case>
+                <case action="no-bet">
+                    <decide agent="Alice" decision="bet2" id="heads-Monday-N1">
+                        <case action="yes-bet">
+                            <outcome id="heads-N1-Y2">
+                                <utility agent="Alice" amount="6"/>
+                            </outcome>
+                        </case>
+                        <case action="no-bet">
+                            <outcome id="heads-N1-N2">
+                                <utility agent="Alice" amount="0"/>
+                            </outcome>
+                        </case>
+                    </decide>
+                </case>
+            </decide>
+        </event>
+
+        <event name="tails">
+            <decide agent="Alice" decision="bet1" id="tails-Monday">
+                <case action="yes-bet">
+                    <decide agent="Alice" decision="bet2" id="tails-Monday-Y">
+                        <case action="yes-bet">
+                            <decide agent="Alice" decision="bet1" id="tails-Tuesday-YY">
+                                <case action="yes-bet">
+                                    <decide agent="Alice" decision="bet2" id="tails-Tuesday-YYY">
+                                        <case action="yes-bet">
+                                            <outcome id="tails-YYYY">
+                                                <utility agent="Alice" amount="-12"/>
+                                            </outcome>
+                                        </case>
+                                        <case action="no-bet">
+                                            <outcome id="tails-YYYN">
+                                                <utility agent="Alice" amount="-8"/>
+                                            </outcome>
+                                        </case>
+                                    </decide>
+                                </case>
+                                <case action="no-bet">
+                                    <decide agent="Alice" decision="bet2" id="tails-Tuesday-YYN">
+                                        <case action="yes-bet">
+                                            <outcome id="tails-YYNY">
+                                                <utility agent="Alice" amount="-12"/>
+                                            </outcome>
+                                        </case>
+                                        <case action="no-bet">
+                                            <outcome id="tails-YYNN">
+                                                <utility agent="Alice" amount="-8"/>
+                                            </outcome>
+                                        </case>
+                                    </decide>
+                                </case>
+                            </decide>
+                        </case>
+                        <case action="no-bet">
+                            <decide agent="Alice" decision="bet1" id="tails-Tuesday-YN">
+                                <case action="yes-bet">
+                                    <decide agent="Alice" decision="bet2" id="tails-Tuesday-YNY">
+                                        <case action="yes-bet">
+                                            <outcome id="tails-YNYY">
+                                                <utility agent="Alice" amount="-8"/>
+                                            </outcome>
+                                        </case>
+                                        <case action="no-bet">
+                                            <outcome id="tails-YNYN">
+                                                <utility agent="Alice" amount="-4"/>
+                                            </outcome>
+                                        </case>
+                                    </decide>
+                                </case>
+                                <case action="no-bet">
+                                    <decide agent="Alice" decision="bet2" id="tails-Tuesday-YNN">
+                                        <case action="yes-bet">
+                                            <outcome id="tails-YNNY">
+                                                <utility agent="Alice" amount="-8"/>
+                                            </outcome>
+                                        </case>
+                                        <case action="no-bet">
+                                            <outcome id="tails-YNNN">
+                                                <utility agent="Alice" amount="-4"/>
+                                            </outcome>
+                                        </case>
+                                    </decide>
+                                </case>
+                            </decide>
+                        </case>
+                    </decide>
+                </case>
+                <case action="no-bet">
+                    <decide agent="Alice" decision="bet2" id="tails-Monday-N">
+                        <case action="yes-bet">
+                            <decide agent="Alice" decision="bet1" id="tails-Tuesday-NY">
+                                <case action="yes-bet">
+                                    <decide agent="Alice" decision="bet2" id="tails-Tuesday-NYY">
+                                        <case action="yes-bet">
+                                            <outcome id="tails-NYYY">
+                                                <utility agent="Alice" amount="-8"/>
+                                            </outcome>
+                                        </case>
+                                        <case action="no-bet">
+                                            <outcome id="tails-NYYN">
+                                                <utility agent="Alice" amount="-4"/>
+                                            </outcome>
+                                        </case>
+                                    </decide>
+                                </case>
+                                <case action="no-bet">
+                                    <decide agent="Alice" decision="bet2" id="tails-Tuesday-NYN">
+                                        <case action="yes-bet">
+                                            <outcome id="tails-NYNY">
+                                                <utility agent="Alice" amount="-8"/>
+                                            </outcome>
+                                        </case>
+                                        <case action="no-bet">
+                                            <outcome id="tails-NYNN">
+                                                <utility agent="Alice" amount="-4"/>
+                                            </outcome>
+                                        </case>
+                                    </decide>
+                                </case>
+                            </decide>
+                        </case>
+                        <case action="no-bet">
+                            <decide agent="Alice" decision="bet1" id="tails-Tuesday-NN">
+                                <case action="yes-bet">
+                                    <decide agent="Alice" decision="bet2" id="tails-Tuesday-NNY">
+                                        <case action="yes-bet">
+                                            <outcome id="tails-NNYY">
+                                                <utility agent="Alice" amount="-4"/>
+                                            </outcome>
+                                        </case>
+                                        <case action="no-bet">
+                                            <outcome id="tails-NNYN">
+                                                <utility agent="Alice" amount="0"/>
+                                            </outcome>
+                                        </case>
+                                    </decide>
+                                </case>
+                                <case action="no-bet">
+                                    <decide agent="Alice" decision="bet2" id="tails-Tuesday-NNN">
+                                        <case action="yes-bet">
+                                            <outcome id="tails-NNNY">
+                                                <utility agent="Alice" amount="-4"/>
+                                            </outcome>
+                                        </case>
+                                        <case action="no-bet">
+                                            <outcome id="tails-NNNN">
+                                                <utility agent="Alice" amount="0"/>
+                                            </outcome>
+                                        </case>
+                                    </decide>
+                                </case>
+                            </decide>
+                        </case>
+                    </decide>
+                </case>
+            </decide>
+        </event>
+    </scenario>
+</dilemma>
