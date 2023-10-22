@@ -33,7 +33,7 @@
     
     <xs:group name="Node">
         <xs:choice>
-            <xs:element name="do" type="do"/>
+            <xs:element name="goto" type="goto"/>
             <xs:element name="predict" type="predict"/>
             <xs:element name="decide" type="decide"/>
             <xs:element name="forced_decide" type="forced_decide"/>
@@ -43,7 +43,7 @@
     </xs:group>
     
     <!-- TODO: cycle check? -->
-    <xs:complexType name="do">
+    <xs:complexType name="goto">
         <xs:attribute name="event" type="xs:string" use="required"/>
         <xs:attribute name="id" type="xs:string" use="required"/>
     </xs:complexType>

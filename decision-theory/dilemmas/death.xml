@@ -28,10 +28,10 @@
                     <event>death-in-aleppo</event>
                 </scenario>
                 <case action="stay">
-                    <do event="death-in-damascus" id="prediction-damascus"/>
+                    <goto event="death-in-damascus" id="prediction-damascus"/>
                 </case>
                 <case action="flee">
-                    <do event="death-in-aleppo" id="prediction-aleppo"/>
+                    <goto event="death-in-aleppo" id="prediction-aleppo"/>
                 </case>
 
             </predict>

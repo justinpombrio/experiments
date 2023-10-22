@@ -28,18 +28,18 @@
                             <event>box-B-empty</event>
                         </scenario>
                         <case action="one-box">
-                            <do event="box-B-full" id="correct-prediction-one-box"/>
+                            <goto event="box-B-full" id="correct-prediction-one-box"/>
                         </case>
                         <case action="two-box">
-                            <do event="box-B-empty" id="correct-prediction-two-box"/>
+                            <goto event="box-B-empty" id="correct-prediction-two-box"/>
                         </case>
                     </predict>
                 </case>
                 <case prob="0.01">
-                    <do event="box-B-full" id="wrong-prediction-one-box"/>
+                    <goto event="box-B-full" id="wrong-prediction-one-box"/>
                 </case>
                 <case prob="0.01">
-                    <do event="box-B-empty" id="wrong-prediction-two-box"/>
+                    <goto event="box-B-empty" id="wrong-prediction-two-box"/>
                 </case>
             </random>
         </event>

@@ -1,8 +1,8 @@
 import xmlschema
 
-class Do:
+class Goto:
     def __init__(self, json):
-        self.label = "do"
+        self.label = "goto"
         self.id = json["@id"]
         self.event_name = json["@event"]
 
@@ -59,7 +59,7 @@ class Outcome:
         }
 
 EVENT_TYPES = {
-    "do": Do,
+    "goto": Goto,
     "random": Random,
     "predict": Predict,
     "decide": Decide,
@@ -100,7 +100,7 @@ class Scenario:
                 self.__make_decision_table(table, event)
             return
         
-        if event.label == "do":
+        if event.label == "goto":
             return
         elif event.label == "random":
             for _prob, case in event.cases:
@@ -137,7 +137,7 @@ class Scenario:
         - (event:Decide, None)       // if has name `decision_name`
         - (event:Decide, action:str) // otherwise
         """
-        if event.label == "do":
+        if event.label == "goto":
             return self.paths_to_decision(event.event_name, decision_name)
         elif event.label == "random":
             decisions = []

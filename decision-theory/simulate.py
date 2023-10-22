@@ -18,7 +18,7 @@ class Simulator:
 
         - `scenario`: a `Scenario` describing the context in which `event`
           happens
-        - `event`: an event object (Do, Random, Predict, Decide, or Outcome)
+        - `event`: an event object (Goto, Random, Predict, Decide, or Outcome)
           within the scenario
         - `decide`: a function that determines how agents make decisions. It
           takes as arguments:
@@ -59,7 +59,7 @@ class Simulator:
 
     def __sim(self, decide, predict, scenario, event, stop=None):
 
-        if event.label == "do":
+        if event.label == "goto":
             # TODO: cycle detection
             with self.logger.group(f"DO {event.event_name}:"):
                 inner_event = scenario.events[event.event_name]

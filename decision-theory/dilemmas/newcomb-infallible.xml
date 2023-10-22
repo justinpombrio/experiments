@@ -26,10 +26,10 @@
                     <event>box-B-empty</event>
                 </scenario>
                 <case action="one-box">
-                    <do event="box-B-full" id="prediction-one-box"/>
+                    <goto event="box-B-full" id="prediction-one-box"/>
                 </case>
                 <case action="two-box">
-                    <do event="box-B-empty" id="prediction-two-box"/>
+                    <goto event="box-B-empty" id="prediction-two-box"/>
                 </case>
             </predict>
         </event>

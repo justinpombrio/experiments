@@ -28,18 +28,18 @@
                             <event>city</event>
                         </scenario>
                         <case action="leave">
-                            <do event="death-in-desert" id="correct-prediction-leave"/>
+                            <goto event="death-in-desert" id="correct-prediction-leave"/>
                         </case>
                         <case action="pay">
-                            <do event="city" id="correct-prediction-pay"/>
+                            <goto event="city" id="correct-prediction-pay"/>
                         </case>
                     </predict>
                 </case>
                 <case prob="0.01">
-                    <do event="death-in-desert" id="wrong-prediction-leave"/>
+                    <goto event="death-in-desert" id="wrong-prediction-leave"/>
                 </case>
                 <case prob="0.01">
-                    <do event="city" id="wrong-prediction-pay"/>
+                    <goto event="city" id="wrong-prediction-pay"/>
                 </case>
             </random>
         </event>
