@@ -1,4 +1,4 @@
-class FDT:
+class UDT:
     def __init__(self, logger, precommitments = None):
         """
         logger: log.Logger
@@ -11,12 +11,12 @@ class FDT:
             self.precommitments = precommitments
 
     def name():
-        return "fdt"
+        return "udt"
 
     def decide(self, scenario, decision_name, sim):
         agent_name, actions = scenario.decision_table[decision_name]
 
-        self.logger.log(f"I, {agent_name}, am deciding {decision_name} using FDT.")
+        self.logger.log(f"I, {agent_name}, am deciding {decision_name} using UDT.")
         if self.precommitments:
             with self.logger.group("Precommitments:"):
                 for (agent, decision), action in self.precommitments.items():
@@ -32,7 +32,7 @@ class FDT:
             for action in actions:
                 precommitments = self.precommitments.copy()
                 precommitments[agent_name, decision_name] = action
-                theory = FDT(self.logger, precommitments)
+                theory = UDT(self.logger, precommitments)
                 decision_proc = theory.decide
                 start_event = scenario.events[scenario.start_event]
                 with self.logger.group(f"with precommitment '{agent_name}, {decision_name} -> {action}':"):

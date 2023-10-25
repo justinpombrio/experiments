@@ -9,9 +9,9 @@ from simulate import Simulator
 from decision_theories.cdt import CDT
 from decision_theories.edt import EDT
 from decision_theories.epdt import EPDT
-from decision_theories.fdt import FDT
+from decision_theories.udt import UDT
 
-DECISION_THEORY_LIST = [CDT, EDT, EPDT, FDT]
+DECISION_THEORY_LIST = [CDT, EDT, EPDT, UDT]
 DECISION_THEORIES = {
     dt.name() : dt
     for dt in DECISION_THEORY_LIST
