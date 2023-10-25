@@ -96,10 +96,10 @@ of the time will predict two-boxing without cause.
     <scenario start="yesterday">
         <agent>Alice</agent>
             
-        <event name="yesterday"> 
-            <random id="predictor-is-predicting">
+        <event> 
+            <random id="prediction">
                 <case prob="0.98">
-                    <predict agent="Alice" decision="one-or-two-box" id="prediction">
+                    <predict agent="Alice" decision="one-or-two-box" id="correct-prediction">
                         <scenario start="yesterday">
                             <agent>Alice</agent>
                             <event>yesterday</event>
@@ -123,7 +123,7 @@ of the time will predict two-boxing without cause.
             </random>
         </event>
                                
-        <event name="box-B-full">
+        <event>
             <decide agent="Alice" decision="one-or-two-box" id="box-B-full">
                 <case action="one-box">
                     <outcome id="one-box-when-box-B-full">
@@ -138,7 +138,7 @@ of the time will predict two-boxing without cause.
             </decide>
         </event>
 
-        <event name="box-B-empty">
+        <event>
             <decide agent="Alice" decision="one-or-two-box" id="box-B-empty">
                 <case action="one-box">
                     <outcome id="one-box-when-box-B-empty">
@@ -178,23 +178,17 @@ elided here for brevity.
 <scenario start="yesterday">
     <agent>Alice</agent>
         
-    <event name="yesterday"> 
-        ...
-    </event>
-    <event name="box-B-full">
-        ...
-    </event>
-    <event name="box-B-empty">
-        ...
-    </event>
+    <event> ... </event>
+    <event> ... </event>
+    <event> ... </event>
 </scenario>
 ```
 
 The `scenario` element says what the dilemma actually is. It has a set of
-_agents_ (in this case just Alice), and a set of named _events_. All of the
-agents will use the _same_ decision theory, and they all know it. There's a
-`start` event (see the attribute on `scenario`), whichs is, well, the event
-the scenario starts at.
+_agents_ (in this case just Alice), and a set of _events_. All of the agents
+will use the _same_ decision theory, and they all know it. There's a `start`
+event (see the attribute on `scenario`), whichs is, the id of the event that
+the scenario starts with.
 
 Each event forms a tree, with children in the tree being possible futures. For
 example, a `<random>` coin-flip event would have two child events: one
