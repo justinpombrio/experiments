@@ -1,0 +1,53 @@
+<dilemma name="Counterfactual Mugging" xml-author="Justin Pombrio">
+    <description>
+        Omega appears and says that it has just tossed a fair coin, and given
+        that the coin came up tails, it decided to ask you to give it $100.
+        Whatever you do in this situation, nothing else will happen differently
+        in reality as a result. Naturally you don't want to give up your $100.
+        But Omega also tells you that if the coin came up heads instead of tails,
+        it'd give you $10000, but only if you'd agree to give it $100 if the coin
+        came up tails. Do you give Omega $100?
+        ------
+        http://old-wiki.lesswrong.com/wiki/Counterfactual_mugging?_ga=2.148291186.495270209.1698175523-1299709611.1693954866
+    </description>
+    <scenario start="coin-flip">
+        <agent>Alice</agent>
+
+        <event>
+            <random id="coin-flip">
+                <case prob="0.5">
+                    <predict agent="Alice" decision="give-or-withold" id="heads">
+                        <scenario start="coin-flip">
+                            <agent>Alice</agent>
+                            <event>coin-flip</event>
+                        </scenario>
+                        <case action="give">
+                            <outcome id="heads-give">
+                                <utility agent="Alice" amount="1000000"/>
+                            </outcome>
+                        </case>
+                        <case action="withold">
+                            <outcome id="heads-withold">
+                                <utility agent="Alice" amount="0"/>
+                            </outcome>
+                        </case>
+                    </predict>
+                </case>
+                <case prob="0.5">
+                    <decide agent="Alice" decision="give-or-withold" id="tails">
+                        <case action="give">
+                            <outcome id="tails-give">
+                                <utility agent="Alice" amount="-1000"/>
+                            </outcome>
+                        </case>
+                        <case action="withold">
+                            <outcome id="tails-withold">
+                                <utility agent="Alice" amount="0"/>
+                            </outcome>
+                        </case>
+                    </decide>
+                </case>
+            </random>
+        </event>
+    </scenario>
+</dilemma>
