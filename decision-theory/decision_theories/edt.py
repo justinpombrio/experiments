@@ -14,7 +14,7 @@ class EDT:
         self.logger.log(f"I, {agent_name}, am deciding {decision_name} using EDT.")
 
         bot_to_distr = {}
-        with self.logger.group(f"Using prior to compute distribution over current situation:"):
+        with self.logger.group(f"Using prior to compute distribution over current event:"):
             bots = PrecommitmentBot.all_possible_bots(self.logger, scenario.decision_table)
             prob = Decimal(1.0) / len(bots)
             start_event = scenario.events[scenario.start_event]
@@ -41,7 +41,7 @@ class EDT:
                 elif event.label == "forced_decide":
                     add_case(event.action, bot, event.case, prob)
 
-        with self.logger.group(f"Probability distribution over current situation:"):
+        with self.logger.group(f"Probability distribution over current event:"):
             for action, bot_to_distr in action_to_bot_to_distr.items():
                 with self.logger.group(f"for action {action}:"):
                     for bot, distr in bot_to_distr.items():
@@ -64,7 +64,7 @@ class EDT:
             }
             action_to_bot_to_normalized_distr[action] = bot_to_normalized_distr
 
-        with self.logger.group(f"Normalized probability distribution over current situation:"):
+        with self.logger.group(f"Normalized probability distribution over current event:"):
             for action, bot_to_distr in action_to_bot_to_normalized_distr.items():
                 with self.logger.group(f"for action {action}:"):
                     for bot, distr in bot_to_distr.items():

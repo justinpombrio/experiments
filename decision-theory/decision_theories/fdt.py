@@ -1,5 +1,3 @@
-
-
 class FDT:
     def __init__(self, logger, precommitments = None):
         """

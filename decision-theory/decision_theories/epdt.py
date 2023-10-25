@@ -45,16 +45,16 @@ class EPDT:
                             and event.decision_name == decision_name)
                     distr = sim.simulate(decision_proc, decision_proc, scenario, start_event, stop)
 
-                    with self.logger.group(f"Probability distribution of my current situation:"):
+                    with self.logger.group(f"Probability distribution of my current event:"):
                         for event, prob in distr.items():
                             self.logger.log(f"  {event.id} -> {prob}")
 
                     normal_distr = normalize_distribution(distr)
-                    with self.logger.group(f"Normalized probability distribution of my current situation:"):
+                    with self.logger.group(f"Normalized probability distribution of my current event:"):
                         for event, prob in normal_distr.items():
                             self.logger.log(f"  {event.id} -> {prob}")
 
-                    with self.logger.group(f"Computing utility starting from my current situation:"):
+                    with self.logger.group(f"Computing utility starting from my current event:"):
                         expected_utility = Decimal(0.0)
                         for event, prob in normal_distr.items():
                             with self.logger.group(f"Considering possibility {event.id}:"):
