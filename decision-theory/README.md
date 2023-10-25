@@ -74,6 +74,8 @@ More reading:
 - [The Functional Decision Theory (FDT) paper](https://arxiv.org/pdf/1710.05060.pdf).
   See also its citations, though I suspect this paper will be a more readable
   introduction than most other possible entry points into the literature.
+- [Towards a New Decision Theory (UDT)](https://www.lesswrong.com/posts/de3xjFaACCAk6imzv/towards-a-new-decision-theory)
+- [Timeless Decision Theory: Problems I Can't Solve](https://www.lesswrong.com/posts/c3wWnvgzdbRhNnNbQ/timeless-decision-theory-problems-i-can-t-solve) for tricky decision theory questions
 - [Newcomb's problem](https://en.wikipedia.org/wiki/Newcomb%27s_paradox)
 - [Causal decision theory (CDT)](https://en.wikipedia.org/wiki/Causal_decision_theory)
 - [Evidential decision theory (EDT)](https://en.wikipedia.org/wiki/Evidential_decision_theory)
