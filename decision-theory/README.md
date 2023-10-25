@@ -3,14 +3,14 @@
 This is an XML language that can express common decision theory dilemmas, and a
 Python simulator that can run a decision theory on a dilemma.
 
-Contents:
-
 - [Brief Introduction to Decision Theory](#brief-introduction-to-decision-theory):
   skip this if you know what decision theory is
 - [The Dilemma Language](#the-dilemma-language): an XML language for expressing
   decision theory problems
 - [Decision Theories](#decision-theories): the interface for defining a
   decision theory, and the algorithms I used for CDT, EDT, UDT, and one more
+- [Logging](#logging) for an example of a trace that's printed, showing the
+  reasoning of a decision theory on Newcomb's Problem
 - [Dilemma Catalog](#dilemma-catalog): a brief description of the dilemmas I've
   written so far, and how each decision theory behaves on them
 - [Usage](#usage): how to install and run DTS.
@@ -38,6 +38,7 @@ decisions. One such tricky dilemma is Newcomb's Problem. Quoting from Wikipedia:
 >
 > - Box A is transparent and always contains a visible $1,000.
 > - Box B is opaque, and its content has already been set by the predictor:
+>
 >       - If the predictor has predicted that the player will take both boxes A
 >         and B ("two-box"), then box B contains nothing.
 >       - If the predictor has predicted that the player will take only box B
@@ -462,7 +463,7 @@ chosen a uniform prior over all possible dispositions for both of them.
 _complete_ mapping from decision to action, which fixes all decisions made by
 an agent.)
 
-## Logs
+## Logging
 
 When you run a dilemma using a decision theory, you get a very detailed log of
 what's happening, and what the agent's reasoning process is. For example,
@@ -570,6 +571,14 @@ The vertical lines give context:
   paper).
 - `?` marks the predictor predicting what an agent _would_ do.
 - `!` marks agents actually reasoning to make a decision.
+
+## Dilemma Catalog
+
+TODO
+
+Current issues:
+
+- CDT infinite loops on prisoner's dilemma
 
 ## Usage
 
