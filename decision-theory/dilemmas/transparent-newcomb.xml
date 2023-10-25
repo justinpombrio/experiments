@@ -14,16 +14,16 @@
           inaccurate in each direction.
         - Capitalized "She", in proper deference to God-like entities.
     </description>
-    <scenario start="yesterday">
+    <scenario start="prediction">
         <agent>Alice</agent>
 
-        <event name="yesterday">
-            <random id="predictor-is-predicting">
+        <event>
+            <random id="prediction">
                 <case prob="0.98">
-                    <predict agent="Alice" decision="one-or-two-box" id="prediction">
-                        <scenario start="yesterday">
+                    <predict agent="Alice" decision="one-or-two-box" id="correct-prediction">
+                        <scenario start="prediction">
                             <agent>Alice</agent>
-                            <event>yesterday</event>
+                            <event>prediction</event>
                             <event>box-B-full</event>
                             <event>box-B-empty</event>
                         </scenario>
@@ -44,7 +44,7 @@
             </random>
         </event>
 
-        <event name="box-B-full">
+        <event>
             <decide agent="Alice" decision="one-or-two-box" id="box-B-full">
                 <case action="one-box">
                     <outcome id="one-box-when-box-B-full">
@@ -59,7 +59,7 @@
             </decide>
         </event>
 
-        <event name="box-B-empty">
+        <event>
             <decide agent="Alice" decision="facing-empty-box" id="box-B-empty">
                 <case action="one-box">
                     <outcome id="one-box-when-box-B-empty">

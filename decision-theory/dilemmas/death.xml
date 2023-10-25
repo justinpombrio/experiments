@@ -16,14 +16,14 @@
         Note that I've implemented the utility as +1000,000 for living and +1000
         for staying in Damascus.
     </description>
-    <scenario start="start">
+    <scenario start="prediction">
         <agent>Alice</agent>
 
-        <event name="start">
+        <event>
             <predict agent="Alice" decision="stay-or-flee" id="prediction">
-                <scenario start="start">
+                <scenario start="prediction">
                     <agent>Alice</agent>
-                    <event>start</event>
+                    <event>prediction</event>
                     <event>death-in-damascus</event>
                     <event>death-in-aleppo</event>
                 </scenario>
@@ -37,7 +37,7 @@
             </predict>
         </event>
 
-        <event name="death-in-damascus">
+        <event>
             <decide agent="Alice" decision="stay-or-flee" id="death-in-damascus">
                 <case action="stay">
                     <outcome id="caught-in-damascus">
@@ -52,7 +52,7 @@
             </decide>
         </event>
 
-        <event name="death-in-aleppo">
+        <event>
             <decide agent="Alice" decision="stay-or-flee" id="death-in-aleppo">
                 <case action="stay">
                     <outcome id="free-in-damascus">

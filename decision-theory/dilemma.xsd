@@ -19,19 +19,18 @@
     <xs:complexType name="scenario">
         <xs:sequence>
             <xs:element name="agent" type="xs:string" maxOccurs="10"/>
-            <xs:element name="event" type="event" maxOccurs="100"/>
+            <xs:element name="event" maxOccurs="10">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:group ref="Event"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
         </xs:sequence>
         <xs:attribute name="start" type="xs:string" use="required"/>
     </xs:complexType>
-
-    <xs:complexType name="event">
-        <xs:sequence>
-            <xs:group ref="Node"/>
-        </xs:sequence>
-        <xs:attribute name="name" type="xs:string" use="required"/>
-    </xs:complexType>
     
-    <xs:group name="Node">
+    <xs:group name="Event">
         <xs:choice>
             <xs:element name="goto" type="goto"/>
             <xs:element name="predict" type="predict"/>
@@ -52,7 +51,7 @@
         <xs:sequence>
             <xs:element name="case" maxOccurs="10">
                 <xs:complexType>
-                    <xs:group ref="Node"/>
+                    <xs:group ref="Event"/>
                     <xs:attribute name="prob" type="probabilityDecimal" use="required"/>
                 </xs:complexType>
             </xs:element>
@@ -73,7 +72,7 @@
             </xs:element>
             <xs:element name="case" maxOccurs="10">
                 <xs:complexType>
-                    <xs:group ref="Node"/>
+                    <xs:group ref="Event"/>
                     <xs:attribute name="action" type="xs:string" use="required"/>
                 </xs:complexType>
             </xs:element>
@@ -87,7 +86,7 @@
         <xs:sequence>
             <xs:element name="case" maxOccurs="10">
                 <xs:complexType>
-                    <xs:group ref="Node"/>
+                    <xs:group ref="Event"/>
                     <xs:attribute name="action" type="xs:string" use="required"/>
                 </xs:complexType>
             </xs:element>
@@ -101,7 +100,7 @@
         <xs:sequence>
             <xs:element name="case">
                 <xs:complexType>
-                    <xs:group ref="Node"/>
+                    <xs:group ref="Event"/>
                     <xs:attribute name="action" type="xs:string" use="required"/>
                 </xs:complexType>
             </xs:element>

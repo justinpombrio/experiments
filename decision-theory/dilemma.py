@@ -176,7 +176,7 @@ class Dilemma:
 
         agent_names = dilemma["scenario"]["agent"]
         events = {
-            event["@name"]: parse_event(event)
+            next(iter(event.values()))["@id"]: parse_event(event)
             for event in dilemma["scenario"]["event"]
         }
         start_event = dilemma["scenario"]["@start"]

@@ -14,10 +14,10 @@
         ------
         Wording taken from "Functional Decision Theory" by Yudkowski and Soares.
     </description>
-    <scenario start="birth">
+    <scenario start="roll-for-lesion">
         <agent>Alice</agent>
 
-        <event name="birth">
+        <event>
             <random id="roll-for-lesion">
                 <case prob="0.5">
                     <forced_decide agent="Alice" decision="smoke-or-not" id="affected-by-lesion">

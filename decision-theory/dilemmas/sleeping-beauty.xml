@@ -48,21 +48,21 @@
           $4, and receive $10 if the coin landed on heads. This bet is real on
           both Mondays and Tuesdays. (She should not take this bet.)
     </description>
-    <scenario start="going-to-sleep">
+    <scenario start="coin-flip">
         <agent>Alice</agent>
 
-        <event name="going-to-sleep">
+        <event>
             <random id="coin-flip">
                 <case prob="0.5">
-                    <goto event="heads" id="heads"/>
+                    <goto event="heads-Monday" id="heads"/>
                 </case>
                 <case prob="0.5">
-                    <goto event="tails" id="tails"/>
+                    <goto event="tails-Monday" id="tails"/>
                 </case>
             </random>
         </event>
 
-        <event name="heads">
+        <event>
             <decide agent="Alice" decision="bet1" id="heads-Monday">
                 <case action="yes-bet">
                     <decide agent="Alice" decision="bet2" id="heads-Monday-Y1">
@@ -95,7 +95,7 @@
             </decide>
         </event>
 
-        <event name="tails">
+        <event>
             <decide agent="Alice" decision="bet1" id="tails-Monday">
                 <case action="yes-bet">
                     <decide agent="Alice" decision="bet2" id="tails-Monday-Y">

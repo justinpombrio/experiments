@@ -17,8 +17,8 @@
     <scenario start="desert">
         <agent>Alice</agent>
 
-        <event name="desert">
-            <random id="in-desert">
+        <event>
+            <random id="desert">
                 <case prob="0.98">
                     <predict agent="Alice" decision="pay-or-leave" id="prediction">
                         <scenario start="desert">
@@ -44,14 +44,14 @@
             </random>
         </event>
     
-        <event name="death-in-desert">
+        <event>
             <outcome id="death-in-desert">
                 <utility agent="Alice" amount="-1000000"/>
             </outcome>
         </event>
     
-        <event name="city">
-            <decide agent="Alice" decision="pay-or-leave" id="in-city">
+        <event>
+            <decide agent="Alice" decision="pay-or-leave" id="city">
                 <case action="pay">
                     <outcome id="choose-to-pay">
                         <utility agent="Alice" amount="-1000"/>
