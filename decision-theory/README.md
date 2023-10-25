@@ -185,10 +185,11 @@ elided here for brevity.
 ```
 
 The `scenario` element says what the dilemma actually is. It has a set of
-_agents_ (in this case just Alice), and a set of _events_. All of the agents
-will use the _same_ decision theory, and they all know it. There's a `start`
-event (see the attribute on `scenario`), whichs is, the id of the event that
-the scenario starts with.
+_agents_ (in this case just Alice), and a set of _events_. (The events are the
+things _inside_ the `<event>` tags.) All of the agents will use the _same_
+decision theory, and they all know it. There's a `start` event (see the
+attribute on `scenario`), which is the id of the event that the scenario starts
+with.
 
 Each event forms a tree, with children in the tree being possible futures. For
 example, a `<random>` coin-flip event would have two child events: one
@@ -197,8 +198,8 @@ As another example, a `<choice>` event presents some choice to some agent, and
 its child events say what the consequences of each choice are. These events
 are nested within each other, giving a tree of all possible futures.
 
-Every event described below has an `id` attribute, which must be unique. These
-are used only for logging.
+_Every_ event has an `id` attribute, which must be unique. These are for
+logging, and for `<goto>` events, described next.
 
 ### Goto
 
@@ -460,6 +461,115 @@ chosen a uniform prior over all possible dispositions for both of them.
 (A few of these descriptions used the word "behavior". I used it to mean a
 _complete_ mapping from decision to action, which fixes all decisions made by
 an agent.)
+
+## Logs
+
+When you run a dilemma using a decision theory, you get a very detailed log of
+what's happening, and what the agent's reasoning process is. For example,
+here's "UDT" on a version of the Newcomb problem where the predictor is
+infallible (it's the same as the one we've walked through, except for missing
+the two 1% random cases where the predictor makes a mistake):
+
+```
+SIMULATE prediction
+|   PREDICT one-or-two-box by Alice from prediction:
+|   ?   I, Alice, am deciding one-or-two-box using UDT.
+|   ?   Considering possible precommitments:
+|   ?       with precommitment 'Alice, one-or-two-box -> one-box':
+|   ?           SIMULATE prediction
+|   ?           |   PREDICT one-or-two-box by Alice from prediction:
+|   ?           |   ?   I, Alice, am deciding one-or-two-box using UDT.
+|   ?           |   ?   Precommitments:
+|   ?           |   ?       Alice, one-or-two-box -> one-box
+|   ?           |   ?   I am precommited to one-box.
+|   ?           |   Alice is predicted to decide to one-box
+|   ?           |   DO box-B-full:
+|   ?           |       DECIDE one-or-two-box by Alice:
+|   ?           |       !   I, Alice, am deciding one-or-two-box using UDT.
+|   ?           |       !   Precommitments:
+|   ?           |       !       Alice, one-or-two-box -> one-box
+|   ?           |       !   I am precommited to one-box.
+|   ?           |       Alice decides to one-box
+|   ?           |       OUTCOME:
+|   ?           |           Alice -> 1,000,000
+|   ?       with precommitment 'Alice, one-or-two-box -> two-box':
+|   ?           SIMULATE prediction
+|   ?           |   PREDICT one-or-two-box by Alice from prediction:
+|   ?           |   ?   I, Alice, am deciding one-or-two-box using UDT.
+|   ?           |   ?   Precommitments:
+|   ?           |   ?       Alice, one-or-two-box -> two-box
+|   ?           |   ?   I am precommited to two-box.
+|   ?           |   Alice is predicted to decide to two-box
+|   ?           |   DO box-B-empty:
+|   ?           |       DECIDE one-or-two-box by Alice:
+|   ?           |       !   I, Alice, am deciding one-or-two-box using UDT.
+|   ?           |       !   Precommitments:
+|   ?           |       !       Alice, one-or-two-box -> two-box
+|   ?           |       !   I am precommited to two-box.
+|   ?           |       Alice decides to two-box
+|   ?           |       OUTCOME:
+|   ?           |           Alice -> 1,000
+|   ?   Expected utility for each precommitment:
+|   ?       one-box -> 1,000,000
+|   ?       two-box -> 1,000
+|   ?   Thus my best action is to one-box.
+|   Alice is predicted to decide to one-box
+|   DO box-B-full:
+|       DECIDE one-or-two-box by Alice:
+|       !   I, Alice, am deciding one-or-two-box using UDT.
+|       !   Considering possible precommitments:
+|       !       with precommitment 'Alice, one-or-two-box -> one-box':
+|       !           SIMULATE prediction
+|       !           |   PREDICT one-or-two-box by Alice from prediction:
+|       !           |   ?   I, Alice, am deciding one-or-two-box using UDT.
+|       !           |   ?   Precommitments:
+|       !           |   ?       Alice, one-or-two-box -> one-box
+|       !           |   ?   I am precommited to one-box.
+|       !           |   Alice is predicted to decide to one-box
+|       !           |   DO box-B-full:
+|       !           |       DECIDE one-or-two-box by Alice:
+|       !           |       !   I, Alice, am deciding one-or-two-box using UDT.
+|       !           |       !   Precommitments:
+|       !           |       !       Alice, one-or-two-box -> one-box
+|       !           |       !   I am precommited to one-box.
+|       !           |       Alice decides to one-box
+|       !           |       OUTCOME:
+|       !           |           Alice -> 1,000,000
+|       !       with precommitment 'Alice, one-or-two-box -> two-box':
+|       !           SIMULATE prediction
+|       !           |   PREDICT one-or-two-box by Alice from prediction:
+|       !           |   ?   I, Alice, am deciding one-or-two-box using UDT.
+|       !           |   ?   Precommitments:
+|       !           |   ?       Alice, one-or-two-box -> two-box
+|       !           |   ?   I am precommited to two-box.
+|       !           |   Alice is predicted to decide to two-box
+|       !           |   DO box-B-empty:
+|       !           |       DECIDE one-or-two-box by Alice:
+|       !           |       !   I, Alice, am deciding one-or-two-box using UDT.
+|       !           |       !   Precommitments:
+|       !           |       !       Alice, one-or-two-box -> two-box
+|       !           |       !   I am precommited to two-box.
+|       !           |       Alice decides to two-box
+|       !           |       OUTCOME:
+|       !           |           Alice -> 1,000
+|       !   Expected utility for each precommitment:
+|       !       one-box -> 1,000,000
+|       !       two-box -> 1,000
+|       !   Thus my best action is to one-box.
+|       Alice decides to one-box
+|       OUTCOME:
+|           Alice -> 1,000,000
+Final outcome:
+    Alice -> 1,000,000
+```
+
+The vertical lines give context:
+
+- `|` marks simulations. The outer `|` is what's actually happening; inner ones
+  are from agents simulating hypotheticals in their minds (or, perhaps, on
+  paper).
+- `?` marks the predictor predicting what an agent _would_ do.
+- `!` marks agents actually reasoning to make a decision.
 
 ## Usage
 
