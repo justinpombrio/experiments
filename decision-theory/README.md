@@ -39,10 +39,10 @@ decisions. One such tricky dilemma is Newcomb's Problem. Quoting from Wikipedia:
 > - Box A is transparent and always contains a visible $1,000.
 > - Box B is opaque, and its content has already been set by the predictor:
 >
->       - If the predictor has predicted that the player will take both boxes A
->         and B ("two-box"), then box B contains nothing.
->       - If the predictor has predicted that the player will take only box B
->         ("one-box"), then box B contains $1,000,000.
+>     - If the predictor has predicted that the player will take both boxes A
+>       and B ("two-box"), then box B contains nothing.
+>     - If the predictor has predicted that the player will take only box B
+>       ("one-box"), then box B contains $1,000,000.
 >
 > The player does not know what the predictor predicted or what box B contains
 > while making the choice.
