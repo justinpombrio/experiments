@@ -18,16 +18,46 @@ use thiserror::Error;
 
 type TokenStream<'l, 's> = Peekable<LexemeIter<'l, 's>>;
 
-pub struct Parser<P: Parse> {
-    empty: bool,
-    initial: Vec<Token>,
-    parse: P,
-}
-
-pub trait Parse {
+pub trait Parser {
     type Output;
 
+    fn matches_empty(&self) -> bool;
+
+    fn matches_token(&self, token: Token) -> bool;
+
+    fn matched_tokens(&self) -> Vec<Token>;
+
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError>;
+
+    fn map<R>(
+        self,
+        func: impl Fn(Self::Output) -> R,
+    ) -> Result<impl Parser<Output = R>, GrammarError>
+    where
+        Self: Sized,
+    {
+        Ok(MapP { parser: self, func })
+    }
+
+    fn try_map<R>(
+        self,
+        func: impl Fn(Self::Output) -> Result<R, String>,
+    ) -> Result<impl Parser<Output = R>, GrammarError>
+    where
+        Self: Sized,
+    {
+        Ok(TryMapP { parser: self, func })
+    }
+
+    fn seq2<P1: Parser>(
+        self,
+        parser_1: P1,
+    ) -> Result<impl Parser<Output = (Self::Output, P1::Output)>, GrammarError>
+    where
+        Self: Sized,
+    {
+        Ok(Seq2(self, parser_1))
+    }
 }
 
 #[derive(Error, Debug)]
@@ -51,29 +81,6 @@ impl ParseError {
                 expected: expected.to_owned(),
             },
         }
-    }
-}
-
-impl<P: Parse> Parser<P> {
-    pub fn map<R>(
-        self,
-        func: impl Fn(P::Output) -> R,
-    ) -> Result<Parser<impl Parse<Output = R>>, GrammarError> {
-        Ok(MapP::new(self, func))
-    }
-
-    pub fn try_map<R>(
-        self,
-        func: impl Fn(P::Output) -> Result<R, String>,
-    ) -> Result<Parser<impl Parse<Output = R>>, GrammarError> {
-        Ok(TryMapP::new(self, func))
-    }
-
-    pub fn seq2<P1: Parse>(
-        self,
-        parser_1: Parser<P1>,
-    ) -> Result<Parser<impl Parse<Output = (P::Output, P1::Output)>>, GrammarError> {
-        Seq2::new(self, parser_1)
     }
 }
 
@@ -109,11 +116,15 @@ impl Grammar {
         Ok(Grammar { lexer_builder })
     }
 
-    pub fn string(
-        &mut self,
-        string: &str,
-    ) -> Result<Parser<impl Parse<Output = ()>>, GrammarError> {
-        StringP::new(&mut self.lexer_builder, string)
+    pub fn string(&mut self, string: &str) -> Result<impl Parser<Output = ()>, GrammarError> {
+        let token = self
+            .lexer_builder
+            .string(string)
+            .map_err(GrammarError::RegexError)?;
+        Ok(StringP {
+            token,
+            string: string.to_owned(),
+        })
     }
 
     pub fn regex<R, F: Fn(&str) -> R>(
@@ -121,8 +132,17 @@ impl Grammar {
         label: &str,
         pattern: &str,
         func: F,
-    ) -> Result<Parser<impl Parse<Output = R>>, GrammarError> {
-        RegexP::new(&mut self.lexer_builder, label, pattern, func)
+    ) -> Result<impl Parser<Output = R>, GrammarError> {
+        let token = self
+            .lexer_builder
+            .regex(pattern)
+            .map_err(GrammarError::RegexError)?;
+        Ok(RegexP {
+            label: label.to_owned(),
+            token,
+            pattern: pattern.to_owned(),
+            func,
+        })
     }
 }
 
@@ -135,27 +155,20 @@ struct StringP {
     string: String,
 }
 
-impl StringP {
-    fn new(
-        lexer_builder: &mut LexerBuilder,
-        string: &str,
-    ) -> Result<Parser<StringP>, GrammarError> {
-        let token = lexer_builder
-            .string(string)
-            .map_err(GrammarError::RegexError)?;
-        Ok(Parser {
-            empty: false,
-            initial: vec![token],
-            parse: StringP {
-                token,
-                string: string.to_owned(),
-            },
-        })
-    }
-}
-
-impl Parse for StringP {
+impl Parser for StringP {
     type Output = ();
+
+    fn matches_empty(&self) -> bool {
+        false
+    }
+
+    fn matches_token(&self, token: Token) -> bool {
+        self.token == token
+    }
+
+    fn matched_tokens(&self) -> Vec<Token> {
+        vec![self.token]
+    }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
         if let Some(lexeme) = stream.peek() {
@@ -182,31 +195,20 @@ struct RegexP<R, F: Fn(&str) -> R> {
     func: F,
 }
 
-impl<R, F: Fn(&str) -> R> RegexP<R, F> {
-    fn new(
-        lexer_builder: &mut LexerBuilder,
-        label: &str,
-        pattern: &str,
-        func: F,
-    ) -> Result<Parser<RegexP<R, F>>, GrammarError> {
-        let token = lexer_builder
-            .regex(pattern)
-            .map_err(GrammarError::RegexError)?;
-        Ok(Parser {
-            empty: false,
-            initial: vec![token],
-            parse: RegexP {
-                label: label.to_owned(),
-                token,
-                pattern: pattern.to_owned(),
-                func,
-            },
-        })
-    }
-}
-
-impl<R, F: Fn(&str) -> R> Parse for RegexP<R, F> {
+impl<R, F: Fn(&str) -> R> Parser for RegexP<R, F> {
     type Output = R;
+
+    fn matches_empty(&self) -> bool {
+        false
+    }
+
+    fn matches_token(&self, token: Token) -> bool {
+        self.token == token
+    }
+
+    fn matched_tokens(&self) -> Vec<Token> {
+        vec![self.token]
+    }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
         if let Some(lexeme) = stream.peek() {
@@ -227,29 +229,28 @@ impl<R, F: Fn(&str) -> R> Parse for RegexP<R, F> {
 /*           Parser: Map                  */
 /*========================================*/
 
-struct MapP<P: Parse, R, F: Fn(P::Output) -> R> {
-    parse: P,
+struct MapP<P: Parser, R, F: Fn(P::Output) -> R> {
+    parser: P,
     func: F,
 }
 
-impl<P: Parse, R, F: Fn(P::Output) -> R> MapP<P, R, F> {
-    fn new(parser: Parser<P>, func: F) -> Parser<MapP<P, R, F>> {
-        Parser {
-            empty: parser.empty,
-            initial: parser.initial,
-            parse: MapP {
-                parse: parser.parse,
-                func,
-            },
-        }
-    }
-}
-
-impl<P: Parse, R, F: Fn(P::Output) -> R> Parse for MapP<P, R, F> {
+impl<P: Parser, R, F: Fn(P::Output) -> R> Parser for MapP<P, R, F> {
     type Output = R;
 
+    fn matches_empty(&self) -> bool {
+        self.parser.matches_empty()
+    }
+
+    fn matches_token(&self, token: Token) -> bool {
+        self.parser.matches_token(token)
+    }
+
+    fn matched_tokens(&self) -> Vec<Token> {
+        self.parser.matched_tokens()
+    }
+
     fn parse(&self, stream: &mut TokenStream) -> Result<R, ParseError> {
-        Ok((self.func)(self.parse.parse(stream)?))
+        Ok((self.func)(self.parser.parse(stream)?))
     }
 }
 
@@ -257,29 +258,28 @@ impl<P: Parse, R, F: Fn(P::Output) -> R> Parse for MapP<P, R, F> {
 /*           Parser: Try Map              */
 /*========================================*/
 
-struct TryMapP<P: Parse, R, F: Fn(P::Output) -> Result<R, String>> {
-    parse: P,
+struct TryMapP<P: Parser, R, F: Fn(P::Output) -> Result<R, String>> {
+    parser: P,
     func: F,
 }
 
-impl<P: Parse, R, F: Fn(P::Output) -> Result<R, String>> TryMapP<P, R, F> {
-    fn new(parser: Parser<P>, func: F) -> Parser<TryMapP<P, R, F>> {
-        Parser {
-            empty: parser.empty,
-            initial: parser.initial,
-            parse: TryMapP {
-                parse: parser.parse,
-                func,
-            },
-        }
-    }
-}
-
-impl<P: Parse, R, F: Fn(P::Output) -> Result<R, String>> Parse for TryMapP<P, R, F> {
+impl<P: Parser, R, F: Fn(P::Output) -> Result<R, String>> Parser for TryMapP<P, R, F> {
     type Output = R;
 
+    fn matches_empty(&self) -> bool {
+        self.parser.matches_empty()
+    }
+
+    fn matches_token(&self, token: Token) -> bool {
+        self.parser.matches_token(token)
+    }
+
+    fn matched_tokens(&self) -> Vec<Token> {
+        self.parser.matched_tokens()
+    }
+
     fn parse(&self, stream: &mut TokenStream) -> Result<R, ParseError> {
-        match (self.func)(self.parse.parse(stream)?) {
+        match (self.func)(self.parser.parse(stream)?) {
             Ok(result) => Ok(result),
             Err(msg) => Err(ParseError::CustomError(msg)),
         }
@@ -290,28 +290,32 @@ impl<P: Parse, R, F: Fn(P::Output) -> Result<R, String>> Parse for TryMapP<P, R,
 /*           Parser: Recursion            */
 /*========================================*/
 
-struct RecurP<P: Parse>(Rc<OnceCell<P>>);
+struct RecurP<P: Parser>(Rc<OnceCell<P>>);
 
-impl<P: Parse> RecurP<P> {
-    fn new(make_parser: impl FnOnce(Parser<RecurP<P>>) -> Parser<P>) -> Parser<RecurP<P>> {
+impl<P: Parser> RecurP<P> {
+    fn new(make_parser: impl FnOnce(RecurP<P>) -> P) -> RecurP<P> {
         let cell = Rc::new(OnceCell::new());
-        let recur = Parser {
-            empty: false,        // TODO
-            initial: Vec::new(), // TODO!
-            parse: RecurP(cell.clone()),
-        };
+        let recur = RecurP(cell.clone());
         let parser = make_parser(recur);
-        cell.set(parser.parse);
-        Parser {
-            empty: false,        // TODO
-            initial: Vec::new(), // TODO!
-            parse: RecurP(cell),
-        }
+        cell.set(parser);
+        RecurP(cell)
     }
 }
 
-impl<P: Parse> Parse for RecurP<P> {
+impl<P: Parser> Parser for RecurP<P> {
     type Output = P::Output;
+
+    fn matches_empty(&self) -> bool {
+        self.0.get().unwrap().matches_empty()
+    }
+
+    fn matches_token(&self, token: Token) -> bool {
+        self.0.get().unwrap().matches_token(token)
+    }
+
+    fn matched_tokens(&self) -> Vec<Token> {
+        self.0.get().unwrap().matched_tokens()
+    }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
         self.0.get().unwrap().parse(stream)
@@ -322,25 +326,26 @@ impl<P: Parse> Parse for RecurP<P> {
 /*           Parser: Sequencing           */
 /*========================================*/
 
-struct Seq2<P0: Parse, P1: Parse>(P0, P1);
+struct Seq2<P0: Parser, P1: Parser>(P0, P1);
 
-impl<P0: Parse, P1: Parse> Seq2<P0, P1> {
-    fn new(p0: Parser<P0>, mut p1: Parser<P1>) -> Result<Parser<Seq2<P0, P1>>, GrammarError> {
-        let empty = p0.empty && p1.empty;
-        let mut initial = p0.initial;
-        if p0.empty {
-            initial.append(&mut p1.initial);
-        }
-        Ok(Parser {
-            empty,
-            initial,
-            parse: Seq2(p0.parse, p1.parse),
-        })
-    }
-}
-
-impl<P0: Parse, P1: Parse> Parse for Seq2<P0, P1> {
+impl<P0: Parser, P1: Parser> Parser for Seq2<P0, P1> {
     type Output = (P0::Output, P1::Output);
+
+    fn matches_empty(&self) -> bool {
+        self.0.matches_empty() && self.1.matches_empty()
+    }
+
+    fn matches_token(&self, token: Token) -> bool {
+        self.0.matches_token(token) && self.1.matches_token(token)
+    }
+
+    fn matched_tokens(&self) -> Vec<Token> {
+        let mut tokens = self.0.matched_tokens();
+        if self.0.matches_empty() {
+            tokens.append(&mut self.1.matched_tokens());
+        }
+        tokens
+    }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
         let result_0 = self.0.parse(stream)?;
@@ -354,8 +359,44 @@ impl<P0: Parse, P1: Parse> Parse for Seq2<P0, P1> {
 /*========================================*/
 
 /*
-struct Choice2<P0: Parse, P1: Parse<Output = P0::Output>> {
+struct Choice2<P0: Parser P1: Parse<Output = P0::Output>> {
     parsers: (P0, P1),
-    token_to_choice:
+    token_to_choice: Vec<Option<usize>>,
+}
+
+impl<P0: Parser P1: Parse<Output = P0::Output>> Choice2<P0, P1> {
+    fn new(p0: Parser<P0>, p1: Parser<P1>) -> Result<Parser<Choice<P0, P1>>, GrammarError> {
+        let empty_index = match (p0.empty, p1.empty) {
+            (false, false) => None,
+            (true, false) => Some(0),
+            (false, true) => Some(1),
+            (true, true) => return Err(GrammarError::AmbiguityErrorEmpty),
+        };
+        let mut token_to_choice = vec![empty_index];
+    }
+}
+
+impl<P0: Parser, P1: Parser<Output = P0::Output>> Parser for Choice2<P0, P1> {
+    fn matches_empty(&self) -> bool {
+        self.0.matches_empty() && self.1.matches_empty()
+    }
+
+    fn matches_token(&self, token: Token) -> bool {
+        self.0.matches_token(token) && self.1.matches_token(token)
+    }
+
+    fn matched_tokens(&self) -> Vec<Token> {
+        let mut tokens = self.0.matched_tokens();
+        if self.0.matches_empty() {
+            tokens.append(&mut self.1.matched_tokens());
+        }
+        tokens
+    }
+
+    fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
+        let result_0 = self.0.parse(stream)?;
+        let result_1 = self.1.parse(stream)?;
+        Ok((result_0, result_1))
+    }
 }
 */
