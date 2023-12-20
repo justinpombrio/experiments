@@ -19,11 +19,11 @@
 //!
 //! let mut lexemes = lexer.lex("x @$!");
 //! assert_eq!(lexemes.next().unwrap().token, tok_var);
-//! assert_eq!(lexemes.next().unwrap().token, LEX_ERROR);
+//! assert_eq!(lexemes.next().unwrap().token, TOKEN_ERROR);
 //! ```
 //!
 //! Whitespace is skipped. If there is a lexing error, it is represented as an item in the iterator
-//! whose `token` is `LEX_ERROR`.
+//! whose `token` is `TOKEN_ERROR`.
 //!
 //! If there are multiple possible matches:
 //!
@@ -37,10 +37,11 @@ use regex::{escape, Error as RegexError, Regex, RegexSet};
 use std::fmt;
 
 /// A category of lexeme, such as "INTEGER" or "VARIABLE" or "OPEN_PAREN". The special Token called
-/// [`LEX_ERROR`] represents a lexing error.
+/// [`TOKEN_ERROR`] represents a lexing error.
 pub type Token = usize;
 
-pub const LEX_ERROR: Token = Token::MAX;
+pub const TOKEN_ERROR: Token = Token::MAX;
+pub const TOKEN_EOS: Token = Token::MAX - 1;
 
 #[derive(Debug, Clone)]
 pub struct Pattern {
@@ -280,7 +281,7 @@ impl<'l, 's> Iterator for LexemeIter<'l, 's> {
         };
         let (lexeme, start, end) = self.consume(len);
         Some(Lexeme {
-            token: LEX_ERROR,
+            token: TOKEN_ERROR,
             lexeme,
             start,
             end,

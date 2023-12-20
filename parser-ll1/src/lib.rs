@@ -3,7 +3,7 @@
 
 pub mod lexer;
 
-use lexer::{LexemeIter, LexerBuilder, Token};
+use lexer::{LexemeIter, LexerBuilder, Token, TOKEN_EOS};
 use regex::Error as RegexError;
 use std::cell::OnceCell;
 use std::iter::Peekable;
@@ -21,11 +21,7 @@ type TokenStream<'l, 's> = Peekable<LexemeIter<'l, 's>>;
 pub trait Parser {
     type Output;
 
-    fn matches_empty(&self) -> bool;
-
-    fn matches_token(&self, token: Token) -> bool;
-
-    fn matched_tokens(&self) -> Vec<Token>;
+    fn tokens(&self) -> Vec<(Token, String)>;
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError>;
 
@@ -158,16 +154,8 @@ struct StringP {
 impl Parser for StringP {
     type Output = ();
 
-    fn matches_empty(&self) -> bool {
-        false
-    }
-
-    fn matches_token(&self, token: Token) -> bool {
-        self.token == token
-    }
-
-    fn matched_tokens(&self) -> Vec<Token> {
-        vec![self.token]
+    fn tokens(&self) -> Vec<(Token, String)> {
+        vec![(self.token, format!("'{}'", self.string))]
     }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
@@ -198,16 +186,8 @@ struct RegexP<R, F: Fn(&str) -> R> {
 impl<R, F: Fn(&str) -> R> Parser for RegexP<R, F> {
     type Output = R;
 
-    fn matches_empty(&self) -> bool {
-        false
-    }
-
-    fn matches_token(&self, token: Token) -> bool {
-        self.token == token
-    }
-
-    fn matched_tokens(&self) -> Vec<Token> {
-        vec![self.token]
+    fn tokens(&self) -> Vec<(Token, String)> {
+        vec![(self.token, format!("/{}/", self.pattern))]
     }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
@@ -237,16 +217,8 @@ struct MapP<P: Parser, R, F: Fn(P::Output) -> R> {
 impl<P: Parser, R, F: Fn(P::Output) -> R> Parser for MapP<P, R, F> {
     type Output = R;
 
-    fn matches_empty(&self) -> bool {
-        self.parser.matches_empty()
-    }
-
-    fn matches_token(&self, token: Token) -> bool {
-        self.parser.matches_token(token)
-    }
-
-    fn matched_tokens(&self) -> Vec<Token> {
-        self.parser.matched_tokens()
+    fn tokens(&self) -> Vec<(Token, String)> {
+        self.parser.tokens()
     }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<R, ParseError> {
@@ -266,16 +238,8 @@ struct TryMapP<P: Parser, R, F: Fn(P::Output) -> Result<R, String>> {
 impl<P: Parser, R, F: Fn(P::Output) -> Result<R, String>> Parser for TryMapP<P, R, F> {
     type Output = R;
 
-    fn matches_empty(&self) -> bool {
-        self.parser.matches_empty()
-    }
-
-    fn matches_token(&self, token: Token) -> bool {
-        self.parser.matches_token(token)
-    }
-
-    fn matched_tokens(&self) -> Vec<Token> {
-        self.parser.matched_tokens()
+    fn tokens(&self) -> Vec<(Token, String)> {
+        self.parser.tokens()
     }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<R, ParseError> {
@@ -305,16 +269,8 @@ impl<P: Parser> RecurP<P> {
 impl<P: Parser> Parser for RecurP<P> {
     type Output = P::Output;
 
-    fn matches_empty(&self) -> bool {
-        self.0.get().unwrap().matches_empty()
-    }
-
-    fn matches_token(&self, token: Token) -> bool {
-        self.0.get().unwrap().matches_token(token)
-    }
-
-    fn matched_tokens(&self) -> Vec<Token> {
-        self.0.get().unwrap().matched_tokens()
+    fn tokens(&self) -> Vec<(Token, String)> {
+        self.0.get().unwrap().tokens()
     }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
@@ -331,18 +287,10 @@ struct Seq2<P0: Parser, P1: Parser>(P0, P1);
 impl<P0: Parser, P1: Parser> Parser for Seq2<P0, P1> {
     type Output = (P0::Output, P1::Output);
 
-    fn matches_empty(&self) -> bool {
-        self.0.matches_empty() && self.1.matches_empty()
-    }
-
-    fn matches_token(&self, token: Token) -> bool {
-        self.0.matches_token(token) && self.1.matches_token(token)
-    }
-
-    fn matched_tokens(&self) -> Vec<Token> {
-        let mut tokens = self.0.matched_tokens();
-        if self.0.matches_empty() {
-            tokens.append(&mut self.1.matched_tokens());
+    fn tokens(&self) -> Vec<(Token, String)> {
+        let mut tokens = self.0.tokens();
+        if tokens.iter().any(|(tok, _)| *tok == TOKEN_EOS) {
+            tokens.append(&mut self.1.tokens());
         }
         tokens
     }
@@ -358,45 +306,76 @@ impl<P0: Parser, P1: Parser> Parser for Seq2<P0, P1> {
 /*           Parser: Choice               */
 /*========================================*/
 
-/*
-struct Choice2<P0: Parser P1: Parse<Output = P0::Output>> {
+struct Choice2<P0: Parser, P1: Parser<Output = P0::Output>> {
+    label: String,
     parsers: (P0, P1),
-    token_to_choice: Vec<Option<usize>>,
+    empty_index: Option<usize>,
+    token_indices: Vec<Option<usize>>,
 }
 
-impl<P0: Parser P1: Parse<Output = P0::Output>> Choice2<P0, P1> {
-    fn new(p0: Parser<P0>, p1: Parser<P1>) -> Result<Parser<Choice<P0, P1>>, GrammarError> {
-        let empty_index = match (p0.empty, p1.empty) {
+impl<P0: Parser, P1: Parser<Output = P0::Output>> Choice2<P0, P1> {
+    fn new(label: &str, p0: P0, p1: P1) -> Result<Choice2<P0, P1>, GrammarError> {
+        let p0_tokens = p0.tokens();
+        let p1_tokens = p1.tokens();
+
+        let p0_empty = p0_tokens.iter().any(|(tok, _)| *tok == TOKEN_EOS);
+        let p1_empty = p1_tokens.iter().any(|(tok, _)| *tok == TOKEN_EOS);
+        let empty_index = match (p0_empty, p1_empty) {
             (false, false) => None,
             (true, false) => Some(0),
             (false, true) => Some(1),
             (true, true) => return Err(GrammarError::AmbiguityErrorEmpty),
         };
-        let mut token_to_choice = vec![empty_index];
+
+        let mut token_indices = vec![];
+        let p0_token_indices = p0_tokens.into_iter().map(|(tok, patt)| (0, tok, patt));
+        let p1_token_indices = p1_tokens.into_iter().map(|(tok, patt)| (1, tok, patt));
+        for (index, token, pattern) in p0_token_indices.chain(p1_token_indices) {
+            if index >= token_indices.len() {
+                token_indices.resize(index + 1, None);
+            }
+            if token_indices[index] != None {
+                return Err(GrammarError::AmbiguityErrorFirstToken(pattern));
+            }
+            token_indices[index] = Some(token);
+        }
+
+        Ok(Choice2 {
+            label: label.to_owned(),
+            parsers: (p0, p1),
+            empty_index,
+            token_indices,
+        })
     }
 }
 
 impl<P0: Parser, P1: Parser<Output = P0::Output>> Parser for Choice2<P0, P1> {
-    fn matches_empty(&self) -> bool {
-        self.0.matches_empty() && self.1.matches_empty()
-    }
+    type Output = P0::Output;
 
-    fn matches_token(&self, token: Token) -> bool {
-        self.0.matches_token(token) && self.1.matches_token(token)
-    }
-
-    fn matched_tokens(&self) -> Vec<Token> {
-        let mut tokens = self.0.matched_tokens();
-        if self.0.matches_empty() {
-            tokens.append(&mut self.1.matched_tokens());
-        }
+    fn tokens(&self) -> Vec<(Token, String)> {
+        let mut tokens = self.parsers.0.tokens();
+        tokens.append(&mut self.parsers.1.tokens());
         tokens
     }
 
     fn parse(&self, stream: &mut TokenStream) -> Result<Self::Output, ParseError> {
-        let result_0 = self.0.parse(stream)?;
-        let result_1 = self.1.parse(stream)?;
-        Ok((result_0, result_1))
+        if let Some(lex) = stream.peek() {
+            match self.token_indices.get(lex.token) {
+                Some(Some(0)) => self.parsers.0.parse(stream),
+                Some(Some(1)) => self.parsers.1.parse(stream),
+                Some(Some(_)) => unreachable!(),
+                None | Some(None) => Err(ParseError::new(
+                    &self.label,
+                    stream.next().map(|lex| lex.lexeme),
+                )),
+            }
+        } else {
+            match self.empty_index {
+                None => return Err(ParseError::new(&self.label, None)),
+                Some(0) => self.parsers.0.parse(stream),
+                Some(1) => self.parsers.1.parse(stream),
+                Some(_) => unreachable!(),
+            }
+        }
     }
 }
-*/
