@@ -41,7 +41,7 @@ impl InitialSet {
     pub fn seq(&mut self, other: InitialSet) -> Result<(), GrammarError> {
         self.accepts_empty = self.accepts_empty && other.accepts_empty;
         if self.accepts_empty {
-            for (token, pattern) in other.accepted_tokens.iter() {
+            for (token, pattern) in &other.accepted_tokens {
                 self.add_token(token, pattern.to_owned())?;
             }
         }
@@ -52,10 +52,14 @@ impl InitialSet {
         if other.accepts_empty {
             self.add_empty()?;
         }
-        for (token, pattern) in other.accepted_tokens.into_iter() {
+        for (token, pattern) in other.accepted_tokens {
             self.add_token(token, pattern.to_owned())?;
         }
         Ok(())
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -81,7 +85,7 @@ impl ChoiceTable {
                 initial_set.add_empty()?;
                 choice_table.empty_index = Some(i);
             }
-            for (token, pattern) in set.accepted_tokens.into_iter() {
+            for (token, pattern) in set.accepted_tokens {
                 initial_set.add_token(token, pattern)?;
                 choice_table.token_indices.set(token, i);
             }

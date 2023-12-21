@@ -2,7 +2,8 @@
 //!
 //! Usage:
 //!
-//! ```
+//! TODO: this doc test
+//! ```txt
 //! use lexer::{LexerBuilder, Lexer, LEX_ERROR};
 //!
 //! let whitespace_regex = r#"[ \t\r\n]+"#;
