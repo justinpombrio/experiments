@@ -86,7 +86,10 @@ impl Grammar {
             .string(string)
             .map_err(GrammarError::RegexError)?;
 
-        let string_copy = string.to_owned();
+        let mut initial_set = InitialSet::new(string);
+        initial_set.add_token(token, string.to_owned());
+
+        let string = string.to_owned();
         let parse = Box::new(move |stream: &mut TokenStream| {
             if let Some(lexeme) = stream.peek() {
                 if lexeme.token == token {
@@ -95,15 +98,12 @@ impl Grammar {
                 }
             }
             Err(ParseError::new(
-                &string_copy,
+                &string,
                 stream.next().map(|lex| lex.lexeme),
             ))
         });
 
-        Ok(Parser {
-            initial_set: InitialSet::new_singleton(token, string.to_owned()),
-            parse,
-        })
+        Ok(Parser { initial_set, parse })
     }
 
     pub fn regex<T>(
@@ -116,7 +116,10 @@ impl Grammar {
             .regex(pattern)
             .map_err(GrammarError::RegexError)?;
 
-        let pattern_copy = pattern.to_owned();
+        let mut initial_set = InitialSet::new(pattern);
+        initial_set.add_token(token, pattern.to_owned());
+
+        let pattern = pattern.to_owned();
         let parse = Box::new(move |stream: &mut TokenStream| {
             if let Some(lexeme) = stream.peek() {
                 if lexeme.token == token {
@@ -126,15 +129,12 @@ impl Grammar {
                 }
             }
             Err(ParseError::new(
-                &pattern_copy,
+                &pattern,
                 stream.next().map(|lex| lex.lexeme),
             ))
         });
 
-        Ok(Parser {
-            initial_set: InitialSet::new_singleton(token, pattern.to_owned()),
-            parse,
-        })
+        Ok(Parser { initial_set, parse })
     }
 }
 
@@ -166,12 +166,16 @@ impl<T: 'static> Parser<T> {
     }
 
     pub fn seq2<T0: 'static, T1: 'static>(
-        label: &str,
+        name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
     ) -> Result<Parser<(T0, T1)>, GrammarError> {
+        let mut initial_set = InitialSet::new(name);
+        initial_set.seq(parser_0.initial_set)?;
+        initial_set.seq(parser_1.initial_set)?;
+
         Ok(Parser {
-            initial_set: parser_0.initial_set.seq(label, parser_1.initial_set)?,
+            initial_set,
             parse: Box::new(move |stream: &mut TokenStream| {
                 let result_0 = (parser_0.parse)(stream)?;
                 let result_1 = (parser_1.parse)(stream)?;
@@ -181,16 +185,18 @@ impl<T: 'static> Parser<T> {
     }
 
     pub fn seq3<T0: 'static, T1: 'static, T2: 'static>(
-        label: &str,
+        name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
         parser_2: Parser<T2>,
     ) -> Result<Parser<(T0, T1, T2)>, GrammarError> {
+        let mut initial_set = InitialSet::new(name);
+        initial_set.seq(parser_0.initial_set)?;
+        initial_set.seq(parser_1.initial_set)?;
+        initial_set.seq(parser_2.initial_set)?;
+
         Ok(Parser {
-            initial_set: parser_0
-                .initial_set
-                .seq(label, parser_1.initial_set)?
-                .seq(label, parser_2.initial_set)?,
+            initial_set,
             parse: Box::new(move |stream: &mut TokenStream| {
                 let result_0 = (parser_0.parse)(stream)?;
                 let result_1 = (parser_1.parse)(stream)?;
@@ -201,18 +207,20 @@ impl<T: 'static> Parser<T> {
     }
 
     pub fn seq4<T0: 'static, T1: 'static, T2: 'static, T3: 'static>(
-        label: &str,
+        name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
         parser_2: Parser<T2>,
         parser_3: Parser<T3>,
     ) -> Result<Parser<(T0, T1, T2, T3)>, GrammarError> {
+        let mut initial_set = InitialSet::new(name);
+        initial_set.seq(parser_0.initial_set)?;
+        initial_set.seq(parser_1.initial_set)?;
+        initial_set.seq(parser_2.initial_set)?;
+        initial_set.seq(parser_3.initial_set)?;
+
         Ok(Parser {
-            initial_set: parser_0
-                .initial_set
-                .seq(label, parser_1.initial_set)?
-                .seq(label, parser_2.initial_set)?
-                .seq(label, parser_3.initial_set)?,
+            initial_set,
             parse: Box::new(move |stream: &mut TokenStream| {
                 let result_0 = (parser_0.parse)(stream)?;
                 let result_1 = (parser_1.parse)(stream)?;
