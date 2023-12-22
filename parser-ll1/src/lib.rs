@@ -1,3 +1,7 @@
+//! Work in progress!
+//!
+//! Cloning is hard, but not sure how to make recursive parsers without it.
+
 // TODO: temporary
 #![allow(unused)]
 
@@ -218,6 +222,18 @@ impl<T: 'static> Parser<T> {
                 }
             }),
         })
+    }
+
+    pub fn recur(name: &str, make_parser: impl FnOnce(Parser<T>) -> Parser<T>) -> Parser<T> {
+        let cell: Rc<OnceCell<Parser<T>>> = Rc::new(OnceCell::new());
+        let cell_copy = cell.clone();
+        let inner_parser = Parser {
+            initial_set: InitialSet::new(name),
+            parse: Box::new(move |stream| (cell_copy.get().unwrap().parse)(stream)),
+        };
+        let outer_parser = make_parser(inner_parser);
+        cell.set(outer_parser);
+        cell.get().unwrap()
     }
 }
 
