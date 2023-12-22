@@ -39,12 +39,12 @@ impl InitialSet {
     }
 
     pub fn seq(&mut self, other: InitialSet) -> Result<(), GrammarError> {
-        self.accepts_empty = self.accepts_empty && other.accepts_empty;
         if self.accepts_empty {
             for (token, pattern) in &other.accepted_tokens {
                 self.add_token(token, pattern.to_owned())?;
             }
         }
+        self.accepts_empty = self.accepts_empty && other.accepts_empty;
         Ok(())
     }
 
@@ -56,6 +56,14 @@ impl InitialSet {
             self.add_token(token, pattern.to_owned())?;
         }
         Ok(())
+    }
+
+    pub fn accepts_empty(&self) -> bool {
+        self.accepts_empty
+    }
+
+    pub fn accepts_token(&self, token: Token) -> bool {
+        self.accepted_tokens.get(token).is_some()
     }
 
     pub fn name(&self) -> &str {
@@ -100,4 +108,32 @@ impl ChoiceTable {
             Some(token) => self.token_indices.get(token).copied(),
         }
     }
+}
+
+#[test]
+fn test_initial_sets() {
+    let mut set_2 = InitialSet::new("testing");
+    assert!(set_2.add_token(2, "two".to_owned()).is_ok());
+    let mut set_empty_2 = InitialSet::new("testing");
+    assert!(set_empty_2.add_empty().is_ok());
+    assert!(set_empty_2.union(set_2).is_ok());
+
+    let mut set_5 = InitialSet::new("testing");
+    assert!(set_5.add_token(5, "five".to_owned()).is_ok());
+
+    let mut set_4 = InitialSet::new("testing");
+    assert!(set_4.add_token(4, "four".to_owned()).is_ok());
+    let mut set_14 = InitialSet::new("testing");
+    assert!(set_14.add_empty().is_ok());
+    assert!(set_14.add_token(1, "one".to_owned()).is_ok());
+    assert!(set_14.seq(set_4).is_ok());
+
+    let (table, set) = ChoiceTable::new("testing", vec![set_empty_2, set_5, set_14]).unwrap();
+    assert_eq!(table.lookup(None), Some(0));
+    assert_eq!(table.lookup(Some(1)), Some(2));
+    assert_eq!(table.lookup(Some(2)), Some(0));
+    assert_eq!(table.lookup(Some(3)), None);
+    assert_eq!(table.lookup(Some(4)), Some(2));
+    assert_eq!(table.lookup(Some(5)), Some(1));
+    assert_eq!(table.lookup(Some(6)), None);
 }
