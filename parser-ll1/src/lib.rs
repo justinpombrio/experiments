@@ -6,7 +6,7 @@ mod lexer;
 mod vec_map;
 
 use initial_set::{ChoiceTable, InitialSet};
-use lexer::{LexemeIter, Lexer, LexerBuilder, Token};
+use lexer::{LexemeIter, Token};
 use regex::Error as RegexError;
 use std::cell::OnceCell;
 use std::iter::Peekable;
@@ -51,7 +51,7 @@ impl ParseError {
 }
 
 /*========================================*/
-/*               Grammar                  */
+/*            LexerBuilder                */
 /*========================================*/
 
 #[derive(Error, Debug)]
@@ -64,17 +64,13 @@ pub enum GrammarError {
     AmbiguityOnFirstToken(String, Token, String),
 }
 
-pub struct Grammar {
-    lexer_builder: LexerBuilder,
-}
+pub struct LexerBuilder(lexer::LexerBuilder);
 
-pub struct CompleteParser {
-    lexer: Lexer,
-}
+pub struct Lexer(lexer::Lexer);
 
-impl CompleteParser {
+impl Lexer {
     pub fn parse<T>(&self, parser: &Parser<T>, input: &str) -> Result<T, ParseError> {
-        let mut stream = self.lexer.lex(input).peekable();
+        let mut stream = self.0.lex(input).peekable();
         let result = (parser.parse)(&mut stream)?;
         match stream.next() {
             None => Ok(result),
@@ -85,25 +81,22 @@ impl CompleteParser {
     }
 }
 
-impl Grammar {
-    pub fn new() -> Grammar {
-        let lexer_builder = LexerBuilder::new(" \t\n\r")
+impl LexerBuilder {
+    pub fn new() -> LexerBuilder {
+        let lexer_builder = lexer::LexerBuilder::new(" \t\n\r")
             .map_err(GrammarError::RegexError)
             .expect("Bug: default whitespace regex");
-        Grammar { lexer_builder }
+        LexerBuilder(lexer_builder)
     }
 
-    pub fn new_with_whitespace(whitespace_regex: &str) -> Result<Grammar, GrammarError> {
+    pub fn new_with_whitespace(whitespace_regex: &str) -> Result<LexerBuilder, GrammarError> {
         let lexer_builder =
-            LexerBuilder::new(whitespace_regex).map_err(GrammarError::RegexError)?;
-        Ok(Grammar { lexer_builder })
+            lexer::LexerBuilder::new(whitespace_regex).map_err(GrammarError::RegexError)?;
+        Ok(LexerBuilder(lexer_builder))
     }
 
     pub fn string(&mut self, string: &str) -> Result<Parser<()>, GrammarError> {
-        let token = self
-            .lexer_builder
-            .string(string)
-            .map_err(GrammarError::RegexError)?;
+        let token = self.0.string(string).map_err(GrammarError::RegexError)?;
 
         let mut initial_set = InitialSet::new(string);
         initial_set.add_token(token, string.to_owned());
@@ -130,10 +123,7 @@ impl Grammar {
         pattern: &str,
         func: impl Fn(&str) -> Result<T, String> + 'static,
     ) -> Result<Parser<T>, GrammarError> {
-        let token = self
-            .lexer_builder
-            .regex(pattern)
-            .map_err(GrammarError::RegexError)?;
+        let token = self.0.regex(pattern).map_err(GrammarError::RegexError)?;
 
         let mut initial_set = InitialSet::new(pattern);
         initial_set.add_token(token, pattern.to_owned());
@@ -156,12 +146,8 @@ impl Grammar {
         Ok(Parser { initial_set, parse })
     }
 
-    pub fn finish(self) -> Result<CompleteParser, GrammarError> {
-        let lexer = self
-            .lexer_builder
-            .finish()
-            .map_err(GrammarError::RegexError)?;
-        Ok(CompleteParser { lexer })
+    pub fn finish(self) -> Result<Lexer, GrammarError> {
+        Ok(Lexer(self.0.finish().map_err(GrammarError::RegexError)?))
     }
 }
 
