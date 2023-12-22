@@ -42,7 +42,6 @@ use std::fmt;
 pub type Token = usize;
 
 pub const TOKEN_ERROR: Token = Token::MAX;
-pub const TOKEN_EOS: Token = Token::MAX - 1;
 
 #[derive(Debug, Clone)]
 pub struct Pattern {

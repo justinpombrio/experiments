@@ -6,7 +6,7 @@ mod lexer;
 mod vec_map;
 
 use initial_set::{ChoiceTable, InitialSet};
-use lexer::{LexemeIter, LexerBuilder, Token, TOKEN_EOS};
+use lexer::{LexemeIter, Lexer, LexerBuilder, Token};
 use regex::Error as RegexError;
 use std::cell::OnceCell;
 use std::iter::Peekable;
@@ -32,6 +32,8 @@ pub enum ParseError {
     WrongToken { expected: String, found: String },
     #[error("Parse error: expected {expected} but found end of file")]
     NoToken { expected: String },
+    #[error("Parse error: found unexpected {found}")]
+    Incomplete { found: String },
 }
 
 impl ParseError {
@@ -64,6 +66,23 @@ pub enum GrammarError {
 
 pub struct Grammar {
     lexer_builder: LexerBuilder,
+}
+
+pub struct CompleteParser {
+    lexer: Lexer,
+}
+
+impl CompleteParser {
+    pub fn parse<T>(&self, parser: &Parser<T>, input: &str) -> Result<T, ParseError> {
+        let mut stream = self.lexer.lex(input).peekable();
+        let result = (parser.parse)(&mut stream)?;
+        match stream.next() {
+            None => Ok(result),
+            Some(lex) => Err(ParseError::Incomplete {
+                found: lex.lexeme.to_owned(),
+            }),
+        }
+    }
 }
 
 impl Grammar {
@@ -109,7 +128,7 @@ impl Grammar {
     pub fn regex<T>(
         &mut self,
         pattern: &str,
-        func: impl Fn(&str) -> T + 'static,
+        func: impl Fn(&str) -> Result<T, String> + 'static,
     ) -> Result<Parser<T>, GrammarError> {
         let token = self
             .lexer_builder
@@ -123,7 +142,7 @@ impl Grammar {
         let parse = Box::new(move |stream: &mut TokenStream| {
             if let Some(lexeme) = stream.peek() {
                 if lexeme.token == token {
-                    let result = func(lexeme.lexeme);
+                    let result = func(lexeme.lexeme).map_err(ParseError::CustomError)?;
                     stream.next();
                     return Ok(result);
                 }
@@ -135,6 +154,14 @@ impl Grammar {
         });
 
         Ok(Parser { initial_set, parse })
+    }
+
+    pub fn finish(self) -> Result<CompleteParser, GrammarError> {
+        let lexer = self
+            .lexer_builder
+            .finish()
+            .map_err(GrammarError::RegexError)?;
+        Ok(CompleteParser { lexer })
     }
 }
 
@@ -182,25 +209,6 @@ impl<T: 'static> Parser<T> {
         Parser::choice(&name, [none_parser, some_parser])
     }
 
-    pub fn seq2<T0: 'static, T1: 'static>(
-        name: &str,
-        parser_0: Parser<T0>,
-        parser_1: Parser<T1>,
-    ) -> Result<Parser<(T0, T1)>, GrammarError> {
-        let mut initial_set = InitialSet::new(name);
-        initial_set.seq(parser_0.initial_set)?;
-        initial_set.seq(parser_1.initial_set)?;
-
-        Ok(Parser {
-            initial_set,
-            parse: Box::new(move |stream: &mut TokenStream| {
-                let result_0 = (parser_0.parse)(stream)?;
-                let result_1 = (parser_1.parse)(stream)?;
-                Ok((result_0, result_1))
-            }),
-        })
-    }
-
     pub fn choice<const N: usize>(
         name: &str,
         parsers: [Parser<T>; N],
@@ -228,16 +236,37 @@ impl<T: 'static> Parser<T> {
 }
 
 /*========================================*/
-/*            Long Sequences              */
+/*               Sequences                */
 /*========================================*/
 
-impl<T> Parser<T> {
-    pub fn seq3<T0: 'static, T1: 'static, T2: 'static>(
+impl<T0: 'static, T1: 'static> Parser<(T0, T1)> {
+    pub fn seq2(
+        name: &str,
+        parser_0: Parser<T0>,
+        parser_1: Parser<T1>,
+    ) -> Result<Self, GrammarError> {
+        let mut initial_set = InitialSet::new(name);
+        initial_set.seq(parser_0.initial_set)?;
+        initial_set.seq(parser_1.initial_set)?;
+
+        Ok(Parser {
+            initial_set,
+            parse: Box::new(move |stream: &mut TokenStream| {
+                let result_0 = (parser_0.parse)(stream)?;
+                let result_1 = (parser_1.parse)(stream)?;
+                Ok((result_0, result_1))
+            }),
+        })
+    }
+}
+
+impl<T0: 'static, T1: 'static, T2: 'static> Parser<(T0, T1, T2)> {
+    pub fn seq3(
         name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
         parser_2: Parser<T2>,
-    ) -> Result<Parser<(T0, T1, T2)>, GrammarError> {
+    ) -> Result<Self, GrammarError> {
         let mut initial_set = InitialSet::new(name);
         initial_set.seq(parser_0.initial_set)?;
         initial_set.seq(parser_1.initial_set)?;
@@ -253,14 +282,16 @@ impl<T> Parser<T> {
             }),
         })
     }
+}
 
-    pub fn seq4<T0: 'static, T1: 'static, T2: 'static, T3: 'static>(
+impl<T0: 'static, T1: 'static, T2: 'static, T3: 'static> Parser<(T0, T1, T2, T3)> {
+    pub fn seq4(
         name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
         parser_2: Parser<T2>,
         parser_3: Parser<T3>,
-    ) -> Result<Parser<(T0, T1, T2, T3)>, GrammarError> {
+    ) -> Result<Self, GrammarError> {
         let mut initial_set = InitialSet::new(name);
         initial_set.seq(parser_0.initial_set)?;
         initial_set.seq(parser_1.initial_set)?;
@@ -278,15 +309,17 @@ impl<T> Parser<T> {
             }),
         })
     }
+}
 
-    pub fn seq5<T0: 'static, T1: 'static, T2: 'static, T3: 'static, T4: 'static>(
+impl<T0: 'static, T1: 'static, T2: 'static, T3: 'static, T4: 'static> Parser<(T0, T1, T2, T3, T4)> {
+    pub fn seq5(
         name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
         parser_2: Parser<T2>,
         parser_3: Parser<T3>,
         parser_4: Parser<T4>,
-    ) -> Result<Parser<(T0, T1, T2, T3, T4)>, GrammarError> {
+    ) -> Result<Self, GrammarError> {
         let mut initial_set = InitialSet::new(name);
         initial_set.seq(parser_0.initial_set)?;
         initial_set.seq(parser_1.initial_set)?;
@@ -306,8 +339,12 @@ impl<T> Parser<T> {
             }),
         })
     }
+}
 
-    pub fn seq6<T0: 'static, T1: 'static, T2: 'static, T3: 'static, T4: 'static, T5: 'static>(
+impl<T0: 'static, T1: 'static, T2: 'static, T3: 'static, T4: 'static, T5: 'static>
+    Parser<(T0, T1, T2, T3, T4, T5)>
+{
+    pub fn seq6(
         name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
@@ -315,7 +352,7 @@ impl<T> Parser<T> {
         parser_3: Parser<T3>,
         parser_4: Parser<T4>,
         parser_5: Parser<T5>,
-    ) -> Result<Parser<(T0, T1, T2, T3, T4, T5)>, GrammarError> {
+    ) -> Result<Self, GrammarError> {
         let mut initial_set = InitialSet::new(name);
         initial_set.seq(parser_0.initial_set)?;
         initial_set.seq(parser_1.initial_set)?;
@@ -337,16 +374,12 @@ impl<T> Parser<T> {
             }),
         })
     }
+}
 
-    pub fn seq7<
-        T0: 'static,
-        T1: 'static,
-        T2: 'static,
-        T3: 'static,
-        T4: 'static,
-        T5: 'static,
-        T6: 'static,
-    >(
+impl<T0: 'static, T1: 'static, T2: 'static, T3: 'static, T4: 'static, T5: 'static, T6: 'static>
+    Parser<(T0, T1, T2, T3, T4, T5, T6)>
+{
+    pub fn seq7(
         name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
@@ -355,7 +388,7 @@ impl<T> Parser<T> {
         parser_4: Parser<T4>,
         parser_5: Parser<T5>,
         parser_6: Parser<T6>,
-    ) -> Result<Parser<(T0, T1, T2, T3, T4, T5, T6)>, GrammarError> {
+    ) -> Result<Self, GrammarError> {
         let mut initial_set = InitialSet::new(name);
         initial_set.seq(parser_0.initial_set)?;
         initial_set.seq(parser_1.initial_set)?;
@@ -381,8 +414,9 @@ impl<T> Parser<T> {
             }),
         })
     }
+}
 
-    pub fn seq8<
+impl<
         T0: 'static,
         T1: 'static,
         T2: 'static,
@@ -391,7 +425,9 @@ impl<T> Parser<T> {
         T5: 'static,
         T6: 'static,
         T7: 'static,
-    >(
+    > Parser<(T0, T1, T2, T3, T4, T5, T6, T7)>
+{
+    pub fn seq8(
         name: &str,
         parser_0: Parser<T0>,
         parser_1: Parser<T1>,
@@ -401,7 +437,7 @@ impl<T> Parser<T> {
         parser_5: Parser<T5>,
         parser_6: Parser<T6>,
         parser_7: Parser<T7>,
-    ) -> Result<Parser<(T0, T1, T2, T3, T4, T5, T6, T7)>, GrammarError> {
+    ) -> Result<Self, GrammarError> {
         let mut initial_set = InitialSet::new(name);
         initial_set.seq(parser_0.initial_set)?;
         initial_set.seq(parser_1.initial_set)?;
