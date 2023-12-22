@@ -58,14 +58,6 @@ impl InitialSet {
         Ok(())
     }
 
-    pub fn accepts_empty(&self) -> bool {
-        self.accepts_empty
-    }
-
-    pub fn accepts_token(&self, token: Token) -> bool {
-        self.accepted_tokens.get(token).is_some()
-    }
-
     pub fn name(&self) -> &str {
         &self.name
     }
