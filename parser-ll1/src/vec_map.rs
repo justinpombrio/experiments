@@ -22,6 +22,12 @@ impl<T> VecMap<T> {
         self.0[index] = Some(value);
     }
 
+    pub fn extend(&mut self, iter: impl IntoIterator<Item = (usize, T)>) {
+        for (i, v) in iter {
+            self.set(i, v);
+        }
+    }
+
     pub fn iter(&self) -> VecMapIter<T> {
         VecMapIter {
             index: 0,
@@ -135,5 +141,18 @@ fn test_vec_map() {
     assert_eq!(
         map.into_iter().collect::<Vec<_>>(),
         vec![(1, 'x'), (3, '3'), (4, 'y')]
+    );
+
+    let mut map1 = VecMap::<char>::new();
+    map1.set(1, '1');
+    map1.set(2, '2');
+    let mut map2 = VecMap::<char>::new();
+    map2.set(2, '*');
+    map2.set(3, '3');
+
+    map1.extend(map2);
+    assert_eq!(
+        map1.into_iter().collect::<Vec<_>>(),
+        vec![(1, '1'), (2, '*'), (3, '3')]
     );
 }
