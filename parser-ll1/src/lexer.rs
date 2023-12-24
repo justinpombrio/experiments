@@ -57,6 +57,22 @@ impl PartialEq for Pattern {
 
 impl Eq for Pattern {}
 
+impl Pattern {
+    fn new_string(constant: &str) -> Result<Pattern, RegexError> {
+        Ok(Pattern {
+            regex: new_regex(&escape(constant))?,
+            length: Some(constant.len()),
+        })
+    }
+
+    fn new_regex(pattern: &str) -> Result<Pattern, RegexError> {
+        Ok(Pattern {
+            regex: new_regex(pattern)?,
+            length: None,
+        })
+    }
+}
+
 fn new_regex(regex: &str) -> Result<Regex, RegexError> {
     Regex::new(&format!("^({})", regex))
 }
@@ -78,10 +94,7 @@ impl LexerBuilder {
     /// Add a pattern that matches exactly the string provided. Returns the token that will be
     /// produced whenever this pattern matches.
     pub fn string(&mut self, constant: &str) -> Result<Token, RegexError> {
-        let pattern = Pattern {
-            regex: new_regex(&escape(constant))?,
-            length: Some(constant.len()),
-        };
+        let pattern = Pattern::new_string(constant)?;
 
         for (existing_token, existing_pattern) in self.patterns.iter().enumerate() {
             if &pattern == existing_pattern {
@@ -100,10 +113,7 @@ impl LexerBuilder {
     /// The syntax is that of the `regex` crate. You do not need to begin the pattern with a
     /// start-of-string character `^`.
     pub fn regex(&mut self, regex: &str) -> Result<Token, RegexError> {
-        let pattern = Pattern {
-            regex: new_regex(regex)?,
-            length: None,
-        };
+        let pattern = Pattern::new_regex(regex)?;
 
         for (existing_token, existing_pattern) in self.patterns.iter().enumerate() {
             if &pattern == existing_pattern {

@@ -7,6 +7,8 @@
 
 mod initial_set;
 mod lexer;
+mod other;
+mod other2;
 mod vec_map;
 
 use initial_set::{ChoiceTable, InitialSet};
@@ -224,6 +226,7 @@ impl<T: 'static> Parser<T> {
         })
     }
 
+    /*
     pub fn recur(name: &str, make_parser: impl FnOnce(Parser<T>) -> Parser<T>) -> Parser<T> {
         let cell: Rc<OnceCell<Parser<T>>> = Rc::new(OnceCell::new());
         let cell_copy = cell.clone();
@@ -235,6 +238,7 @@ impl<T: 'static> Parser<T> {
         cell.set(outer_parser);
         cell.get().unwrap()
     }
+    */
 }
 
 /*========================================*/
