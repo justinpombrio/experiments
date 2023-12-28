@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 regex = "*"
 thiserror = "*"
+dyn-clone = "1.*"

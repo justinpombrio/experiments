@@ -7,6 +7,7 @@ mod vec_map;
 
 use crate::lexer::{LexemeIter, Lexer, LexerBuilder, Token};
 use crate::vec_map::VecMap;
+use dyn_clone::{clone_box, DynClone};
 use initial_set::{ChoiceTable, InitialSet};
 use regex::Error as RegexError;
 use regex::Regex;
@@ -28,6 +29,7 @@ use thiserror::Error;
 //   a method `boxed_clone(&self) -> Box<dyn Parser<T>>`.)
 // - Saying `Parser<T>` instead of `Parser<Output = T>` forces implementing
 //   types to use `PhantomData`.
+// - Using static parser types makes recursion awful.
 
 /*========================================*/
 /*          Interface                     */
@@ -35,25 +37,32 @@ use thiserror::Error;
 
 type Lexemes<'l, 's> = Peekable<LexemeIter<'l, 's>>;
 
-pub trait Parser: Clone {
+pub struct Parser<T> {
+    initial_set: InitialSet,
+    parse_fn: Box<dyn Parse<Output = T>>,
+}
+
+trait Parse: DynClone {
     type Output;
 
-    fn initial_set(&self) -> Result<InitialSet, GrammarError>;
-
     fn parse(&self, stream: &mut Lexemes) -> Result<Self::Output, ParseError>;
+}
 
-    fn boxed(self) -> BoxedP<Self::Output>
-    where
-        Self: 'static,
-    {
-        BoxedP(Box::new(self))
+impl<T> Clone for Parser<T> {
+    fn clone(&self) -> Parser<T> {
+        Parser {
+            initial_set: self.initial_set.clone(),
+            parse_fn: clone_box(self.parse_fn.as_ref()),
+        }
     }
+}
 
-    fn map<R: Clone>(self, func: impl Fn(Self::Output) -> R + Clone) -> impl Parser<Output = R>
-    where
-        Self::Output: Clone,
-    {
-        MapP { parser: self, func }
+impl<T> Parser<T> {
+    fn new<P: Parse<Output = T> + 'static>(initial_set: InitialSet, parse: P) -> Parser<T> {
+        Parser {
+            initial_set,
+            parse_fn: Box::new(parse),
+        }
     }
 }
 
@@ -101,14 +110,18 @@ impl Grammar {
         Ok(Grammar(lexer_builder))
     }
 
-    pub fn string(&mut self, pattern: &str) -> Result<impl Parser<Output = ()>, GrammarError> {
+    pub fn string(&mut self, pattern: &str) -> Result<Parser<()>, GrammarError> {
         let token = self.0.string(pattern)?;
-        Ok(StringP {
-            name: pattern.to_owned(),
-            token,
+        Ok(Parser {
+            initial_set: InitialSet::new_token(pattern, token),
+            parse_fn: Box::new(StringP {
+                name: pattern.to_owned(),
+                token,
+            }),
         })
     }
 
+    /*
     pub fn regex<T: Clone>(
         &mut self,
         name: &str,
@@ -122,16 +135,21 @@ impl Grammar {
             func,
         })
     }
+    */
 
-    pub fn make_parse_fn<T>(
+    pub fn make_parse_fn<T: Clone>(
         &self,
-        parser: impl Parser<Output = T>,
+        parser: Parser<T>,
     ) -> impl Fn(&str) -> Result<T, ParseError> + Clone {
         // TODO: ensure whole stream is consumed!
         let lexer = self.clone().0.finish();
         move |input: &str| {
+            // By default, this closure captures `&parser.0`, which doesn't
+            // implement `Clone`. Force it to capture `&parser` instead.
+            let parser = &parser;
+
             let mut lexemes = lexer.lex(input).peekable();
-            parser.parse(&mut lexemes)
+            parser.parse_fn.parse(&mut lexemes)
         }
     }
 }
@@ -165,12 +183,8 @@ struct StringP {
     token: Token,
 }
 
-impl Parser for StringP {
+impl Parse for StringP {
     type Output = ();
-
-    fn initial_set(&self) -> Result<InitialSet, GrammarError> {
-        Ok(InitialSet::new_token(&self.name, self.token))
-    }
 
     fn parse(&self, stream: &mut Lexemes) -> Result<(), ParseError> {
         if let Some(lexeme) = stream.peek() {
@@ -185,6 +199,8 @@ impl Parser for StringP {
         ))
     }
 }
+
+/*
 
 /*========================================*/
 /*          Parser: Regex                 */
@@ -384,3 +400,4 @@ fn use_recur(g: &mut Grammar) -> Result<impl Parser<Output = ()>, GrammarError> 
     let x = g.string("x")?;
     recur(|more| Ok(seq2(x, more)?.map(|_| ()).boxed()))
 }
+*/
