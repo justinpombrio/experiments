@@ -2,6 +2,8 @@ use crate::vec_map::VecMap;
 use crate::{GrammarError, Token};
 use std::ops::{Index, IndexMut};
 
+// TODO: think about ideal names & error messages
+
 #[derive(Debug, Clone)]
 pub struct InitialSet {
     name: String,
@@ -10,7 +12,7 @@ pub struct InitialSet {
 }
 
 impl InitialSet {
-    pub fn new(name: &str) -> InitialSet {
+    fn new(name: &str) -> InitialSet {
         InitialSet {
             name: name.to_owned(),
             accepts_empty: false,
@@ -18,42 +20,64 @@ impl InitialSet {
         }
     }
 
-    pub fn add_empty(&mut self) -> Result<(), GrammarError> {
-        if self.accepts_empty {
-            return Err(GrammarError::AmbiguityOnEmpty(self.name.to_owned()));
+    pub fn new_empty(name: &str) -> InitialSet {
+        InitialSet {
+            name: name.to_owned(),
+            accepts_empty: true,
+            accepted_tokens: VecMap::new(),
         }
-        self.accepts_empty = true;
-        Ok(())
     }
 
-    pub fn add_token(&mut self, token: Token, pattern: String) -> Result<(), GrammarError> {
-        if self.accepted_tokens.get(token).is_some() {
-            return Err(GrammarError::AmbiguityOnFirstToken(
-                self.name.to_owned(),
-                token,
-                pattern,
-            ));
+    pub fn new_token(name: &str, token: Token) -> InitialSet {
+        let mut accepted_tokens = VecMap::new();
+        accepted_tokens.set(token, name.to_owned());
+        InitialSet {
+            name: name.to_owned(),
+            accepts_empty: false,
+            accepted_tokens,
         }
-        self.accepted_tokens.set(token, pattern);
-        Ok(())
     }
 
     pub fn seq(&mut self, other: InitialSet) -> Result<(), GrammarError> {
-        if self.accepts_empty {
-            for (token, pattern) in &other.accepted_tokens {
-                self.add_token(token, pattern.to_owned())?;
+        let accepts_empty = self.accepts_empty;
+        self.accepts_empty = self.accepts_empty && other.accepts_empty;
+        if accepts_empty {
+            for (token, pattern) in other.accepted_tokens {
+                if self.accepted_tokens.get(token).is_some() {
+                    return Err(GrammarError::AmbiguityOnFirstToken {
+                        start: "sequence".to_owned(),
+                        case_1: self.name.clone(),
+                        case_2: other.name,
+                        pattern: pattern,
+                    });
+                }
+                self.accepted_tokens.set(token, pattern);
             }
         }
-        self.accepts_empty = self.accepts_empty && other.accepts_empty;
         Ok(())
     }
 
-    pub fn union(&mut self, other: InitialSet) -> Result<(), GrammarError> {
+    pub fn union(&mut self, parent_name: &str, other: InitialSet) -> Result<(), GrammarError> {
         if other.accepts_empty {
-            self.add_empty()?;
+            if self.accepts_empty {
+                return Err(GrammarError::AmbiguityOnEmpty {
+                    start: parent_name.to_owned(),
+                    case_1: self.name.clone(),
+                    case_2: other.name,
+                });
+            }
+            self.accepts_empty = true;
         }
         for (token, pattern) in other.accepted_tokens {
-            self.add_token(token, pattern.to_owned())?;
+            if self.accepted_tokens.get(token).is_some() {
+                return Err(GrammarError::AmbiguityOnFirstToken {
+                    start: parent_name.to_owned(),
+                    case_1: self.name.clone(),
+                    case_2: other.name,
+                    pattern: pattern,
+                });
+            }
+            self.accepted_tokens.set(token, pattern);
         }
         Ok(())
     }
@@ -82,13 +106,12 @@ impl ChoiceTable {
 
         for (i, set) in initial_sets.into_iter().enumerate() {
             if set.accepts_empty {
-                initial_set.add_empty()?;
                 choice_table.empty_index = Some(i);
             }
-            for (token, pattern) in set.accepted_tokens {
-                initial_set.add_token(token, pattern)?;
+            for (token, _) in &set.accepted_tokens {
                 choice_table.token_indices.set(token, i);
             }
+            initial_set.union(name, set)?;
         }
 
         Ok((choice_table, initial_set))

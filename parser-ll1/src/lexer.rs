@@ -135,12 +135,12 @@ impl LexerBuilder {
     }
 
     /// Call this when you're done adding token patterns, to construct the lexer.
-    pub fn finish(self) -> Result<Lexer, RegexError> {
-        Ok(Lexer {
+    pub fn finish(self) -> Lexer {
+        Lexer {
             whitespace: self.whitespace,
-            regex_set: RegexSet::new(self.patterns.iter().map(|p| p.regex.as_str()))?,
+            regex_set: RegexSet::new(self.patterns.iter().map(|p| p.regex.as_str())).unwrap(),
             patterns: self.patterns,
-        })
+        }
     }
 }
 
