@@ -1,13 +1,26 @@
 // TODO: temporary
 #![allow(unused)]
 
+// This design achieves all of the following:
+//
+// - The lexer isn't exposed (i.e. `Token` isn't in the interface).
+// - The types of parsers is simple: `Parser<T>` instead of something less weildy
+//   like `impl Parser<Output = T>` or even `Parser<impl Parse<Output = T>>`.
+// - Its implementation of recursive parsers doesn't threaten to summon Cthulu.
+// - It allows parsers to be cloned without having the illegal `Box<Trait + Clone>`.
+// - Implementing a parser combinator isn't too onerous.
+// - `InitialSet`s aren't needlessly cloned.
+//
+// Any change to the design is liable to break one of these properties, so if
+// considering a change check this list first.
+
 mod initial_set;
 mod lexer;
 mod vec_map;
 
 use crate::lexer::{LexemeIter, Lexer, LexerBuilder, Token};
 use crate::vec_map::VecMap;
-use dyn_clone::{clone_box, DynClone};
+use dyn_clone::{clone_box, clone_trait_object, DynClone};
 use initial_set::{ChoiceTable, InitialSet};
 use regex::Error as RegexError;
 use regex::Regex;
@@ -16,20 +29,6 @@ use std::error::Error;
 use std::iter::Peekable;
 use std::rc::{Rc, Weak};
 use thiserror::Error;
-
-// NOTE to self:
-//
-// There's a big design space here, but most of it gets unweildy or difficult to
-// implement in Rust. For example:
-//
-// - Storing `initial_set` in a `Parser` struct gives the unweildy type:
-//   `string_parser(pattern: &str) -> Parser<impl Parse<type Output = ()>>`
-// - You can't have `impl Trait` in a `struct` field.
-// - A `Box<dyn Parser>` is difficult to clone. (To do so, the trait needs
-//   a method `boxed_clone(&self) -> Box<dyn Parser<T>>`.)
-// - Saying `Parser<T>` instead of `Parser<Output = T>` forces implementing
-//   types to use `PhantomData`.
-// - Using static parser types makes recursion awful.
 
 /*========================================*/
 /*          Interface                     */
@@ -110,6 +109,13 @@ impl Grammar {
         Ok(Grammar(lexer_builder))
     }
 
+    pub fn empty() -> Result<Parser<()>, GrammarError> {
+        Ok(Parser {
+            initial_set: InitialSet::new_empty("empty"),
+            parse_fn: Box::new(EmptyP),
+        })
+    }
+
     pub fn string(&mut self, pattern: &str) -> Result<Parser<()>, GrammarError> {
         let token = self.0.string(pattern)?;
         Ok(Parser {
@@ -121,21 +127,22 @@ impl Grammar {
         })
     }
 
-    /*
-    pub fn regex<T: Clone>(
+    pub fn regex<T: Clone + 'static>(
         &mut self,
         name: &str,
         regex: &str,
-        func: impl Fn(&str) -> Result<T, String> + Clone,
-    ) -> Result<impl Parser<Output = T>, GrammarError> {
+        func: impl Fn(&str) -> Result<T, String> + Clone + 'static,
+    ) -> Result<Parser<T>, GrammarError> {
         let token = self.0.regex(regex)?;
-        Ok(RegexP {
-            name: name.to_owned(),
-            token,
-            func,
+        Ok(Parser {
+            initial_set: InitialSet::new_token(name, token),
+            parse_fn: Box::new(RegexP {
+                name: name.to_owned(),
+                token,
+                func,
+            }),
         })
     }
-    */
 
     pub fn make_parse_fn<T: Clone>(
         &self,
@@ -200,8 +207,6 @@ impl Parse for StringP {
     }
 }
 
-/*
-
 /*========================================*/
 /*          Parser: Regex                 */
 /*========================================*/
@@ -213,12 +218,8 @@ struct RegexP<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> {
     func: F,
 }
 
-impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parser for RegexP<T, F> {
+impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parse for RegexP<T, F> {
     type Output = T;
-
-    fn initial_set(&self) -> Result<InitialSet, GrammarError> {
-        Ok(InitialSet::new_token(&self.name, self.token))
-    }
 
     fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
         if let Some(lexeme) = stream.peek() {
@@ -241,42 +242,56 @@ impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parser for RegexP<T, F>
 #[derive(Clone)]
 struct EmptyP;
 
-impl Parser for EmptyP {
+impl Parse for EmptyP {
     type Output = ();
-
-    fn initial_set(&self) -> Result<InitialSet, GrammarError> {
-        Ok(InitialSet::new_empty("Empty"))
-    }
 
     fn parse(&self, stream: &mut Lexemes) -> Result<(), ParseError> {
         Ok(())
     }
 }
 
-fn empty() -> impl Parser<Output = ()> {
-    EmptyP
-}
-
 /*========================================*/
 /*          Parser: Map                   */
 /*========================================*/
 
-#[derive(Clone)]
-struct MapP<T: Clone, P: Parser<Output = T>, U: Clone, F: Fn(T) -> U + Clone> {
-    parser: P,
+struct MapP<I: Clone, O: Clone, F: Fn(I) -> O + Clone> {
+    parse_fn: Box<dyn Parse<Output = I>>,
     func: F,
 }
 
-impl<T: Clone, P: Parser<Output = T>, U: Clone, F: Fn(T) -> U + Clone> Parser for MapP<T, P, U, F> {
-    type Output = U;
-
-    fn initial_set(&self) -> Result<InitialSet, GrammarError> {
-        self.parser.initial_set()
+impl<I: Clone, O: Clone, F: Fn(I) -> O + Clone> Clone for MapP<I, O, F> {
+    fn clone(&self) -> Self {
+        MapP {
+            parse_fn: clone_box(self.parse_fn.as_ref()),
+            func: self.func.clone(),
+        }
     }
+}
 
-    fn parse(&self, stream: &mut Lexemes) -> Result<U, ParseError> {
-        let result = self.parser.parse(stream)?;
+impl<I: Clone, O: Clone, F: Fn(I) -> O + Clone> Parse for MapP<I, O, F> {
+    type Output = O;
+
+    fn parse(&self, stream: &mut Lexemes) -> Result<O, ParseError> {
+        let result = self.parse_fn.parse(stream)?;
         Ok((self.func)(result))
+    }
+}
+
+impl<T: Clone + 'static> Parser<T>
+where
+    Self: Clone,
+{
+    fn map<O: Clone + 'static>(
+        self,
+        func: impl Fn(T) -> O + Clone + 'static,
+    ) -> Result<Parser<O>, GrammarError> {
+        Ok(Parser {
+            initial_set: self.initial_set,
+            parse_fn: Box::new(MapP {
+                parse_fn: self.parse_fn,
+                func,
+            }),
+        })
     }
 }
 
@@ -284,17 +299,16 @@ impl<T: Clone, P: Parser<Output = T>, U: Clone, F: Fn(T) -> U + Clone> Parser fo
 /*          Parser: Seq2                  */
 /*========================================*/
 
-#[derive(Clone)]
-struct Seq2<P0: Parser, P1: Parser>(P0, P1);
+struct Seq2P<T0, T1>(Box<dyn Parse<Output = T0>>, Box<dyn Parse<Output = T1>>);
 
-impl<P0: Parser, P1: Parser> Parser for Seq2<P0, P1> {
-    type Output = (P0::Output, P1::Output);
-
-    fn initial_set(&self) -> Result<InitialSet, GrammarError> {
-        let mut initial_set = self.0.initial_set()?;
-        initial_set.seq(self.1.initial_set()?)?;
-        Ok(initial_set)
+impl<T0: Clone, T1: Clone> Clone for Seq2P<T0, T1> {
+    fn clone(&self) -> Self {
+        Seq2P(clone_box(self.0.as_ref()), clone_box(self.1.as_ref()))
     }
+}
+
+impl<T0: Clone, T1: Clone> Parse for Seq2P<T0, T1> {
+    type Output = (T0, T1);
 
     fn parse(&self, stream: &mut Lexemes) -> Result<Self::Output, ParseError> {
         let result_0 = self.0.parse(stream)?;
@@ -303,13 +317,16 @@ impl<P0: Parser, P1: Parser> Parser for Seq2<P0, P1> {
     }
 }
 
-pub fn seq2<P0: Parser, P1: Parser>(
-    parser_0: P0,
-    parser_1: P1,
-) -> Result<impl Parser<Output = (P0::Output, P1::Output)>, GrammarError> {
-    let parser = Seq2(parser_0, parser_1);
-    parser.initial_set()?;
-    Ok(parser)
+pub fn seq2<T0: Clone + 'static, T1: Clone + 'static>(
+    parser_0: Parser<T0>,
+    parser_1: Parser<T1>,
+) -> Result<Parser<(T0, T1)>, GrammarError> {
+    let mut initial_set = parser_0.initial_set;
+    initial_set.seq(parser_1.initial_set)?;
+    Ok(Parser {
+        initial_set,
+        parse_fn: Box::new(Seq2P(parser_0.parse_fn, parser_1.parse_fn)),
+    })
 }
 
 /*========================================*/
@@ -317,31 +334,32 @@ pub fn seq2<P0: Parser, P1: Parser>(
 /*========================================*/
 
 #[derive(Clone)]
-pub struct Recur<T>(Rc<OnceCell<BoxedP<T>>>);
+pub struct Recur<T>(Rc<OnceCell<Parser<T>>>);
 
-impl<T: Clone> Parser for Recur<T> {
+impl<T: Clone> Parse for Recur<T> {
     type Output = T;
 
-    fn initial_set(&self) -> Result<InitialSet, GrammarError> {
-        self.0.get().unwrap().initial_set()
-    }
-
     fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
-        self.0.get().unwrap().parse(stream)
+        self.0.get().unwrap().parse_fn.parse(stream)
     }
 }
 
 pub fn recur<T: Clone + 'static>(
-    make_parser: impl FnOnce(BoxedP<T>) -> Result<BoxedP<T>, GrammarError>,
-) -> Result<impl Parser<Output = T>, GrammarError> {
+    make_parser: impl FnOnce(Parser<T>) -> Result<Parser<T>, GrammarError>,
+) -> Result<Parser<T>, GrammarError> {
+    // TODO: Make sure this ever gets dropped. Needs weak?
     let cell = Rc::new(OnceCell::new());
     let recur = Recur(cell.clone());
-    let boxed_recur = BoxedP(Box::new(recur));
-    let parser = make_parser(boxed_recur.clone())?;
-    cell.set(parser);
-    Ok(boxed_recur)
+    let inner_parser = Parser {
+        initial_set: InitialSet::new_void("recur"),
+        parse_fn: Box::new(recur),
+    };
+    let outer_parser = make_parser(inner_parser)?;
+    cell.set(outer_parser.clone());
+    Ok(outer_parser)
 }
 
+/*
 /*========================================*/
 /*          Parser: Boxed                 */
 /*========================================*/

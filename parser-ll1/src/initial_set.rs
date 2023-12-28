@@ -12,7 +12,7 @@ pub struct InitialSet {
 }
 
 impl InitialSet {
-    fn new(name: &str) -> InitialSet {
+    pub fn new_void(name: &str) -> InitialSet {
         InitialSet {
             name: name.to_owned(),
             accepts_empty: false,
@@ -102,7 +102,7 @@ impl ChoiceTable {
             empty_index: None,
             token_indices: VecMap::new(),
         };
-        let mut initial_set = InitialSet::new(name);
+        let mut initial_set = InitialSet::new_void(name);
 
         for (i, set) in initial_sets.into_iter().enumerate() {
             if set.accepts_empty {
