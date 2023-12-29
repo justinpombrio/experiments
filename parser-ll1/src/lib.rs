@@ -16,6 +16,7 @@
 
 mod initial_set;
 mod lexer;
+mod seqs;
 mod vec_map;
 
 use crate::lexer::{LexemeIter, Lexer, LexerBuilder, Token};
@@ -347,63 +348,9 @@ pub fn recur<T: Clone + 'static>(
     Ok(outer_parser)
 }
 
-/*
-/*========================================*/
-/*          Parser: Boxed                 */
-/*========================================*/
-
-// This is horrible. Might not be necessary though?
-
-trait BoxedParser {
-    type Output;
-
-    fn boxed_clone(&self) -> Box<dyn BoxedParser<Output = Self::Output>>;
-
-    fn boxed_initial_set(&self) -> Result<InitialSet, GrammarError>;
-
-    fn boxed_parse(&self, stream: &mut Lexemes) -> Result<Self::Output, ParseError>;
-}
-
-impl<P: Parser + 'static> BoxedParser for P {
-    type Output = P::Output;
-
-    fn boxed_clone(&self) -> Box<dyn BoxedParser<Output = P::Output>> {
-        Box::new(self.clone())
-    }
-
-    fn boxed_initial_set(&self) -> Result<InitialSet, GrammarError> {
-        Parser::initial_set(self)
-    }
-
-    fn boxed_parse(&self, stream: &mut Lexemes) -> Result<Self::Output, ParseError> {
-        Parser::parse(self, stream)
-    }
-}
-
-pub struct BoxedP<T>(Box<dyn BoxedParser<Output = T>>);
-
-impl<T> Clone for BoxedP<T> {
-    fn clone(&self) -> BoxedP<T> {
-        BoxedP(self.0.boxed_clone())
-    }
-}
-
-impl<T> Parser for BoxedP<T> {
-    type Output = T;
-
-    fn initial_set(&self) -> Result<InitialSet, GrammarError> {
-        self.0.boxed_initial_set()
-    }
-
-    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
-        self.0.boxed_parse(stream)
-    }
-}
-
 // TODO: temporary testing!
 
-fn use_recur(g: &mut Grammar) -> Result<impl Parser<Output = ()>, GrammarError> {
+fn use_recur(g: &mut Grammar) -> Result<Parser<()>, GrammarError> {
     let x = g.string("x")?;
-    recur(|more| Ok(seq2(x, more)?.map(|_| ()).boxed()))
+    recur(|more| seq2(x, more)?.map(|_| ()))
 }
-*/
