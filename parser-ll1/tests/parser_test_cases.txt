@@ -1,0 +1,9 @@
+PARSER abc" def" &2
+INPUT  abcdef
+EXPECT ok (abc def)
+
+INPUT abc def
+EXPECT ok (abc def)
+
+INPUT abcd ef
+EXPECT err Parse error: expected 'def' but found 'd'

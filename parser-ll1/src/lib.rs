@@ -22,7 +22,7 @@ mod lexer;
 mod seqs;
 mod vec_map;
 
-use crate::lexer::{LexemeIter, Lexer, LexerBuilder, Token};
+use crate::lexer::{LexemeIter, Lexer, LexerBuilder, Position, Span, Token};
 use crate::vec_map::VecMap;
 use dyn_clone::{clone_box, clone_trait_object, DynClone};
 use initial_set::{ChoiceTable, InitialSet};
@@ -80,7 +80,7 @@ impl<T> Parser<T> {
 pub enum ParseError {
     #[error("Parse error: {0}")]
     CustomError(String),
-    #[error("Parse error: expected {expected} but found {found}")]
+    #[error("Parse error: expected {expected} but found '{found}'")]
     WrongToken { expected: String, found: String },
     #[error("Parse error: expected {expected} but found end of file")]
     NoToken { expected: String },
@@ -116,14 +116,12 @@ impl Grammar {
         Ok(Grammar(lexer_builder))
     }
 
-    pub fn string(&mut self, pattern: &str) -> Result<Parser<()>, GrammarError> {
-        let token = self.0.string(pattern)?;
+    pub fn string(&mut self, string: &str) -> Result<Parser<()>, GrammarError> {
+        let name = format!("'{}'", string);
+        let token = self.0.string(string)?;
         Ok(Parser {
-            initial_set: InitialSet::new_token(pattern, token),
-            parse_fn: Box::new(StringP {
-                name: pattern.to_owned(),
-                token,
-            }),
+            initial_set: InitialSet::new_token(name.clone(), token),
+            parse_fn: Box::new(StringP { name, token }),
         })
     }
 
@@ -135,7 +133,7 @@ impl Grammar {
     ) -> Result<Parser<T>, GrammarError> {
         let token = self.0.regex(regex)?;
         Ok(Parser {
-            initial_set: InitialSet::new_token(name, token),
+            initial_set: InitialSet::new_token(name.to_owned(), token),
             parse_fn: Box::new(RegexP {
                 name: name.to_owned(),
                 token,

@@ -28,11 +28,11 @@ impl InitialSet {
         }
     }
 
-    pub fn new_token(name: &str, token: Token) -> InitialSet {
+    pub fn new_token(name: String, token: Token) -> InitialSet {
         let mut accepted_tokens = VecMap::new();
-        accepted_tokens.set(token, name.to_owned());
+        accepted_tokens.set(token, name.clone());
         InitialSet {
-            name: name.to_owned(),
+            name,
             accepts_empty: false,
             accepted_tokens,
         }
@@ -137,10 +137,10 @@ impl ChoiceTable {
 
 #[test]
 fn test_initial_sets() {
-    let set_a = InitialSet::new_token("A", 65);
-    let set_b = InitialSet::new_token("B", 66);
-    let set_c = InitialSet::new_token("C", 67);
-    let set_d = InitialSet::new_token("D", 68);
+    let set_a = InitialSet::new_token("A".to_owned(), 65);
+    let set_b = InitialSet::new_token("B".to_owned(), 66);
+    let set_c = InitialSet::new_token("C".to_owned(), 67);
+    let set_d = InitialSet::new_token("D".to_owned(), 68);
     let set_empty = InitialSet::new_empty("e");
 
     let mut set_a_empty = set_empty.clone();

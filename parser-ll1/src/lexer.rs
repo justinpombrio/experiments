@@ -43,6 +43,10 @@ pub type Token = usize;
 
 pub const TOKEN_ERROR: Token = Token::MAX;
 
+/*========================================*/
+/*          Pattern                       */
+/*========================================*/
+
 #[derive(Debug, Clone)]
 pub struct Pattern {
     regex: Regex,
@@ -76,6 +80,10 @@ impl Pattern {
 fn new_regex(regex: &str) -> Result<Regex, RegexError> {
     Regex::new(&format!("^({})", regex))
 }
+
+/*========================================*/
+/*          LexerBuilder                  */
+/*========================================*/
 
 #[derive(Debug, Clone)]
 pub struct LexerBuilder {
@@ -144,6 +152,10 @@ impl LexerBuilder {
     }
 }
 
+/*========================================*/
+/*          Lexer                         */
+/*========================================*/
+
 #[derive(Debug, Clone)]
 pub struct Lexer {
     whitespace: Regex,
@@ -168,6 +180,10 @@ impl Lexer {
     }
 }
 
+/*========================================*/
+/*          Lexeme                        */
+/*========================================*/
+
 /// One "word" in the stream returned by the lexer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Lexeme<'s> {
@@ -178,6 +194,10 @@ pub struct Lexeme<'s> {
     /// The position just after the last character in the lexeme.
     pub end: Position,
 }
+
+/*========================================*/
+/*          Position, Span                */
+/*========================================*/
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position {
@@ -211,6 +231,23 @@ impl Position {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Span<'s> {
+    pub substring: &'s str,
+    pub start: Position,
+    pub end: Position,
+}
+
+impl<'s> fmt::Display for Span<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}-{}", self.start, self.end)
+    }
+}
+
+/*========================================*/
+/*          LexemeIter                    */
+/*========================================*/
+
 #[derive(Debug, Clone)]
 pub struct LexemeIter<'l, 's> {
     position: Position,
@@ -220,6 +257,14 @@ pub struct LexemeIter<'l, 's> {
 }
 
 impl<'l, 's> LexemeIter<'l, 's> {
+    pub fn position(&self) -> Position {
+        self.position
+    }
+
+    pub fn remaining_source(&self) -> &str {
+        &self.source
+    }
+
     fn consume(&mut self, len: usize) -> (&'s str, Position, Position) {
         let start = self.position;
         for ch in self.source[..len].chars() {
