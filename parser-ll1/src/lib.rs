@@ -25,6 +25,7 @@ use dyn_clone::{clone_box, clone_trait_object, DynClone};
 use initial_set::{ChoiceTable, InitialSet};
 use regex::Error as RegexError;
 use regex::Regex;
+use std::array;
 use std::cell::OnceCell;
 use std::error::Error;
 use std::iter::Peekable;
@@ -317,6 +318,58 @@ pub fn seq2<T0: Clone + 'static, T1: Clone + 'static>(
     Ok(Parser {
         initial_set,
         parse_fn: Box::new(Seq2P(parser_0.parse_fn, parser_1.parse_fn)),
+    })
+}
+
+/*========================================*/
+/*          Parser: Choice                */
+/*========================================*/
+
+struct ChoiceP<T, const N: usize> {
+    name: String,
+    choice_table: ChoiceTable,
+    parse_fns: [ParseFn<T>; N],
+}
+
+impl<T: Clone, const N: usize> Clone for ChoiceP<T, N> {
+    fn clone(&self) -> Self {
+        ChoiceP {
+            name: self.name.clone(),
+            choice_table: self.choice_table.clone(),
+            parse_fns: array::from_fn(|i| clone_box(self.parse_fns[i].as_ref())),
+        }
+    }
+}
+
+impl<T: Clone, const N: usize> Parse<T> for ChoiceP<T, N> {
+    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
+        let lexeme = stream.peek();
+        match self.choice_table.lookup(lexeme.map(|lex| lex.token)) {
+            None => Err(ParseError::new(&self.name, lexeme.map(|lex| lex.lexeme))),
+            Some(i) => self.parse_fns[i].parse(stream),
+        }
+    }
+}
+
+pub fn choice<T: Clone + 'static, const N: usize>(
+    name: &str,
+    parsers: [Parser<T>; N],
+) -> Result<Parser<T>, GrammarError> {
+    // Would be nice to avoid this copy, but I don't think you can do that
+    // in Rust right now?
+    let initial_sets = parsers
+        .iter()
+        .map(|p| p.initial_set.clone())
+        .collect::<Vec<_>>();
+    let parse_fns = parsers.map(|p| p.parse_fn);
+    let (choice_table, initial_set) = ChoiceTable::new(name, initial_sets)?;
+    Ok(Parser {
+        initial_set,
+        parse_fn: Box::new(ChoiceP {
+            name: name.to_owned(),
+            choice_table,
+            parse_fns,
+        }),
     })
 }
 
