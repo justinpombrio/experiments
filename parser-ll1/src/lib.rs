@@ -1,6 +1,9 @@
 // TODO: temporary
 #![allow(unused)]
 
+// TODO: More combinators needed:
+// - lexeme
+
 // This design achieves all of the following:
 //
 // - The lexer isn't exposed (i.e. `Token` isn't in the interface).
@@ -31,6 +34,8 @@ use std::error::Error;
 use std::iter::Peekable;
 use std::rc::{Rc, Weak};
 use thiserror::Error;
+
+pub use seqs::{seq3, seq4};
 
 /*========================================*/
 /*          Interface                     */
@@ -109,13 +114,6 @@ impl Grammar {
         let lexer_builder =
             LexerBuilder::new(whitespace_regex).map_err(GrammarError::RegexError)?;
         Ok(Grammar(lexer_builder))
-    }
-
-    pub fn empty() -> Result<Parser<()>, GrammarError> {
-        Ok(Parser {
-            initial_set: InitialSet::new_empty("empty"),
-            parse_fn: Box::new(EmptyP),
-        })
     }
 
     pub fn string(&mut self, pattern: &str) -> Result<Parser<()>, GrammarError> {
@@ -246,6 +244,13 @@ impl Parse<()> for EmptyP {
     }
 }
 
+pub fn empty() -> Parser<()> {
+    Parser {
+        initial_set: InitialSet::new_empty("empty"),
+        parse_fn: Box::new(EmptyP),
+    }
+}
+
 /*========================================*/
 /*          Parser: Map                   */
 /*========================================*/
@@ -275,17 +280,14 @@ impl<T: Clone + 'static> Parser<T>
 where
     Self: Clone,
 {
-    fn map<O: Clone + 'static>(
-        self,
-        func: impl Fn(T) -> O + Clone + 'static,
-    ) -> Result<Parser<O>, GrammarError> {
-        Ok(Parser {
+    pub fn map<O: Clone + 'static>(self, func: impl Fn(T) -> O + Clone + 'static) -> Parser<O> {
+        Parser {
             initial_set: self.initial_set,
             parse_fn: Box::new(MapP {
                 parse_fn: self.parse_fn,
                 func,
             }),
-        })
+        }
     }
 }
 
@@ -374,6 +376,55 @@ pub fn choice<T: Clone + 'static, const N: usize>(
 }
 
 /*========================================*/
+/*          Parser: Optional              */
+/*========================================*/
+
+impl<T: Clone + 'static> Parser<T> {
+    pub fn optional(self) -> Result<Parser<Option<T>>, GrammarError> {
+        let name = self.initial_set.name().to_owned();
+        choice(&name, [empty().map(|()| None), self.map(Some)])
+    }
+}
+
+/*========================================*/
+/*          Parser: Complete              */
+/*========================================*/
+
+struct CompleteP<T> {
+    parse_fn: ParseFn<T>,
+}
+
+impl<T: Clone> Clone for CompleteP<T> {
+    fn clone(&self) -> Self {
+        CompleteP {
+            parse_fn: clone_box(self.parse_fn.as_ref()),
+        }
+    }
+}
+
+impl<T: Clone> Parse<T> for CompleteP<T> {
+    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
+        let result = self.parse_fn.parse(stream)?;
+        if let Some(lexeme) = stream.peek() {
+            Err(ParseError::new("end of file", Some(lexeme.lexeme)))
+        } else {
+            Ok(result)
+        }
+    }
+}
+
+impl<T: Clone + 'static> Parser<T> {
+    pub fn complete(self) -> Parser<T> {
+        Parser {
+            initial_set: self.initial_set,
+            parse_fn: Box::new(CompleteP {
+                parse_fn: self.parse_fn,
+            }),
+        }
+    }
+}
+
+/*========================================*/
 /*          Parser: Recur                 */
 /*========================================*/
 
@@ -399,11 +450,4 @@ pub fn recur<T: Clone + 'static>(
     let outer_parser = make_parser(inner_parser)?;
     cell.set(outer_parser.clone());
     Ok(outer_parser)
-}
-
-// TODO: temporary testing!
-
-fn use_recur(g: &mut Grammar) -> Result<Parser<()>, GrammarError> {
-    let x = g.string("x")?;
-    recur(|more| seq2(x, more)?.map(|_| ()))
 }
