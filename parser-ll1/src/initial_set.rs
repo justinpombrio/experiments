@@ -85,6 +85,16 @@ impl InitialSet {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    #[cfg(test)]
+    fn accepts_empty(&self) -> bool {
+        self.accepts_empty
+    }
+
+    #[cfg(test)]
+    fn accepts_token(&self, token: Token) -> bool {
+        self.accepted_tokens.get(token).is_some()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -127,28 +137,66 @@ impl ChoiceTable {
 
 #[test]
 fn test_initial_sets() {
-    let mut set_2 = InitialSet::new("testing");
-    assert!(set_2.add_token(2, "two".to_owned()).is_ok());
-    let mut set_empty_2 = InitialSet::new("testing");
-    assert!(set_empty_2.add_empty().is_ok());
-    assert!(set_empty_2.union(set_2).is_ok());
+    let set_a = InitialSet::new_token("A", 65);
+    let set_b = InitialSet::new_token("B", 66);
+    let set_c = InitialSet::new_token("C", 67);
+    let set_d = InitialSet::new_token("D", 68);
+    let set_empty = InitialSet::new_empty("e");
 
-    let mut set_5 = InitialSet::new("testing");
-    assert!(set_5.add_token(5, "five".to_owned()).is_ok());
+    let mut set_a_empty = set_empty.clone();
+    assert!(set_a_empty.union("Ae", set_a.clone()).is_ok());
+    assert!(set_a_empty.union("Aee", set_empty.clone()).is_err());
+    assert!(set_a_empty.accepts_empty());
+    assert!(set_a_empty.accepts_token(65));
+    assert!(!set_a_empty.accepts_token(66));
 
-    let mut set_4 = InitialSet::new("testing");
-    assert!(set_4.add_token(4, "four".to_owned()).is_ok());
-    let mut set_14 = InitialSet::new("testing");
-    assert!(set_14.add_empty().is_ok());
-    assert!(set_14.add_token(1, "one".to_owned()).is_ok());
-    assert!(set_14.seq(set_4).is_ok());
+    let mut set_bc = set_c.clone();
+    assert!(set_bc.union("BC", set_b.clone()).is_ok());
+    assert!(set_bc.union("BCC", set_c.clone()).is_err());
+    assert!(!set_bc.accepts_empty());
+    assert!(!set_bc.accepts_token(65));
+    assert!(set_bc.accepts_token(66));
+    assert!(set_bc.accepts_token(67));
 
-    let (table, set) = ChoiceTable::new("testing", vec![set_empty_2, set_5, set_14]).unwrap();
-    assert_eq!(table.lookup(None), Some(0));
-    assert_eq!(table.lookup(Some(1)), Some(2));
-    assert_eq!(table.lookup(Some(2)), Some(0));
-    assert_eq!(table.lookup(Some(3)), None);
-    assert_eq!(table.lookup(Some(4)), Some(2));
-    assert_eq!(table.lookup(Some(5)), Some(1));
-    assert_eq!(table.lookup(Some(6)), None);
+    let mut set_d_empty = set_d.clone();
+    assert!(set_d_empty.union("De", set_empty.clone()).is_ok());
+    assert!(set_d_empty.accepts_empty());
+    assert!(set_d_empty.accepts_token(68));
+
+    let mut set_seq = set_d_empty.clone();
+    assert!(set_seq.seq(set_bc.clone()).is_ok());
+    assert!(set_seq.seq(set_a_empty.clone()).is_ok());
+    assert!(!set_seq.accepts_empty());
+    assert!(!set_seq.accepts_token(65));
+    assert!(set_seq.accepts_token(66));
+    assert!(set_seq.accepts_token(67));
+    assert!(set_seq.accepts_token(68));
+
+    assert!(ChoiceTable::new(
+        "testing",
+        vec![set_a_empty.clone(), set_bc.clone(), set_d_empty.clone()]
+    )
+    .is_err());
+
+    assert!(ChoiceTable::new(
+        "testing",
+        vec![set_a_empty.clone(), set_bc.clone(), set_a.clone()]
+    )
+    .is_err());
+
+    let (table, set) = ChoiceTable::new(
+        "testing",
+        vec![set_c.clone(), set_a_empty.clone(), set_d.clone()],
+    )
+    .unwrap();
+    assert!(set.accepts_empty());
+    assert!(set.accepts_token(65));
+    assert!(!set.accepts_token(66));
+    assert!(set.accepts_token(67));
+    assert!(set.accepts_token(68));
+    assert_eq!(table.lookup(None), Some(1));
+    assert_eq!(table.lookup(Some(65)), Some(1));
+    assert_eq!(table.lookup(Some(66)), None);
+    assert_eq!(table.lookup(Some(67)), Some(0));
+    assert_eq!(table.lookup(Some(68)), Some(2));
 }
