@@ -31,7 +31,6 @@ use regex::Regex;
 use std::array;
 use std::cell::OnceCell;
 use std::error::Error;
-use std::iter::Peekable;
 use std::rc::{Rc, Weak};
 use thiserror::Error;
 
@@ -41,8 +40,6 @@ pub use seqs::{seq3, seq4};
 /*          Interface                     */
 /*========================================*/
 
-type Lexemes<'l, 's> = Peekable<LexemeIter<'l, 's>>;
-
 pub struct Parser<T> {
     initial_set: InitialSet,
     parse_fn: ParseFn<T>,
@@ -51,7 +48,7 @@ pub struct Parser<T> {
 type ParseFn<T> = Box<dyn Parse<T>>;
 
 trait Parse<T>: DynClone {
-    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError>;
+    fn parse(&self, stream: &mut LexemeIter) -> Result<T, ParseError>;
 }
 
 impl<T> Clone for Parser<T> {
@@ -153,7 +150,7 @@ impl Grammar {
             // implement `Clone`. Force it to capture `&parser` instead.
             let parser = &parser;
 
-            let mut lexemes = lexer.lex(input).peekable();
+            let mut lexemes = lexer.lex(input);
             parser.parse_fn.parse(&mut lexemes)
         }
     }
@@ -189,7 +186,7 @@ struct StringP {
 }
 
 impl Parse<()> for StringP {
-    fn parse(&self, stream: &mut Lexemes) -> Result<(), ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<(), ParseError> {
         if let Some(lexeme) = stream.peek() {
             if lexeme.token == self.token {
                 stream.next();
@@ -215,7 +212,7 @@ struct RegexP<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> {
 }
 
 impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parse<T> for RegexP<T, F> {
-    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<T, ParseError> {
         if let Some(lexeme) = stream.peek() {
             if lexeme.token == self.token {
                 let lexeme = stream.next().unwrap();
@@ -237,7 +234,7 @@ impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parse<T> for RegexP<T, 
 struct EmptyP;
 
 impl Parse<()> for EmptyP {
-    fn parse(&self, stream: &mut Lexemes) -> Result<(), ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<(), ParseError> {
         Ok(())
     }
 }
@@ -268,7 +265,7 @@ impl<I: Clone, O: Clone, F: Fn(I) -> O + Clone> Clone for MapP<I, O, F> {
 }
 
 impl<I: Clone, O: Clone, F: Fn(I) -> O + Clone> Parse<O> for MapP<I, O, F> {
-    fn parse(&self, stream: &mut Lexemes) -> Result<O, ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<O, ParseError> {
         let result = self.parse_fn.parse(stream)?;
         Ok((self.func)(result))
     }
@@ -302,7 +299,7 @@ impl<T0: Clone, T1: Clone> Clone for Seq2P<T0, T1> {
 }
 
 impl<T0: Clone, T1: Clone> Parse<(T0, T1)> for Seq2P<T0, T1> {
-    fn parse(&self, stream: &mut Lexemes) -> Result<(T0, T1), ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<(T0, T1), ParseError> {
         let result_0 = self.0.parse(stream)?;
         let result_1 = self.1.parse(stream)?;
         Ok((result_0, result_1))
@@ -342,7 +339,7 @@ impl<T: Clone, const N: usize> Clone for ChoiceP<T, N> {
 }
 
 impl<T: Clone, const N: usize> Parse<T> for ChoiceP<T, N> {
-    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<T, ParseError> {
         let lexeme = stream.peek();
         match self.choice_table.lookup(lexeme.map(|lex| lex.token)) {
             None => Err(ParseError::new(&self.name, lexeme.map(|lex| lex.lexeme))),
@@ -401,7 +398,7 @@ impl<T: Clone> Clone for CompleteP<T> {
 }
 
 impl<T: Clone> Parse<T> for CompleteP<T> {
-    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<T, ParseError> {
         let result = self.parse_fn.parse(stream)?;
         if let Some(lexeme) = stream.peek() {
             Err(ParseError::new("end of file", Some(lexeme.lexeme)))
@@ -430,7 +427,7 @@ impl<T: Clone + 'static> Parser<T> {
 pub struct Recur<T>(Rc<OnceCell<Parser<T>>>);
 
 impl<T: Clone> Parse<T> for Recur<T> {
-    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<T, ParseError> {
         self.0.get().unwrap().parse_fn.parse(stream)
     }
 }

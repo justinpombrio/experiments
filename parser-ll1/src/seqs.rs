@@ -1,4 +1,5 @@
-use crate::{GrammarError, Lexemes, Parse, ParseError, ParseFn, Parser};
+use crate::lexer::LexemeIter;
+use crate::{GrammarError, Parse, ParseError, ParseFn, Parser};
 use dyn_clone::clone_box;
 
 /*========================================*/
@@ -18,7 +19,7 @@ impl<T0: Clone, T1: Clone, T2: Clone> Clone for Seq3P<T0, T1, T2> {
 }
 
 impl<T0: Clone, T1: Clone, T2: Clone> Parse<(T0, T1, T2)> for Seq3P<T0, T1, T2> {
-    fn parse(&self, stream: &mut Lexemes) -> Result<(T0, T1, T2), ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<(T0, T1, T2), ParseError> {
         let result_0 = self.0.parse(stream)?;
         let result_1 = self.1.parse(stream)?;
         let result_2 = self.2.parse(stream)?;
@@ -62,7 +63,7 @@ impl<T0: Clone, T1: Clone, T2: Clone, T3: Clone> Clone for Seq4P<T0, T1, T2, T3>
 }
 
 impl<T0: Clone, T1: Clone, T2: Clone, T3: Clone> Parse<(T0, T1, T2, T3)> for Seq4P<T0, T1, T2, T3> {
-    fn parse(&self, stream: &mut Lexemes) -> Result<(T0, T1, T2, T3), ParseError> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<(T0, T1, T2, T3), ParseError> {
         let result_0 = self.0.parse(stream)?;
         let result_1 = self.1.parse(stream)?;
         let result_2 = self.2.parse(stream)?;

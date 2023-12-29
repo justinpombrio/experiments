@@ -265,6 +265,10 @@ impl<'l, 's> LexemeIter<'l, 's> {
         &self.source
     }
 
+    pub fn peek(&self) -> Option<Lexeme<'s>> {
+        self.clone().next()
+    }
+
     fn consume(&mut self, len: usize) -> (&'s str, Position, Position) {
         let start = self.position;
         for ch in self.source[..len].chars() {
