@@ -38,13 +38,13 @@ type Lexemes<'l, 's> = Peekable<LexemeIter<'l, 's>>;
 
 pub struct Parser<T> {
     initial_set: InitialSet,
-    parse_fn: Box<dyn Parse<Output = T>>,
+    parse_fn: ParseFn<T>,
 }
 
-trait Parse: DynClone {
-    type Output;
+type ParseFn<T> = Box<dyn Parse<T>>;
 
-    fn parse(&self, stream: &mut Lexemes) -> Result<Self::Output, ParseError>;
+trait Parse<T>: DynClone {
+    fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError>;
 }
 
 impl<T> Clone for Parser<T> {
@@ -57,7 +57,7 @@ impl<T> Clone for Parser<T> {
 }
 
 impl<T> Parser<T> {
-    fn new<P: Parse<Output = T> + 'static>(initial_set: InitialSet, parse: P) -> Parser<T> {
+    fn new<P: Parse<T> + 'static>(initial_set: InitialSet, parse: P) -> Parser<T> {
         Parser {
             initial_set,
             parse_fn: Box::new(parse),
@@ -190,9 +190,7 @@ struct StringP {
     token: Token,
 }
 
-impl Parse for StringP {
-    type Output = ();
-
+impl Parse<()> for StringP {
     fn parse(&self, stream: &mut Lexemes) -> Result<(), ParseError> {
         if let Some(lexeme) = stream.peek() {
             if lexeme.token == self.token {
@@ -218,9 +216,7 @@ struct RegexP<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> {
     func: F,
 }
 
-impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parse for RegexP<T, F> {
-    type Output = T;
-
+impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parse<T> for RegexP<T, F> {
     fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
         if let Some(lexeme) = stream.peek() {
             if lexeme.token == self.token {
@@ -242,9 +238,7 @@ impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parse for RegexP<T, F> 
 #[derive(Clone)]
 struct EmptyP;
 
-impl Parse for EmptyP {
-    type Output = ();
-
+impl Parse<()> for EmptyP {
     fn parse(&self, stream: &mut Lexemes) -> Result<(), ParseError> {
         Ok(())
     }
@@ -255,7 +249,7 @@ impl Parse for EmptyP {
 /*========================================*/
 
 struct MapP<I: Clone, O: Clone, F: Fn(I) -> O + Clone> {
-    parse_fn: Box<dyn Parse<Output = I>>,
+    parse_fn: ParseFn<I>,
     func: F,
 }
 
@@ -268,9 +262,7 @@ impl<I: Clone, O: Clone, F: Fn(I) -> O + Clone> Clone for MapP<I, O, F> {
     }
 }
 
-impl<I: Clone, O: Clone, F: Fn(I) -> O + Clone> Parse for MapP<I, O, F> {
-    type Output = O;
-
+impl<I: Clone, O: Clone, F: Fn(I) -> O + Clone> Parse<O> for MapP<I, O, F> {
     fn parse(&self, stream: &mut Lexemes) -> Result<O, ParseError> {
         let result = self.parse_fn.parse(stream)?;
         Ok((self.func)(result))
@@ -299,7 +291,7 @@ where
 /*          Parser: Seq2                  */
 /*========================================*/
 
-struct Seq2P<T0, T1>(Box<dyn Parse<Output = T0>>, Box<dyn Parse<Output = T1>>);
+struct Seq2P<T0, T1>(ParseFn<T0>, ParseFn<T1>);
 
 impl<T0: Clone, T1: Clone> Clone for Seq2P<T0, T1> {
     fn clone(&self) -> Self {
@@ -307,10 +299,8 @@ impl<T0: Clone, T1: Clone> Clone for Seq2P<T0, T1> {
     }
 }
 
-impl<T0: Clone, T1: Clone> Parse for Seq2P<T0, T1> {
-    type Output = (T0, T1);
-
-    fn parse(&self, stream: &mut Lexemes) -> Result<Self::Output, ParseError> {
+impl<T0: Clone, T1: Clone> Parse<(T0, T1)> for Seq2P<T0, T1> {
+    fn parse(&self, stream: &mut Lexemes) -> Result<(T0, T1), ParseError> {
         let result_0 = self.0.parse(stream)?;
         let result_1 = self.1.parse(stream)?;
         Ok((result_0, result_1))
@@ -336,9 +326,7 @@ pub fn seq2<T0: Clone + 'static, T1: Clone + 'static>(
 #[derive(Clone)]
 pub struct Recur<T>(Rc<OnceCell<Parser<T>>>);
 
-impl<T: Clone> Parse for Recur<T> {
-    type Output = T;
-
+impl<T: Clone> Parse<T> for Recur<T> {
     fn parse(&self, stream: &mut Lexemes) -> Result<T, ParseError> {
         self.0.get().unwrap().parse_fn.parse(stream)
     }
