@@ -22,7 +22,7 @@ mod lexer;
 mod seqs;
 mod vec_map;
 
-use crate::lexer::{LexemeIter, Lexer, LexerBuilder, Position, Span, Token};
+use crate::lexer::{LexemeIter, Lexer, LexerBuilder, Position, Token};
 use crate::vec_map::VecMap;
 use dyn_clone::{clone_box, clone_trait_object, DynClone};
 use initial_set::{ChoiceTable, InitialSet};
@@ -31,6 +31,7 @@ use regex::Regex;
 use std::array;
 use std::cell::OnceCell;
 use std::error::Error;
+use std::fmt;
 use std::rc::{Rc, Weak};
 use thiserror::Error;
 
@@ -118,24 +119,16 @@ impl Grammar {
         let token = self.0.string(string)?;
         Ok(Parser {
             initial_set: InitialSet::new_token(name.clone(), token),
-            parse_fn: Box::new(StringP { name, token }),
+            parse_fn: Box::new(TokenP { name, token }),
         })
     }
 
-    pub fn regex<T: Clone + 'static>(
-        &mut self,
-        name: &str,
-        regex: &str,
-        func: impl Fn(&str) -> Result<T, String> + Clone + 'static,
-    ) -> Result<Parser<T>, GrammarError> {
+    pub fn regex(&mut self, name: &str, regex: &str) -> Result<Parser<()>, GrammarError> {
+        let name = name.to_owned();
         let token = self.0.regex(regex)?;
         Ok(Parser {
-            initial_set: InitialSet::new_token(name.to_owned(), token),
-            parse_fn: Box::new(RegexP {
-                name: name.to_owned(),
-                token,
-                func,
-            }),
+            initial_set: InitialSet::new_token(name.clone(), token),
+            parse_fn: Box::new(TokenP { name, token }),
         })
     }
 
@@ -176,47 +169,21 @@ pub enum GrammarError {
 }
 
 /*========================================*/
-/*          Parser: String                */
+/*          Parser: Token                 */
 /*========================================*/
 
 #[derive(Clone)]
-struct StringP {
+struct TokenP {
     name: String,
     token: Token,
 }
 
-impl Parse<()> for StringP {
+impl Parse<()> for TokenP {
     fn parse(&self, stream: &mut LexemeIter) -> Result<(), ParseError> {
         if let Some(lexeme) = stream.peek() {
             if lexeme.token == self.token {
                 stream.next();
                 return Ok(());
-            }
-        }
-        Err(ParseError::new(
-            &self.name,
-            stream.next().map(|lex| lex.lexeme),
-        ))
-    }
-}
-
-/*========================================*/
-/*          Parser: Regex                 */
-/*========================================*/
-
-#[derive(Clone)]
-struct RegexP<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> {
-    name: String,
-    token: Token,
-    func: F,
-}
-
-impl<T: Clone, F: Fn(&str) -> Result<T, String> + Clone> Parse<T> for RegexP<T, F> {
-    fn parse(&self, stream: &mut LexemeIter) -> Result<T, ParseError> {
-        if let Some(lexeme) = stream.peek() {
-            if lexeme.token == self.token {
-                let lexeme = stream.next().unwrap();
-                return (self.func)(lexeme.lexeme).map_err(ParseError::CustomError);
             }
         }
         Err(ParseError::new(
@@ -279,6 +246,71 @@ where
         Parser {
             initial_set: self.initial_set,
             parse_fn: Box::new(MapP {
+                parse_fn: self.parse_fn,
+                func,
+            }),
+        }
+    }
+}
+
+/*========================================*/
+/*          Parser: Span                  */
+/*========================================*/
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Span<'s> {
+    pub substring: &'s str,
+    pub start: Position,
+    pub end: Position,
+}
+
+impl<'s> fmt::Display for Span<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}-{}", self.start, self.end)
+    }
+}
+
+struct SpanP<I: Clone, O: Clone, F: Fn(Span, I) -> O + Clone> {
+    parse_fn: ParseFn<I>,
+    func: F,
+}
+
+impl<I: Clone, O: Clone, F: Fn(Span, I) -> O + Clone> Clone for SpanP<I, O, F> {
+    fn clone(&self) -> Self {
+        SpanP {
+            parse_fn: clone_box(self.parse_fn.as_ref()),
+            func: self.func.clone(),
+        }
+    }
+}
+
+impl<I: Clone, O: Clone, F: Fn(Span, I) -> O + Clone> Parse<O> for SpanP<I, O, F> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<O, ParseError> {
+        let start = stream.pos();
+        let source = stream.remaining_source();
+        let result = self.parse_fn.parse(stream)?;
+        let end = stream.pos();
+        let len = end.pos - start.pos;
+        let span = Span {
+            substring: &source[0..len],
+            start,
+            end,
+        };
+        Ok((self.func)(span, result))
+    }
+}
+
+impl<T: Clone + 'static> Parser<T>
+where
+    Self: Clone,
+{
+    pub fn map_span<O: Clone + 'static>(
+        self,
+        func: impl Fn(Span, T) -> O + Clone + 'static,
+    ) -> Parser<O> {
+        Parser {
+            initial_set: self.initial_set,
+            parse_fn: Box::new(SpanP {
                 parse_fn: self.parse_fn,
                 func,
             }),

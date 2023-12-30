@@ -17,7 +17,9 @@ fn make_parser(
             '.' => stack.push(empty().map(|()| ".".to_owned())),
             '/' => {
                 let word = mem::take(&mut word);
-                let parser = grammar.regex("regex", &word, |lex| Ok(lex.to_owned()))?;
+                let parser = grammar
+                    .regex("regex", &word)?
+                    .map_span(|span, ()| span.substring.to_owned());
                 stack.push(parser);
             }
             '"' => {
@@ -98,7 +100,7 @@ fn make_parser(
             _ => word.push(ch),
         }
     }
-    assert_eq!(stack.len(), 1);
+    assert_eq!(stack.len(), 1, "Bad parser test case");
     let parser = stack.into_iter().next().unwrap();
     Ok(grammar.make_parse_fn(parser))
 }

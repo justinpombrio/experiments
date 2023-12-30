@@ -196,7 +196,7 @@ pub struct Lexeme<'s> {
 }
 
 /*========================================*/
-/*          Position, Span                */
+/*          Position                      */
 /*========================================*/
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -231,19 +231,6 @@ impl Position {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Span<'s> {
-    pub substring: &'s str,
-    pub start: Position,
-    pub end: Position,
-}
-
-impl<'s> fmt::Display for Span<'s> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}-{}", self.start, self.end)
-    }
-}
-
 /*========================================*/
 /*          LexemeIter                    */
 /*========================================*/
@@ -257,11 +244,11 @@ pub struct LexemeIter<'l, 's> {
 }
 
 impl<'l, 's> LexemeIter<'l, 's> {
-    pub fn position(&self) -> Position {
+    pub fn pos(&self) -> Position {
         self.position
     }
 
-    pub fn remaining_source(&self) -> &str {
+    pub fn remaining_source(&self) -> &'s str {
         &self.source
     }
 

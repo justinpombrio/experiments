@@ -7,3 +7,7 @@ EXPECT ok (abc def)
 
 INPUT abcd ef
 EXPECT err Parse error: expected 'def' but found 'd'
+
+PARSER [0-9]+
+INPUT 234
+EXPECT ok 234
