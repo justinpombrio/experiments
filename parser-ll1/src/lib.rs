@@ -1,8 +1,49 @@
 // TODO: temporary
 #![allow(unused)]
 
-// TODO: More combinators needed:
-// - sep
+//! # LL1 Parser -- Status
+//!
+//! Doesn't quite work as is, as recursion is broken! Each choice builds a
+//! ChoiceTable mapping token to child parser to jump to, but if one of the
+//! children is an inner 'Recur', it does not yet know its initial tokens,
+//! so the ChoiceTable ends up incorrect.
+//!
+//! (Example broken parse: `echo '[5]' | cargo run --example json`)
+//!
+//! Besides that, things look good:
+//!
+//! - Parsing is linear time and should be very fast assuming that Rust is
+//!   able to do some straightforward un-dyn-boxing.
+//! - Parse errors are good, though they don't yet have fancy underlines.
+//! - Grammar errors are good.
+//! - Expressivity is quite good. A few more combinators would be useful,
+//!   but they could all be defined in terms of existing ones.
+//!
+//! How to fix recursion:
+//!
+//! - InitialSet is fine as it is.
+//! - ChoiceTable will go; we'll try choices one at a time instead.
+//! - Parse functions need to change. parse() should return a ParseResult,
+//!   which can be Success, Error, or Fatal. The behavior is:
+//!   ```text
+//!   F & _ = F
+//!   _ & F = F
+//!   E & _ = E
+//!   S & E = F -- upgrade E->F
+//!   S & S = S
+//!   ```
+//!
+//!   ```text
+//!   F | _ = F
+//!   _ | F = F
+//!   S | _ = S
+//!   _ | S = S
+//!   E | E = E -- with msg from choice
+//!   ```
+//! - For LL1 validation, have another method on Parse:
+//!   `validate() -> Result<InitialSet, GrammarError>`
+//!
+//! Alternatively, could try to patch up recursive choices somehow?
 
 // This design achieves all of the following:
 //
@@ -269,7 +310,7 @@ where
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span<'s> {
-    pub substring: &'s str,
+    pub substr: &'s str,
     pub start: Position,
     pub end: Position,
 }
@@ -298,16 +339,16 @@ impl<I: Clone, O: Clone, F: Fn(Span, I) -> Result<O, String> + Clone> Parse<O>
     for TrySpanP<I, O, F>
 {
     fn parse(&self, stream: &mut LexemeIter) -> Result<O, ParseError> {
-        let start = stream.pos();
+        let zero = stream.pos();
         let source = stream.remaining_source();
+        let start = stream.peek().map(|lex| lex.start).unwrap_or(zero);
+
         let result = self.parse_fn.parse(stream)?;
+
         let end = stream.pos();
-        let len = end.pos - start.pos;
-        let span = Span {
-            substring: &source[0..len],
-            start,
-            end,
-        };
+        let substr = &source[start.pos - zero.pos..end.pos - zero.pos];
+        let span = Span { substr, start, end };
+
         (self.func)(span, result).map_err(ParseError::CustomError)
     }
 }
@@ -439,7 +480,16 @@ impl<T: Clone, const N: usize> Parse<T> for ChoiceP<T, N> {
         let lexeme = stream.peek();
         match self.choice_table.lookup(lexeme.map(|lex| lex.token)) {
             None => Err(ParseError::new(&self.name, lexeme.map(|lex| lex.lexeme))),
-            Some(i) => self.parse_fns[i].parse(stream),
+            Some(i) => {
+                println!(
+                    "choice {} picked {} for {:?} from {:?}",
+                    self.name,
+                    i,
+                    lexeme.map(|lex| lex.lexeme),
+                    self.choice_table
+                );
+                self.parse_fns[i].parse(stream)
+            }
         }
     }
 }
@@ -593,13 +643,14 @@ impl<T: Clone> Parse<T> for Recur<T> {
 }
 
 pub fn recur<T: Clone + 'static>(
+    name: &str,
     make_parser: impl FnOnce(Parser<T>) -> Result<Parser<T>, GrammarError>,
 ) -> Result<Parser<T>, GrammarError> {
     // TODO: Make sure this ever gets dropped. Needs weak?
     let cell = Rc::new(OnceCell::new());
     let recur = Recur(cell.clone());
     let inner_parser = Parser {
-        initial_set: InitialSet::new_void("recur"),
+        initial_set: InitialSet::new_void(name),
         parse_fn: Box::new(recur),
     };
     let outer_parser = make_parser(inner_parser)?;

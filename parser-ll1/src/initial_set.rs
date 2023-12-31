@@ -134,7 +134,7 @@ impl ChoiceTable {
     pub fn lookup(&self, token: Option<Token>) -> Option<usize> {
         match token {
             None => self.empty_index,
-            Some(token) => self.token_indices.get(token).copied(),
+            Some(token) => self.token_indices.get(token).copied().or(self.empty_index),
         }
     }
 }
@@ -200,7 +200,19 @@ fn test_initial_sets() {
     assert!(set.accepts_token(68));
     assert_eq!(table.lookup(None), Some(1));
     assert_eq!(table.lookup(Some(65)), Some(1));
-    assert_eq!(table.lookup(Some(66)), None);
+    assert_eq!(table.lookup(Some(66)), Some(1));
     assert_eq!(table.lookup(Some(67)), Some(0));
     assert_eq!(table.lookup(Some(68)), Some(2));
+
+    let (table, set) = ChoiceTable::new("testing", vec![set_c.clone(), set_d.clone()]).unwrap();
+    assert!(!set.accepts_empty());
+    assert!(!set.accepts_token(65));
+    assert!(!set.accepts_token(66));
+    assert!(set.accepts_token(67));
+    assert!(set.accepts_token(68));
+    assert_eq!(table.lookup(None), None);
+    assert_eq!(table.lookup(Some(65)), None);
+    assert_eq!(table.lookup(Some(66)), None);
+    assert_eq!(table.lookup(Some(67)), Some(0));
+    assert_eq!(table.lookup(Some(68)), Some(1));
 }

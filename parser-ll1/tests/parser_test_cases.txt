@@ -14,9 +14,9 @@ EXPECT ok 234
 INPUT 23a
 EXPECT err Parse error: expected end of file but found 'a'
 
-PARSER [a-z]+/
-INPUT abc
-EXPECT ok abc
+PARSER [a-z]+/ *
+INPUT abc de  f
+EXPECT ok (abc de f)
 
 PARSER ab" * c" &2
 INPUT abababc
