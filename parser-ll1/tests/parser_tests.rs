@@ -30,7 +30,7 @@ fn make_parser(
             }
             '?' => {
                 let parser = stack.pop().unwrap();
-                let parser = parser.optional()?.map(|opt| match opt {
+                let parser = parser.opt()?.map(|opt| match opt {
                     None => ".".to_owned(),
                     Some(s) => s,
                 });
@@ -44,6 +44,14 @@ fn make_parser(
             '$' => {
                 let parser = stack.pop().unwrap();
                 let parser = parser.complete();
+                stack.push(parser);
+            }
+            ',' => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .sep(parser_2)?
+                    .map(|vec| format!("({})", vec.join(" ")));
                 stack.push(parser);
             }
             '&' => match chars.peek() {

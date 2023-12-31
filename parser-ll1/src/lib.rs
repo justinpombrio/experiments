@@ -386,6 +386,22 @@ impl<T0: Clone, T1: Clone> Parse<(T0, T1)> for Seq2P<T0, T1> {
     }
 }
 
+impl<T0: Clone + 'static> Parser<T0> {
+    pub fn and<T1: Clone + 'static>(
+        self,
+        other: Parser<T1>,
+    ) -> Result<Parser<(T0, T1)>, GrammarError> {
+        seq2(self, other)
+    }
+
+    pub fn and_ignore<T1: Clone + 'static>(
+        self,
+        other: Parser<T1>,
+    ) -> Result<Parser<T0>, GrammarError> {
+        Ok(seq2(self, other)?.map(|(v0, _)| v0))
+    }
+}
+
 pub fn seq2<T0: Clone + 'static, T1: Clone + 'static>(
     parser_0: Parser<T0>,
     parser_1: Parser<T1>,
@@ -455,7 +471,7 @@ pub fn choice<T: Clone + 'static, const N: usize>(
 /*========================================*/
 
 impl<T: Clone + 'static> Parser<T> {
-    pub fn optional(self) -> Result<Parser<Option<T>>, GrammarError> {
+    pub fn opt(self) -> Result<Parser<Option<T>>, GrammarError> {
         let name = self.initial_set.name().to_owned();
         choice(&name, [empty().map(|()| None), self.map(Some)])
     }
@@ -509,6 +525,19 @@ impl<T: Clone + 'static> Parser<T> {
                 parse_fn: self.parse_fn,
             }),
         })
+    }
+
+    pub fn sep<U: Clone + 'static>(self, sep: Parser<U>) -> Result<Parser<Vec<T>>, GrammarError> {
+        let sep_elem = sep.and(self.clone())?.map(|(_, v)| v);
+        Ok(self
+            .clone()
+            .and(sep_elem.many()?)?
+            .map(|(last, mut vec)| {
+                vec.insert(0, last);
+                vec
+            })
+            .opt()?
+            .map(|opt| opt.unwrap_or_else(|| Vec::new())))
     }
 }
 
