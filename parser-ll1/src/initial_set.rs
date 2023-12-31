@@ -86,6 +86,10 @@ impl InitialSet {
         &self.name
     }
 
+    pub fn accepted_tokens(&self) -> VecMap<()> {
+        self.accepted_tokens.map(|_| ())
+    }
+
     #[cfg(test)]
     fn accepts_empty(&self) -> bool {
         self.accepts_empty

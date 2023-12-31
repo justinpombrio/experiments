@@ -19,7 +19,7 @@ fn make_parser(
                 let word = mem::take(&mut word);
                 let parser = grammar
                     .regex("regex", &word)?
-                    .map_span(|span, ()| span.substring.to_owned());
+                    .span(|span| span.substring.to_owned());
                 stack.push(parser);
             }
             '"' => {
@@ -34,6 +34,11 @@ fn make_parser(
                     None => ".".to_owned(),
                     Some(s) => s,
                 });
+                stack.push(parser);
+            }
+            '*' => {
+                let parser = stack.pop().unwrap();
+                let parser = parser.many()?.map(|vec| format!("({})", vec.join(" ")));
                 stack.push(parser);
             }
             '$' => {

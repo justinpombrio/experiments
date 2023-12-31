@@ -11,3 +11,7 @@ EXPECT err Parse error: expected 'def' but found 'd'
 PARSER [0-9]+/
 INPUT 234
 EXPECT ok 234
+
+PARSER ab" * c" &2
+INPUT abababc
+EXPECT ok ((ab ab ab) c)

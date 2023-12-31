@@ -34,6 +34,17 @@ impl<T> VecMap<T> {
             vec: &self.0,
         }
     }
+
+    pub fn map<U: Clone>(&self, func: impl Fn(T) -> U) -> VecMap<U>
+    where
+        T: Clone,
+    {
+        let mut result = VecMap(vec![None; self.0.len()]);
+        for (i, val) in self.iter() {
+            result.set(i, func(val.clone()));
+        }
+        result
+    }
 }
 
 pub struct VecMapIter<'a, T> {

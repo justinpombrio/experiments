@@ -2,7 +2,7 @@
 #![allow(unused)]
 
 // TODO: More combinators needed:
-// - lexeme
+// - sep
 
 // This design achieves all of the following:
 //
@@ -251,6 +251,16 @@ where
             }),
         }
     }
+
+    pub fn value<O: Clone + 'static>(self, value: O) -> Parser<O> {
+        Parser {
+            initial_set: self.initial_set,
+            parse_fn: Box::new(MapP {
+                parse_fn: self.parse_fn,
+                func: move |_| value.clone(),
+            }),
+        }
+    }
 }
 
 /*========================================*/
@@ -270,21 +280,23 @@ impl<'s> fmt::Display for Span<'s> {
     }
 }
 
-struct SpanP<I: Clone, O: Clone, F: Fn(Span, I) -> O + Clone> {
+struct TrySpanP<I: Clone, O: Clone, F: Fn(Span, I) -> Result<O, String> + Clone> {
     parse_fn: ParseFn<I>,
     func: F,
 }
 
-impl<I: Clone, O: Clone, F: Fn(Span, I) -> O + Clone> Clone for SpanP<I, O, F> {
+impl<I: Clone, O: Clone, F: Fn(Span, I) -> Result<O, String> + Clone> Clone for TrySpanP<I, O, F> {
     fn clone(&self) -> Self {
-        SpanP {
+        TrySpanP {
             parse_fn: clone_box(self.parse_fn.as_ref()),
             func: self.func.clone(),
         }
     }
 }
 
-impl<I: Clone, O: Clone, F: Fn(Span, I) -> O + Clone> Parse<O> for SpanP<I, O, F> {
+impl<I: Clone, O: Clone, F: Fn(Span, I) -> Result<O, String> + Clone> Parse<O>
+    for TrySpanP<I, O, F>
+{
     fn parse(&self, stream: &mut LexemeIter) -> Result<O, ParseError> {
         let start = stream.pos();
         let source = stream.remaining_source();
@@ -296,7 +308,7 @@ impl<I: Clone, O: Clone, F: Fn(Span, I) -> O + Clone> Parse<O> for SpanP<I, O, F
             start,
             end,
         };
-        Ok((self.func)(span, result))
+        (self.func)(span, result).map_err(ParseError::CustomError)
     }
 }
 
@@ -304,13 +316,49 @@ impl<T: Clone + 'static> Parser<T>
 where
     Self: Clone,
 {
+    pub fn span<O: Clone + 'static>(self, func: impl Fn(Span) -> O + Clone + 'static) -> Parser<O> {
+        Parser {
+            initial_set: self.initial_set,
+            parse_fn: Box::new(TrySpanP {
+                parse_fn: self.parse_fn,
+                func: move |span, _| Ok(func(span)),
+            }),
+        }
+    }
+
     pub fn map_span<O: Clone + 'static>(
         self,
         func: impl Fn(Span, T) -> O + Clone + 'static,
     ) -> Parser<O> {
         Parser {
             initial_set: self.initial_set,
-            parse_fn: Box::new(SpanP {
+            parse_fn: Box::new(TrySpanP {
+                parse_fn: self.parse_fn,
+                func: move |span, val| Ok(func(span, val)),
+            }),
+        }
+    }
+
+    pub fn try_span<O: Clone + 'static>(
+        self,
+        func: impl Fn(Span) -> Result<O, String> + Clone + 'static,
+    ) -> Parser<O> {
+        Parser {
+            initial_set: self.initial_set,
+            parse_fn: Box::new(TrySpanP {
+                parse_fn: self.parse_fn,
+                func: move |span, _| func(span),
+            }),
+        }
+    }
+
+    pub fn try_map_span<O: Clone + 'static>(
+        self,
+        func: impl Fn(Span, T) -> Result<O, String> + Clone + 'static,
+    ) -> Parser<O> {
+        Parser {
+            initial_set: self.initial_set,
+            parse_fn: Box::new(TrySpanP {
                 parse_fn: self.parse_fn,
                 func,
             }),
@@ -410,6 +458,57 @@ impl<T: Clone + 'static> Parser<T> {
     pub fn optional(self) -> Result<Parser<Option<T>>, GrammarError> {
         let name = self.initial_set.name().to_owned();
         choice(&name, [empty().map(|()| None), self.map(Some)])
+    }
+}
+
+/*========================================*/
+/*          Parser: Many                  */
+/*========================================*/
+
+struct ManyP<T> {
+    name: String,
+    initial_tokens: VecMap<()>,
+    parse_fn: ParseFn<T>,
+}
+
+impl<T: Clone> Clone for ManyP<T> {
+    fn clone(&self) -> Self {
+        ManyP {
+            name: self.name.clone(),
+            initial_tokens: self.initial_tokens.clone(),
+            parse_fn: clone_box(self.parse_fn.as_ref()),
+        }
+    }
+}
+
+impl<T: Clone> Parse<Vec<T>> for ManyP<T> {
+    fn parse(&self, stream: &mut LexemeIter) -> Result<Vec<T>, ParseError> {
+        let mut result = Vec::new();
+        while let Some(lexeme) = stream.peek() {
+            if self.initial_tokens.get(lexeme.token).is_some() {
+                result.push(self.parse_fn.parse(stream)?);
+            } else {
+                break;
+            }
+        }
+        Ok(result)
+    }
+}
+
+impl<T: Clone + 'static> Parser<T> {
+    pub fn many(self) -> Result<Parser<Vec<T>>, GrammarError> {
+        let name = self.initial_set.name().to_owned();
+        let initial_tokens = self.initial_set.accepted_tokens();
+        let mut initial_set = self.initial_set;
+        initial_set.union("many", InitialSet::new_empty("empty"))?;
+        Ok(Parser {
+            initial_set,
+            parse_fn: Box::new(ManyP {
+                name,
+                initial_tokens,
+                parse_fn: self.parse_fn,
+            }),
+        })
     }
 }
 
