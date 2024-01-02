@@ -6,13 +6,13 @@ INPUT abc def
 EXPECT ok (abc def)
 
 INPUT abcd ef
-EXPECT err Parse error: expected 'def' but found 'd'
+EXPECT err Parse error: expected 'def' but found 'd'.
 
 PARSER [0-9]+/ $
 INPUT 234
 EXPECT ok 234
 INPUT 23a
-EXPECT err Parse error: expected end of file but found 'a'
+EXPECT err Parse error: expected end of file but found 'a'.
 
 PARSER [a-z]+/ *
 INPUT abc de  f
@@ -30,4 +30,4 @@ EXPECT ok (ab)
 INPUT 
 EXPECT ok ()
 INPUT ab;
-EXPECT err Parse error: expected regex but found end of file
+EXPECT err Parse error: expected regex but found end of file.

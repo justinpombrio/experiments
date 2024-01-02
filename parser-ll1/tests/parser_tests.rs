@@ -1,4 +1,7 @@
-use parser_ll1::{choice, empty, seq2, seq3, seq4, Grammar, GrammarError, ParseError, Parser};
+use parser_ll1::{
+    choice_2, choice_3, choice_4, empty, seq_2, seq_3, seq_4, Grammar, GrammarError, ParseError,
+    Parser,
+};
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -8,68 +11,68 @@ fn make_parser(
     description: &str,
 ) -> Result<impl Fn(&str) -> Result<String, ParseError>, GrammarError> {
     let mut grammar = Grammar::new(" +")?;
-    let mut stack: Vec<Parser<String>> = Vec::new();
+    let mut stack: Vec<Box<dyn Parser<Output = String>>> = Vec::new();
     let mut word = String::new();
     let mut chars = description.chars().peekable();
     while let Some(ch) = chars.next() {
         match ch {
             ' ' => continue,
-            '.' => stack.push(empty().map(|()| ".".to_owned())),
+            '.' => stack.push(Box::new(empty().map(|()| ".".to_owned()))),
             '/' => {
                 let word = mem::take(&mut word);
                 let parser = grammar
                     .regex("regex", &word)?
                     .span(|span| span.substr.to_owned());
-                stack.push(parser);
+                stack.push(Box::new(parser));
             }
             '"' => {
                 let word = mem::take(&mut word);
                 let parser = grammar.string(&word)?;
                 let parser = parser.map(move |()| word.clone());
-                stack.push(parser);
+                stack.push(Box::new(parser));
             }
             '?' => {
                 let parser = stack.pop().unwrap();
-                let parser = parser.opt()?.map(|opt| match opt {
+                let parser = parser.opt().map(|opt| match opt {
                     None => ".".to_owned(),
                     Some(s) => s,
                 });
-                stack.push(parser);
+                stack.push(Box::new(parser));
             }
             '*' => {
                 let parser = stack.pop().unwrap();
-                let parser = parser.many()?.map(|vec| format!("({})", vec.join(" ")));
-                stack.push(parser);
+                let parser = parser.many().map(|vec| format!("({})", vec.join(" ")));
+                stack.push(Box::new(parser));
             }
             '$' => {
                 let parser = stack.pop().unwrap();
                 let parser = parser.complete();
-                stack.push(parser);
+                stack.push(Box::new(parser));
             }
             ',' => {
                 let parser_2 = stack.pop().unwrap();
                 let parser_1 = stack.pop().unwrap();
                 let parser = parser_1
-                    .sep(parser_2)?
+                    .sep(parser_2)
                     .map(|vec| format!("({})", vec.join(" ")));
-                stack.push(parser);
+                stack.push(Box::new(parser));
             }
             '&' => match chars.peek() {
                 Some('2') => {
                     chars.next();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = seq2(parser_1, parser_2)?.map(|(a, b)| format!("({} {})", a, b));
-                    stack.push(parser);
+                    let parser = seq_2(parser_1, parser_2).map(|(a, b)| format!("({} {})", a, b));
+                    stack.push(Box::new(parser));
                 }
                 Some('3') => {
                     chars.next();
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = seq3(parser_1, parser_2, parser_3)?
+                    let parser = seq_3(parser_1, parser_2, parser_3)
                         .map(|(a, b, c)| format!("({} {} {})", a, b, c));
-                    stack.push(parser);
+                    stack.push(Box::new(parser));
                 }
                 Some('4') => {
                     chars.next();
@@ -77,9 +80,9 @@ fn make_parser(
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = seq4(parser_1, parser_2, parser_3, parser_4)?
+                    let parser = seq_4(parser_1, parser_2, parser_3, parser_4)
                         .map(|(a, b, c, d)| format!("({} {} {} {})", a, b, c, d));
-                    stack.push(parser);
+                    stack.push(Box::new(parser));
                 }
                 _ => panic!("Bad count after '&' in parser test case"),
             },
@@ -88,16 +91,16 @@ fn make_parser(
                     chars.next();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = choice("|", [parser_1, parser_2])?;
-                    stack.push(parser);
+                    let parser = choice_2("|", parser_1, parser_2);
+                    stack.push(Box::new(parser));
                 }
                 Some('3') => {
                     chars.next();
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = choice("|", [parser_1, parser_2, parser_3])?;
-                    stack.push(parser);
+                    let parser = choice_3("|", parser_1, parser_2, parser_3);
+                    stack.push(Box::new(parser));
                 }
                 Some('4') => {
                     chars.next();
@@ -105,8 +108,8 @@ fn make_parser(
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = choice("|", [parser_1, parser_2, parser_3, parser_4])?;
-                    stack.push(parser);
+                    let parser = choice_4("|", parser_1, parser_2, parser_3, parser_4);
+                    stack.push(Box::new(parser));
                 }
                 _ => panic!("Bad count after '|' in parser test case"),
             },
@@ -115,7 +118,7 @@ fn make_parser(
     }
     assert_eq!(stack.len(), 1, "Bad parser test case");
     let parser = stack.into_iter().next().unwrap();
-    Ok(grammar.make_parse_fn(parser))
+    grammar.make_parse_fn(parser)
 }
 
 fn assert_parse(parser_description: &str, input: &str, expected: Result<String, String>) {

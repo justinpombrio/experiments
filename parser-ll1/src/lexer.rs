@@ -49,6 +49,7 @@ pub const TOKEN_ERROR: Token = Token::MAX;
 
 #[derive(Debug, Clone)]
 pub struct Pattern {
+    name: String,
     regex: Regex,
     length: Option<usize>,
 }
@@ -64,13 +65,15 @@ impl Eq for Pattern {}
 impl Pattern {
     fn new_string(constant: &str) -> Result<Pattern, RegexError> {
         Ok(Pattern {
+            name: format!("'{}'", constant),
             regex: new_regex(&escape(constant))?,
             length: Some(constant.len()),
         })
     }
 
-    fn new_regex(pattern: &str) -> Result<Pattern, RegexError> {
+    fn new_regex(name: &str, pattern: &str) -> Result<Pattern, RegexError> {
         Ok(Pattern {
+            name: name.to_owned(),
             regex: new_regex(pattern)?,
             length: None,
         })
@@ -120,8 +123,8 @@ impl LexerBuilder {
     ///
     /// The syntax is that of the `regex` crate. You do not need to begin the pattern with a
     /// start-of-string character `^`.
-    pub fn regex(&mut self, regex: &str) -> Result<Token, RegexError> {
-        let pattern = Pattern::new_regex(regex)?;
+    pub fn regex(&mut self, name: &str, regex: &str) -> Result<Token, RegexError> {
+        let pattern = Pattern::new_regex(name, regex)?;
 
         for (existing_token, existing_pattern) in self.patterns.iter().enumerate() {
             if &pattern == existing_pattern {
@@ -132,14 +135,6 @@ impl LexerBuilder {
         let token = self.patterns.len();
         self.patterns.push(pattern);
         Ok(token)
-    }
-
-    pub fn num_tokens(&self) -> usize {
-        self.patterns.len()
-    }
-
-    pub fn get_token_pattern(&self, token: Token) -> &str {
-        self.patterns[token].regex.as_str()
     }
 
     /// Call this when you're done adding token patterns, to construct the lexer.
@@ -177,6 +172,10 @@ impl Lexer {
                 utf8_col: 0,
             },
         }
+    }
+
+    pub fn get_token_name(&self, token: Token) -> &str {
+        &self.patterns[token].name
     }
 }
 

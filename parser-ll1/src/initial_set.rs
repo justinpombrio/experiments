@@ -1,6 +1,5 @@
 use crate::vec_map::VecMap;
 use crate::{GrammarError, Token};
-use std::ops::{Index, IndexMut};
 
 // TODO: think about ideal names & error messages
 
@@ -101,44 +100,6 @@ impl InitialSet {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ChoiceTable {
-    empty_index: Option<usize>,
-    token_indices: VecMap<usize>,
-}
-
-impl ChoiceTable {
-    pub fn new(
-        name: &str,
-        initial_sets: Vec<InitialSet>,
-    ) -> Result<(ChoiceTable, InitialSet), GrammarError> {
-        let mut choice_table = ChoiceTable {
-            empty_index: None,
-            token_indices: VecMap::new(),
-        };
-        let mut initial_set = InitialSet::new_void(name);
-
-        for (i, set) in initial_sets.into_iter().enumerate() {
-            if set.accepts_empty {
-                choice_table.empty_index = Some(i);
-            }
-            for (token, _) in &set.accepted_tokens {
-                choice_table.token_indices.set(token, i);
-            }
-            initial_set.union(name, set)?;
-        }
-
-        Ok((choice_table, initial_set))
-    }
-
-    pub fn lookup(&self, token: Option<Token>) -> Option<usize> {
-        match token {
-            None => self.empty_index,
-            Some(token) => self.token_indices.get(token).copied().or(self.empty_index),
-        }
-    }
-}
-
 #[test]
 fn test_initial_sets() {
     let set_a = InitialSet::new_token("A".to_owned(), 65);
@@ -175,44 +136,4 @@ fn test_initial_sets() {
     assert!(set_seq.accepts_token(66));
     assert!(set_seq.accepts_token(67));
     assert!(set_seq.accepts_token(68));
-
-    assert!(ChoiceTable::new(
-        "testing",
-        vec![set_a_empty.clone(), set_bc.clone(), set_d_empty.clone()]
-    )
-    .is_err());
-
-    assert!(ChoiceTable::new(
-        "testing",
-        vec![set_a_empty.clone(), set_bc.clone(), set_a.clone()]
-    )
-    .is_err());
-
-    let (table, set) = ChoiceTable::new(
-        "testing",
-        vec![set_c.clone(), set_a_empty.clone(), set_d.clone()],
-    )
-    .unwrap();
-    assert!(set.accepts_empty());
-    assert!(set.accepts_token(65));
-    assert!(!set.accepts_token(66));
-    assert!(set.accepts_token(67));
-    assert!(set.accepts_token(68));
-    assert_eq!(table.lookup(None), Some(1));
-    assert_eq!(table.lookup(Some(65)), Some(1));
-    assert_eq!(table.lookup(Some(66)), Some(1));
-    assert_eq!(table.lookup(Some(67)), Some(0));
-    assert_eq!(table.lookup(Some(68)), Some(2));
-
-    let (table, set) = ChoiceTable::new("testing", vec![set_c.clone(), set_d.clone()]).unwrap();
-    assert!(!set.accepts_empty());
-    assert!(!set.accepts_token(65));
-    assert!(!set.accepts_token(66));
-    assert!(set.accepts_token(67));
-    assert!(set.accepts_token(68));
-    assert_eq!(table.lookup(None), None);
-    assert_eq!(table.lookup(Some(65)), None);
-    assert_eq!(table.lookup(Some(66)), None);
-    assert_eq!(table.lookup(Some(67)), Some(0));
-    assert_eq!(table.lookup(Some(68)), Some(1));
 }
