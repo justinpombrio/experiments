@@ -4,7 +4,7 @@
 // [x] Have recur validate, but only to depth 2, using an atomic u8
 // [ ] ParseError: fancy underlines
 // [ ] GrammarError: fix message on choice
-// [ ] Test errors: give line number, better error message
+// [x] Test errors: give line number, better error message
 // [ ] Review error messages
 // [ ] Review combinator names
 // [ ] Docs

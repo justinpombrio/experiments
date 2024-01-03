@@ -1,11 +1,26 @@
 use parser_ll1::{
-    choice_2, choice_3, choice_4, empty, seq_2, seq_3, seq_4, Grammar, GrammarError, ParseError,
-    Parser,
+    choice_2, choice_3, empty, seq_2, seq_3, Grammar, GrammarError, ParseError, Parser,
 };
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::mem;
+
+/// Convert textual parser description to parser that produces s-expression string:
+///
+/// ```text
+/// .         -- match nothing
+/// foobar"   -- match string foobar
+/// [0-9]*/   -- match regex [0-9]*
+/// X ?       -- optional X
+/// X *       -- many X
+/// X $       -- X then EOF
+/// X Y ,     -- X sep by Y
+/// X Y &2    -- X then Y
+/// X Y |2    -- X or Y
+/// X Y Z &3  -- X then Y then Z
+/// X Y Z |3  -- X or Y or Z
+/// ```
 
 fn make_parser(
     description: &str,
@@ -74,16 +89,6 @@ fn make_parser(
                         .map(|(a, b, c)| format!("({} {} {})", a, b, c));
                     stack.push(Box::new(parser));
                 }
-                Some('4') => {
-                    chars.next();
-                    let parser_4 = stack.pop().unwrap();
-                    let parser_3 = stack.pop().unwrap();
-                    let parser_2 = stack.pop().unwrap();
-                    let parser_1 = stack.pop().unwrap();
-                    let parser = seq_4(parser_1, parser_2, parser_3, parser_4)
-                        .map(|(a, b, c, d)| format!("({} {} {} {})", a, b, c, d));
-                    stack.push(Box::new(parser));
-                }
                 _ => panic!("Bad count after '&' in parser test case"),
             },
             '|' => match chars.peek() {
@@ -102,15 +107,6 @@ fn make_parser(
                     let parser = choice_3("|", parser_1, parser_2, parser_3);
                     stack.push(Box::new(parser));
                 }
-                Some('4') => {
-                    chars.next();
-                    let parser_4 = stack.pop().unwrap();
-                    let parser_3 = stack.pop().unwrap();
-                    let parser_2 = stack.pop().unwrap();
-                    let parser_1 = stack.pop().unwrap();
-                    let parser = choice_4("|", parser_1, parser_2, parser_3, parser_4);
-                    stack.push(Box::new(parser));
-                }
                 _ => panic!("Bad count after '|' in parser test case"),
             },
             _ => word.push(ch),
@@ -121,15 +117,31 @@ fn make_parser(
     grammar.make_parse_fn(parser)
 }
 
-fn assert_parse(parser_description: &str, input: &str, expected: Result<String, String>) {
-    let parse = match make_parser(parser_description) {
-        Ok(parser) => parser,
-        Err(err) => {
-            assert_eq!(Err(err.to_string()), expected);
-            return;
-        }
+fn assert_parse(
+    line_num: usize,
+    parser_description: &str,
+    input: &str,
+    expected: Result<String, String>,
+) {
+    let expected = match expected {
+        Ok(result) => format!("ok {}", result),
+        Err(err) => format!("err {}", err),
     };
-    assert_eq!(parse(input).map_err(|e| format!("{}", e)), expected);
+
+    let actual = match make_parser(parser_description) {
+        Ok(parse) => match parse(input) {
+            Ok(result) => format!("ok {}", result),
+            Err(err) => format!("err {}", err),
+        },
+        Err(err) => format!("err {}", err),
+    };
+
+    if actual != expected {
+        panic!(
+            "Parser test case failure, line {}:\nPARSER {}\nINPUT {}\nEXPECT {}\nACTUAL {}",
+            line_num, parser_description, input, expected, actual
+        );
+    }
 }
 
 #[test]
@@ -139,8 +151,10 @@ fn test_parser() {
 
     let file = File::open("tests/parser_test_cases.txt").unwrap();
     let reader = BufReader::new(file);
+    let mut line_num = 0;
     for line in reader.lines() {
         let line = line.unwrap();
+        line_num += 1;
         if line == "" || line.starts_with("#") {
             continue;
         } else if let Some(parser_str) = line.strip_prefix("PARSER ") {
@@ -150,9 +164,9 @@ fn test_parser() {
         } else if let Some(expect_str) = line.strip_prefix("EXPECT ") {
             let expect_str = expect_str.trim();
             if let Some(ok_str) = expect_str.strip_prefix("ok ") {
-                assert_parse(&parser, &input, Ok(ok_str.trim().to_owned()));
+                assert_parse(line_num, &parser, &input, Ok(ok_str.trim().to_owned()));
             } else if let Some(err_str) = expect_str.strip_prefix("err ") {
-                assert_parse(&parser, &input, Err(err_str.trim().to_owned()));
+                assert_parse(line_num, &parser, &input, Err(err_str.trim().to_owned()));
             } else {
                 panic!("Bad test case input (expected `ok` or `err`): {}", line);
             }
