@@ -1,4 +1,5 @@
 use parser_ll1::{choice_2, choice_6, seq_3, Grammar, GrammarError, ParseError, Parser, Recursive};
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Json {
@@ -8,6 +9,55 @@ pub enum Json {
     String(String),
     Array(Vec<Json>),
     Object(Vec<(String, Json)>),
+}
+
+impl Json {
+    fn write(&self, f: &mut fmt::Formatter, indent: usize) -> fmt::Result {
+        use Json::*;
+
+        match self {
+            Null => write!(f, "null"),
+            Bool(false) => write!(f, "false"),
+            Bool(true) => write!(f, "true"),
+            Number(n) => write!(f, "{}", n),
+            String(s) => write!(f, "\"{}\"", s),
+            Array(elems) => {
+                writeln!(f, "[")?;
+                for (i, elem) in elems.iter().enumerate() {
+                    write!(f, "{:indent$}", "", indent = 4 * (indent + 1))?;
+                    elem.write(f, indent + 1)?;
+                    if i + 1 != elems.len() {
+                        writeln!(f, ",")?;
+                    } else {
+                        writeln!(f)?;
+                    }
+                }
+                write!(f, "{:indent$}", "", indent = 4 * indent)?;
+                write!(f, "]")
+            }
+            Object(entries) => {
+                writeln!(f, "{{")?;
+                for (i, entry) in entries.iter().enumerate() {
+                    write!(f, "{:indent$}", "", indent = 4 * (indent + 1))?;
+                    write!(f, "\"{}\": ", entry.0,)?;
+                    entry.1.write(f, indent + 1)?;
+                    if i + 1 != entries.len() {
+                        writeln!(f, ",")?;
+                    } else {
+                        writeln!(f)?;
+                    }
+                }
+                write!(f, "{:indent$}", "", indent = 4 * indent)?;
+                write!(f, "}}")
+            }
+        }
+    }
+}
+
+impl fmt::Display for Json {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.write(f, 0)
+    }
 }
 
 fn make_json_parser() -> Result<impl Fn(&str) -> Result<Json, ParseError>, GrammarError> {
@@ -67,6 +117,6 @@ fn main() {
 
     let parser = make_json_parser().unwrap();
     let input = io::read_to_string(io::stdin()).unwrap();
-    let result = parser(&input);
-    println!("{:#?}", result);
+    let json = parser(&input).unwrap();
+    println!("{}", json);
 }
