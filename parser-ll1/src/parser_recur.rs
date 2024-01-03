@@ -66,7 +66,10 @@ impl<O: Clone> Recursive<O> {
     }
 
     pub fn refn(&self) -> impl Parser<Output = O> + Clone {
-        RecurPWeak(Rc::downgrade(&self.0))
+        RecurPWeak {
+            name: self.0.name.clone(),
+            weak: Rc::downgrade(&self.0),
+        }
     }
 
     pub fn define(
@@ -84,21 +87,36 @@ impl<O: Clone> Recursive<O> {
 /* ========== Recur: Weak ========== */
 
 #[derive(Clone)]
-struct RecurPWeak<O: Clone>(Weak<RecurP<O>>);
+struct RecurPWeak<O: Clone> {
+    name: String,
+    weak: Weak<RecurP<O>>,
+}
+
+impl<O: Clone> RecurPWeak<O> {
+    fn unwrap<R>(&self, cb: impl FnOnce(&RecurP<O>) -> R) -> R {
+        match self.weak.upgrade() {
+            None => panic!(
+                "Recursive: you must call 'define()' before using recursive parser '{}'",
+                self.name
+            ),
+            Some(rc) => cb(rc.as_ref()),
+        }
+    }
+}
 
 impl<O: Clone> Parser for RecurPWeak<O> {
     type Output = O;
 
     fn name(&self) -> String {
-        self.0.upgrade().unwrap().name()
+        self.unwrap(|p| p.name())
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
-        self.0.upgrade().unwrap().validate()
+        self.unwrap(|p| p.validate())
     }
 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
-        self.0.upgrade().unwrap().parse(stream)
+        self.unwrap(|p| p.parse(stream))
     }
 }
 
