@@ -1,4 +1,4 @@
-use parser_ll1::{choice_2, choice_6, seq_3, Grammar, GrammarError, ParseError, Parser, Recursive};
+use parser_ll1::{choice, seq, Grammar, GrammarError, ParseError, Parser, Recursive};
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -73,7 +73,7 @@ fn make_json_parser() -> Result<impl Fn(&str) -> Result<Json, ParseError>, Gramm
     // Bools
     let true_p = g.string("true")?.value(Json::Bool(true));
     let false_p = g.string("false")?.value(Json::Bool(false));
-    let bool_p = choice_2("boolean", true_p, false_p);
+    let bool_p = choice("boolean", (true_p, false_p));
 
     // Numbers. This is a bad regex that only works for some numbers
     let number_p = g
@@ -89,24 +89,19 @@ fn make_json_parser() -> Result<impl Fn(&str) -> Result<Json, ParseError>, Gramm
 
     // Arrays
     let array_elems_p = json_p.refn().sep(g.string(",")?);
-    let array_p = seq_3(g.string("[")?, array_elems_p, g.string("]")?)
+    let array_p = seq((g.string("[")?, array_elems_p, g.string("]")?))
         .map(|(_, elems, _)| Json::Array(elems));
 
     // Objects
     let entry_p =
-        seq_3(plain_string_p, g.string(":")?, json_p.refn()).map(|(key, _, val)| (key, val));
+        seq((plain_string_p, g.string(":")?, json_p.refn())).map(|(key, _, val)| (key, val));
     let entries_p = entry_p.sep(g.string(",")?);
-    let dict_p = seq_3(g.string("{")?, entries_p, g.string("}")?)
+    let dict_p = seq((g.string("{")?, entries_p, g.string("}")?))
         .map(|(_, entries, _)| Json::Object(entries));
 
-    let json_p = json_p.define(choice_6(
+    let json_p = json_p.define(choice(
         "json value",
-        null_p,
-        bool_p,
-        number_p,
-        string_p,
-        array_p,
-        dict_p,
+        (null_p, bool_p, number_p, string_p, array_p, dict_p),
     ));
 
     g.make_parse_fn(json_p)

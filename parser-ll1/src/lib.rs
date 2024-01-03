@@ -1,11 +1,11 @@
 // TODO:
-// [ ] Make something nicer than seq_n and choice_n for users
+// [x] Make something nicer than seq_n and choice_n for users
 // [x] Have recur's interface use mutation, and panic on drop
 // [x] Have recur validate, but only to depth 2, using an atomic u8
 // [ ] ParseError: fancy underlines
 // [ ] GrammarError: fix message on choice
 // [x] Test errors: give line number, better error message
-// [ ] Review error messages
+// [ ] Review&test error messages
 // [ ] Review combinator names
 // [ ] Docs
 
@@ -23,10 +23,10 @@
 // Any change to the design is liable to break one of these properties, so if
 // considering a change check this list first.
 
-mod boilerplate;
 mod initial_set;
 mod lexer;
 mod parser_recur;
+mod tuples;
 mod vec_map;
 
 use crate::lexer::{LexemeIter, LexerBuilder, Position, Token};
@@ -35,10 +35,7 @@ use regex::Error as RegexError;
 use std::fmt;
 use thiserror::Error;
 
-pub use boilerplate::{
-    choice_2, choice_3, choice_4, choice_5, choice_6, choice_7, choice_8, seq_2, seq_3, seq_4,
-    seq_5, seq_6, seq_7, seq_8,
-};
+pub use tuples::{choice, seq, ChoiceTuple, SeqTuple};
 
 pub use parser_recur::Recursive;
 
@@ -55,7 +52,7 @@ pub trait Parser: DynClone {
     fn validate(&self) -> Result<InitialSet, GrammarError>;
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Self::Output>;
 
-    fn try_map<O: Clone>(
+    fn try_map<O>(
         self,
         func: impl Fn(Self::Output) -> Result<O, String> + Clone,
     ) -> impl Parser<Output = O> + Clone
@@ -65,10 +62,7 @@ pub trait Parser: DynClone {
         TryMapP { parser: self, func }
     }
 
-    fn map<O: Clone>(
-        self,
-        func: impl Fn(Self::Output) -> O + Clone,
-    ) -> impl Parser<Output = O> + Clone
+    fn map<O>(self, func: impl Fn(Self::Output) -> O + Clone) -> impl Parser<Output = O> + Clone
     where
         Self: Clone,
     {
@@ -82,14 +76,14 @@ pub trait Parser: DynClone {
         self.try_map(move |_| Ok(value.clone()))
     }
 
-    fn span<O: Clone>(self, func: impl Fn(Span) -> O + Clone) -> impl Parser<Output = O> + Clone
+    fn span<O>(self, func: impl Fn(Span) -> O + Clone) -> impl Parser<Output = O> + Clone
     where
         Self: Clone,
     {
         self.try_map_span(move |span, _| Ok(func(span)))
     }
 
-    fn map_span<O: Clone>(
+    fn map_span<O>(
         self,
         func: impl Fn(Span, Self::Output) -> O + Clone,
     ) -> impl Parser<Output = O> + Clone
@@ -99,7 +93,7 @@ pub trait Parser: DynClone {
         self.try_map_span(move |span, val| Ok(func(span, val)))
     }
 
-    fn try_span<O: Clone>(
+    fn try_span<O>(
         self,
         func: impl Fn(Span) -> Result<O, String> + Clone,
     ) -> impl Parser<Output = O> + Clone
@@ -109,7 +103,7 @@ pub trait Parser: DynClone {
         self.try_map_span(move |span, _| func(span))
     }
 
-    fn try_map_span<O: Clone>(
+    fn try_map_span<O>(
         self,
         func: impl Fn(Span, Self::Output) -> Result<O, String> + Clone,
     ) -> impl Parser<Output = O> + Clone
@@ -132,7 +126,6 @@ pub trait Parser: DynClone {
     fn and_ignore<P: Parser + Clone>(self, other: P) -> impl Parser<Output = Self::Output> + Clone
     where
         Self: Clone,
-        Self::Output: Clone,
     {
         self.and(other).map(|(v0, _)| v0)
     }
@@ -162,10 +155,9 @@ pub trait Parser: DynClone {
     fn opt(self) -> impl Parser<Output = Option<Self::Output>> + Clone
     where
         Self: Clone,
-        Self::Output: Clone,
     {
         let name = self.name().to_owned();
-        choice_2(&name, self.map(Some), empty().value(None))
+        choice(&name, (self.map(Some), empty().map(|_| None)))
     }
 
     fn many(self) -> impl Parser<Output = Vec<Self::Output>> + Clone
@@ -178,7 +170,6 @@ pub trait Parser: DynClone {
     fn sep(self, sep: impl Parser + Clone) -> impl Parser<Output = Vec<Self::Output>> + Clone
     where
         Self: Clone,
-        Self::Output: Clone,
     {
         let sep_elem = sep.and(self.clone()).map(|(_, v)| v);
         self.clone()
@@ -391,13 +382,23 @@ impl Parser for TokenP {
 /*          Parser: Map                   */
 /*========================================*/
 
-#[derive(Clone)]
-struct TryMapP<P: Parser, O: Clone, F: Fn(P::Output) -> Result<O, String> + Clone> {
+struct TryMapP<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> {
     parser: P,
     func: F,
 }
 
-impl<P: Parser + Clone, O: Clone, F: Fn(P::Output) -> Result<O, String> + Clone> Parser
+impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Clone
+    for TryMapP<P, O, F>
+{
+    fn clone(&self) -> TryMapP<P, O, F> {
+        TryMapP {
+            parser: self.parser.clone(),
+            func: self.func.clone(),
+        }
+    }
+}
+
+impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Parser
     for TryMapP<P, O, F>
 {
     type Output = O;
@@ -476,13 +477,23 @@ impl<'s> fmt::Display for Span<'s> {
     }
 }
 
-#[derive(Clone)]
-struct TrySpanP<P: Parser + Clone, O: Clone, F: Fn(Span, P::Output) -> Result<O, String> + Clone> {
+struct TrySpanP<P: Parser + Clone, O, F: Fn(Span, P::Output) -> Result<O, String> + Clone> {
     parser: P,
     func: F,
 }
 
-impl<P: Parser + Clone, O: Clone, F: Fn(Span, P::Output) -> Result<O, String> + Clone> Parser
+impl<P: Parser + Clone, O, F: Fn(Span, P::Output) -> Result<O, String> + Clone> Clone
+    for TrySpanP<P, O, F>
+{
+    fn clone(&self) -> TrySpanP<P, O, F> {
+        TrySpanP {
+            parser: self.parser.clone(),
+            func: self.func.clone(),
+        }
+    }
+}
+
+impl<P: Parser + Clone, O, F: Fn(Span, P::Output) -> Result<O, String> + Clone> Parser
     for TrySpanP<P, O, F>
 {
     type Output = O;

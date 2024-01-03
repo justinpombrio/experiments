@@ -1,6 +1,4 @@
-use parser_ll1::{
-    choice_2, choice_3, empty, seq_2, seq_3, Grammar, GrammarError, ParseError, Parser,
-};
+use parser_ll1::{choice, empty, seq, Grammar, GrammarError, ParseError, Parser};
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -77,7 +75,7 @@ fn make_parser(
                     chars.next();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = seq_2(parser_1, parser_2).map(|(a, b)| format!("({} {})", a, b));
+                    let parser = seq((parser_1, parser_2)).map(|(a, b)| format!("({} {})", a, b));
                     stack.push(Box::new(parser));
                 }
                 Some('3') => {
@@ -85,7 +83,7 @@ fn make_parser(
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = seq_3(parser_1, parser_2, parser_3)
+                    let parser = seq((parser_1, parser_2, parser_3))
                         .map(|(a, b, c)| format!("({} {} {})", a, b, c));
                     stack.push(Box::new(parser));
                 }
@@ -96,7 +94,7 @@ fn make_parser(
                     chars.next();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = choice_2("|", parser_1, parser_2);
+                    let parser = choice("|", (parser_1, parser_2));
                     stack.push(Box::new(parser));
                 }
                 Some('3') => {
@@ -104,7 +102,7 @@ fn make_parser(
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = choice_3("|", parser_1, parser_2, parser_3);
+                    let parser = choice("|", (parser_1, parser_2, parser_3));
                     stack.push(Box::new(parser));
                 }
                 _ => panic!("Bad count after '|' in parser test case"),
