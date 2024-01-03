@@ -180,21 +180,6 @@ pub trait Parser: DynClone {
         Self: Clone,
         Self::Output: Clone,
     {
-        /*
-        let elem_sep = self.clone().and_ignore(sep);
-        let many_elems = elem_sep.many().and(self).map(|(mut vec, last)| {
-            vec.push(last);
-            vec
-        });
-        many_elems
-            .opt()
-            .map(|opt| opt.unwrap_or_else(|| Vec::new()))
-        */
-
-        // TODO: is it necessary to do it this way instead?
-        // Will find out once `sep` is used & validated.
-        // a (, a)*
-        // (a,)* a
         let sep_elem = sep.and(self.clone()).map(|(_, v)| v);
         self.clone()
             .and(sep_elem.many())
@@ -305,9 +290,6 @@ impl Grammar {
         parser.validate()?;
 
         Ok(move |input: &str| {
-            // By default, this closure captures `&parser.0`, which doesn't
-            // implement `Clone`. Force it to capture `&parser` instead.
-            //let parser = &parser;
             let mut lexemes = lexer.lex(input);
             match parser.parse(&mut lexemes) {
                 Success(succ) => Ok(succ),
