@@ -1,12 +1,13 @@
 // TODO:
 // [ ] Make something nicer than seq_n and choice_n for users
-// [ ] Have recur's interface use mutation, and panic on drop
-// [ ] Have recur validate, but only to depth 2, using an atomic u8
+// [x] Have recur's interface use mutation, and panic on drop
+// [x] Have recur validate, but only to depth 2, using an atomic u8
 // [ ] ParseError: fancy underlines
 // [ ] GrammarError: fix message on choice
 // [ ] Test errors: give line number, better error message
 // [ ] Review error messages
 // [ ] Review combinator names
+// [ ] Docs
 
 // This design achieves all of the following:
 //
@@ -25,20 +26,21 @@
 mod boilerplate;
 mod initial_set;
 mod lexer;
+mod parser_recur;
 mod vec_map;
 
 use crate::lexer::{LexemeIter, LexerBuilder, Position, Token};
 use dyn_clone::{clone_box, DynClone};
 use regex::Error as RegexError;
-use std::cell::OnceCell;
 use std::fmt;
-use std::rc::Rc;
 use thiserror::Error;
 
 pub use boilerplate::{
     choice_2, choice_3, choice_4, choice_5, choice_6, choice_7, choice_8, seq_2, seq_3, seq_4,
     seq_5, seq_6, seq_7, seq_8,
 };
+
+pub use parser_recur::Recursive;
 
 /*========================================*/
 /*          Interface                     */
@@ -49,7 +51,7 @@ pub use initial_set::InitialSet;
 pub trait Parser: DynClone {
     type Output;
 
-    fn name(&self) -> &str;
+    fn name(&self) -> String;
     fn validate(&self) -> Result<InitialSet, GrammarError>;
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Self::Output>;
 
@@ -214,7 +216,7 @@ impl<T> Clone for Box<dyn Parser<Output = T>> {
 impl<T> Parser for Box<dyn Parser<Output = T>> {
     type Output = T;
 
-    fn name(&self) -> &str {
+    fn name(&self) -> String {
         self.as_ref().name()
     }
 
@@ -287,7 +289,7 @@ impl Grammar {
         name: &str,
         regex: &str,
     ) -> Result<impl Parser<Output = ()> + Clone, GrammarError> {
-        let token = self.0.regex(&name, regex)?;
+        let token = self.0.regex(regex)?;
         let name = name.to_owned();
         Ok(TokenP { name, token })
     }
@@ -300,7 +302,7 @@ impl Grammar {
 
         let lexer = self.clone().0.finish();
         let parser = parser.complete(); // ensure whole stream is consumed
-                                        //parser.validate()?;
+        parser.validate()?;
 
         Ok(move |input: &str| {
             // By default, this closure captures `&parser.0`, which doesn't
@@ -345,8 +347,8 @@ struct EmptyP;
 impl Parser for EmptyP {
     type Output = ();
 
-    fn name(&self) -> &str {
-        "nothing"
+    fn name(&self) -> String {
+        "nothing".to_owned()
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -375,8 +377,8 @@ struct TokenP {
 impl Parser for TokenP {
     type Output = ();
 
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -409,7 +411,7 @@ impl<P: Parser + Clone, O: Clone, F: Fn(P::Output) -> Result<O, String> + Clone>
 {
     type Output = O;
 
-    fn name(&self) -> &str {
+    fn name(&self) -> String {
         self.parser.name()
     }
 
@@ -441,7 +443,7 @@ struct CompleteP<P: Parser>(P);
 impl<P: Parser + Clone> Parser for CompleteP<P> {
     type Output = P::Output;
 
-    fn name(&self) -> &str {
+    fn name(&self) -> String {
         self.0.name()
     }
 
@@ -494,7 +496,7 @@ impl<P: Parser + Clone, O: Clone, F: Fn(Span, P::Output) -> Result<O, String> + 
 {
     type Output = O;
 
-    fn name(&self) -> &str {
+    fn name(&self) -> String {
         self.parser.name()
     }
 
@@ -536,7 +538,7 @@ struct SeqP<P0: Parser + Clone, P1: Parser + Clone>(P0, P1);
 impl<P0: Parser + Clone, P1: Parser + Clone> Parser for SeqP<P0, P1> {
     type Output = (P0::Output, P1::Output);
 
-    fn name(&self) -> &str {
+    fn name(&self) -> String {
         self.0.name()
     }
 
@@ -589,8 +591,8 @@ struct ChoiceP<P0: Parser + Clone, P1: Parser<Output = P0::Output> + Clone> {
 impl<P0: Parser + Clone, P1: Parser<Output = P0::Output> + Clone> Parser for ChoiceP<P0, P1> {
     type Output = P0::Output;
 
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -626,7 +628,7 @@ struct ManyP<P: Parser + Clone>(P);
 impl<P: Parser + Clone> Parser for ManyP<P> {
     type Output = Vec<P::Output>;
 
-    fn name(&self) -> &str {
+    fn name(&self) -> String {
         self.0.name()
     }
 
@@ -651,51 +653,4 @@ impl<P: Parser + Clone> Parser for ManyP<P> {
             }
         }
     }
-}
-
-/*========================================*/
-/*          Parser: Recur                 */
-/*========================================*/
-
-#[derive(Clone)]
-pub struct RecurP<O: Clone> {
-    name: String,
-    cell: Rc<OnceCell<Box<dyn Parser<Output = O>>>>,
-}
-
-impl<O: Clone> Parser for RecurP<O> {
-    type Output = O;
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
-        self.cell.get().unwrap().validate()
-    }
-
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
-        self.cell.get().unwrap().parse(stream)
-    }
-}
-
-pub fn recur<O: Clone + 'static>(
-    name: &str,
-    make_parser: &mut impl FnMut(
-        Box<dyn Parser<Output = O>>,
-    ) -> Result<Box<dyn Parser<Output = O>>, GrammarError>,
-) -> Result<Box<dyn Parser<Output = O>>, GrammarError> {
-    // TODO: Make sure this ever gets dropped. Needs weak?
-    let cell = Rc::new(OnceCell::new());
-    let recur = RecurP {
-        name: name.to_owned(),
-        cell: cell.clone(),
-    };
-    let inner_parser = Box::new(recur);
-    let outer_parser = make_parser(inner_parser)?;
-    match cell.set(outer_parser.clone()) {
-        Ok(()) => (),
-        Err(_) => panic!("Bug in recur: failed to set OnceCell"),
-    }
-    Ok(outer_parser)
 }

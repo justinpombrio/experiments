@@ -49,7 +49,8 @@ pub const TOKEN_ERROR: Token = Token::MAX;
 
 #[derive(Debug, Clone)]
 pub struct Pattern {
-    name: String,
+    // TODO
+    // name: String,
     regex: Regex,
     length: Option<usize>,
 }
@@ -61,24 +62,6 @@ impl PartialEq for Pattern {
 }
 
 impl Eq for Pattern {}
-
-impl Pattern {
-    fn new_string(constant: &str) -> Result<Pattern, RegexError> {
-        Ok(Pattern {
-            name: format!("'{}'", constant),
-            regex: new_regex(&escape(constant))?,
-            length: Some(constant.len()),
-        })
-    }
-
-    fn new_regex(name: &str, pattern: &str) -> Result<Pattern, RegexError> {
-        Ok(Pattern {
-            name: name.to_owned(),
-            regex: new_regex(pattern)?,
-            length: None,
-        })
-    }
-}
 
 fn new_regex(regex: &str) -> Result<Regex, RegexError> {
     Regex::new(&format!("^({})", regex))
@@ -105,7 +88,11 @@ impl LexerBuilder {
     /// Add a pattern that matches exactly the string provided. Returns the token that will be
     /// produced whenever this pattern matches.
     pub fn string(&mut self, constant: &str) -> Result<Token, RegexError> {
-        let pattern = Pattern::new_string(constant)?;
+        let pattern = Pattern {
+            //name: format!("'{}'", constant),
+            regex: new_regex(&escape(constant))?,
+            length: Some(constant.len()),
+        };
 
         for (existing_token, existing_pattern) in self.patterns.iter().enumerate() {
             if &pattern == existing_pattern {
@@ -123,8 +110,12 @@ impl LexerBuilder {
     ///
     /// The syntax is that of the `regex` crate. You do not need to begin the pattern with a
     /// start-of-string character `^`.
-    pub fn regex(&mut self, name: &str, regex: &str) -> Result<Token, RegexError> {
-        let pattern = Pattern::new_regex(name, regex)?;
+    pub fn regex(&mut self, regex: &str) -> Result<Token, RegexError> {
+        let pattern = Pattern {
+            //name: name.to_owned(),
+            regex: new_regex(regex)?,
+            length: None,
+        };
 
         for (existing_token, existing_pattern) in self.patterns.iter().enumerate() {
             if &pattern == existing_pattern {
@@ -174,9 +165,12 @@ impl Lexer {
         }
     }
 
+    // TODO
+    /*
     pub fn get_token_name(&self, token: Token) -> &str {
         &self.patterns[token].name
     }
+    */
 }
 
 /*========================================*/
