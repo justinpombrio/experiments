@@ -133,7 +133,8 @@ fn assert_parse(
             Ok(result) => format!("ok {}", result),
             Err(err) => format!("err {}", err),
         },
-        Err(err) => format!("err {}", err),
+        // Compare only the first line of the error message
+        Err(err) => format!("err {}", err.to_string().lines().next().unwrap()),
     };
 
     if actual != expected {
@@ -163,9 +164,9 @@ fn test_parser() {
             input = input_str.trim().to_owned();
         } else if let Some(expect_str) = line.strip_prefix("EXPECT ") {
             let expect_str = expect_str.trim();
-            if let Some(ok_str) = expect_str.strip_prefix("ok ") {
+            if let Some(ok_str) = expect_str.strip_prefix("ok") {
                 assert_parse(line_num, &parser, &input, Ok(ok_str.trim().to_owned()));
-            } else if let Some(err_str) = expect_str.strip_prefix("err ") {
+            } else if let Some(err_str) = expect_str.strip_prefix("err") {
                 assert_parse(line_num, &parser, &input, Err(err_str.trim().to_owned()));
             } else {
                 panic!("Bad test case input (expected `ok` or `err`): {}", line);

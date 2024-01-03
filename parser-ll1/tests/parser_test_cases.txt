@@ -31,3 +31,9 @@ INPUT
 EXPECT ok ()
 INPUT ab;
 EXPECT err Parse error: expected regex but found end of file.
+
+# Test regex error
+# (The actual error message is multiple lines; we only check the first)
+PARSER [/
+INPUT a
+EXPECT err regex parse error:

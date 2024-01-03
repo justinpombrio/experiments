@@ -311,7 +311,7 @@ impl Grammar {
 
 #[derive(Error, Debug)]
 pub enum GrammarError {
-    #[error("Invalid regex")]
+    #[error("{0}")]
     RegexError(#[from] RegexError),
     #[error("Ambiguous grammar: parsing {start} could produce either {case_1} or {case_2}.")]
     AmbiguityOnEmpty {
