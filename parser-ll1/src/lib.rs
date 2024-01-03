@@ -253,8 +253,17 @@ impl ParseError {
 #[derive(Debug, Clone)]
 pub struct Grammar(LexerBuilder);
 
+/// White space as defined by the Pattern_White_Space Unicode property.
+pub const UNICODE_WHITESPACE_REGEX: &str =
+    "[\\u0009\\u000A\\u000B\\u000C\\u000D\\u0020\\u0085\\u200E\\u200F\\u2028\\u2029]*";
+
 impl Grammar {
-    pub fn new(whitespace_regex: &str) -> Result<Grammar, GrammarError> {
+    pub fn new() -> Grammar {
+        let lexer_builder = LexerBuilder::new(UNICODE_WHITESPACE_REGEX).unwrap();
+        Grammar(lexer_builder)
+    }
+
+    pub fn with_whitespace(whitespace_regex: &str) -> Result<Grammar, GrammarError> {
         let lexer_builder =
             LexerBuilder::new(whitespace_regex).map_err(GrammarError::RegexError)?;
         Ok(Grammar(lexer_builder))

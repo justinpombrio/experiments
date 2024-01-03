@@ -13,7 +13,7 @@ pub enum Json {
 fn make_json_parser() -> Result<impl Fn(&str) -> Result<Json, ParseError>, GrammarError> {
     use std::str::FromStr;
 
-    let mut g = Grammar::new("[ \t\r\n]+")?;
+    let mut g = Grammar::with_whitespace("[ \t\r\n]+")?;
 
     let json_p = Recursive::new("json");
 

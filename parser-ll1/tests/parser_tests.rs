@@ -25,7 +25,7 @@ use std::mem;
 fn make_parser(
     description: &str,
 ) -> Result<impl Fn(&str) -> Result<String, ParseError>, GrammarError> {
-    let mut grammar = Grammar::new(" +")?;
+    let mut grammar = Grammar::with_whitespace(" +")?;
     let mut stack: Vec<Box<dyn Parser<Output = String>>> = Vec::new();
     let mut word = String::new();
     let mut chars = description.chars().peekable();
