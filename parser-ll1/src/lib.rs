@@ -7,6 +7,8 @@
 // [x] Test errors: give line number, better error message
 // [ ] Review&test error messages
 // [x] Review combinator names
+// [ ] Add iterator combinator for streaming parsing?
+// [ ] Add context() combinator?
 // [ ] Docs
 
 // This design achieves all of the following:
@@ -37,6 +39,9 @@ use regex::Error as RegexError;
 use std::error;
 use std::fmt;
 use thiserror::Error;
+
+#[cfg(feature = "flamegraphs")]
+use no_nonsense_flamegraphs::span;
 
 /*========================================*/
 /*          Interface                     */
@@ -166,6 +171,7 @@ pub trait Parser: DynClone {
     where
         Self: Clone,
     {
+        // TODO: better name
         let name = self.name().to_owned();
         choice(&name, (self.map(Some), empty().map(|_| None)))
     }
@@ -362,6 +368,9 @@ impl Parser for TokenP {
     }
 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<()> {
+        #[cfg(feature = "flamegraphs")]
+        span!("Token");
+
         if let Some(lexeme) = stream.peek() {
             if lexeme.token == self.token {
                 stream.next();
@@ -408,6 +417,9 @@ impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Parser
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
         use ParseResult::{Error, Failure, Success};
 
+        #[cfg(feature = "flamegraphs")]
+        span!("Map");
+
         let mut skipped_whitespace = stream.clone();
         skipped_whitespace.consume_whitespace();
         let start = skipped_whitespace.pos();
@@ -448,6 +460,9 @@ impl<P: Parser + Clone> Parser for CompleteP<P> {
 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<P::Output> {
         use ParseResult::{Error, Failure, Success};
+
+        #[cfg(feature = "flamegraphs")]
+        span!("Complete");
 
         match self.0.parse(stream) {
             Success(succ) => match stream.next() {
@@ -529,6 +544,9 @@ where
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
         use ParseResult::{Error, Failure, Success};
 
+        #[cfg(feature = "flamegraphs")]
+        span!("Span");
+
         let mut skipped_whitespace = stream.clone();
         skipped_whitespace.consume_whitespace();
         let start = skipped_whitespace.pos();
@@ -577,6 +595,9 @@ impl<P0: Parser + Clone, P1: Parser + Clone> Parser for SeqP<P0, P1> {
 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<(P0::Output, P1::Output)> {
         use ParseResult::{Error, Failure, Success};
+
+        #[cfg(feature = "flamegraphs")]
+        span!("Seq");
 
         let start_pos = stream.pos();
         let result_0 = match self.0.parse(stream) {
@@ -635,6 +656,9 @@ impl<P0: Parser + Clone, P1: Parser<Output = P0::Output> + Clone> Parser for Cho
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<P0::Output> {
         use ParseResult::{Error, Failure, Success};
 
+        #[cfg(feature = "flamegraphs")]
+        span!("Choice");
+
         match self.parser_0.parse(stream) {
             Success(succ) => Success(succ),
             Error(err) => Error(err),
@@ -672,6 +696,9 @@ impl<P: Parser + Clone> Parser for ManyP<P> {
 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<P::Output>> {
         use ParseResult::{Error, Failure, Success};
+
+        #[cfg(feature = "flamegraphs")]
+        span!("Many");
 
         let mut results = Vec::new();
         loop {

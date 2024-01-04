@@ -9,3 +9,7 @@ edition = "2021"
 regex = "*"
 thiserror = "*"
 dyn-clone = "1.*"
+no-nonsense-flamegraphs = { git = "https://github.com/justinpombrio/no-nonsense-flamegraphs.git", optional = true }
+
+[features]
+flamegraphs = ["dep:no-nonsense-flamegraphs"]
