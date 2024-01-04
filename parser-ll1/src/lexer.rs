@@ -162,6 +162,7 @@ impl Lexer {
                 col: 0,
                 utf8_col: 0,
             },
+            peeked: None,
         }
     }
 
@@ -238,6 +239,7 @@ pub struct LexemeIter<'l, 's> {
     // The _remaining, unlexed_ source text
     source: &'s str,
     lexer: &'l Lexer,
+    peeked: Option<(Position, &'s str, Lexeme<'s>)>,
 }
 
 impl<'l, 's> LexemeIter<'l, 's> {
@@ -249,8 +251,30 @@ impl<'l, 's> LexemeIter<'l, 's> {
         &self.source
     }
 
-    pub fn peek(&self) -> Option<Lexeme<'s>> {
-        self.clone().next()
+    pub fn peek(&mut self) -> Option<Lexeme<'s>> {
+        if let Some((_, _, lexeme)) = self.peeked {
+            return Some(lexeme);
+        }
+
+        // Save current state
+        let old_pos = self.position;
+        let old_src = self.source;
+
+        // Lex one token and save what we find
+        let result = match self.next() {
+            Some(lexeme) => {
+                self.peeked = Some((self.position, self.source, lexeme));
+                Some(lexeme)
+            }
+            None => None,
+        };
+
+        // Restore previous state
+        self.position = old_pos;
+        self.source = old_src;
+
+        // Return lexed token
+        result
     }
 
     pub fn consume_whitespace(&mut self) {
@@ -276,6 +300,12 @@ impl<'l, 's> Iterator for LexemeIter<'l, 's> {
     type Item = Lexeme<'s>;
 
     fn next(&mut self) -> Option<Lexeme<'s>> {
+        if let Some((pos, source, lexeme)) = self.peeked.take() {
+            self.position = pos;
+            self.source = source;
+            return Some(lexeme);
+        }
+
         self.consume_whitespace();
 
         // If we're at the end of the file, we're done.
