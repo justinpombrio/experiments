@@ -79,7 +79,7 @@ pub trait Parser: DynClone {
     where
         Self: Clone,
     {
-        self.try_map(move |v| Ok(func(v)))
+        MapP { parser: self, func }
     }
 
     fn constant<O: Clone>(self, value: O) -> impl Parser<Output = O> + Clone
@@ -93,12 +93,7 @@ pub trait Parser: DynClone {
     where
         Self: Clone,
     {
-        use std::convert::Infallible;
-
-        self.try_map_span(move |span, _| {
-            let result: Result<O, Infallible> = Ok(func(span));
-            result
-        })
+        self.map_span(move |span, _| func(span))
     }
 
     fn map_span<O>(
@@ -108,12 +103,7 @@ pub trait Parser: DynClone {
     where
         Self: Clone,
     {
-        use std::convert::Infallible;
-
-        self.try_map_span(move |span, val| {
-            let result: Result<O, Infallible> = Ok(func(span, val));
-            result
-        })
+        SpanP { parser: self, func }
     }
 
     fn try_span<O, E: error::Error>(
@@ -198,9 +188,7 @@ pub trait Parser: DynClone {
     where
         Self: Clone,
     {
-        self.many_sep1(sep)
-            .opt()
-            .map(|opt| opt.unwrap_or_else(|| Vec::new()))
+        SepP { elem: self, sep }
     }
 
     fn many_sep1(self, sep: impl Parser + Clone) -> impl Parser<Output = Vec<Self::Output>> + Clone
@@ -382,7 +370,7 @@ impl Parser for TokenP {
 }
 
 /*========================================*/
-/*          Parser: Map                   */
+/*          Parser: Try Map               */
 /*========================================*/
 
 struct TryMapP<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> {
@@ -441,6 +429,49 @@ impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Parser
 }
 
 /*========================================*/
+/*          Parser: Map                   */
+/*========================================*/
+
+struct MapP<P: Parser + Clone, O, F: Fn(P::Output) -> O + Clone> {
+    parser: P,
+    func: F,
+}
+
+impl<P: Parser + Clone, O, F: Fn(P::Output) -> O + Clone> Clone for MapP<P, O, F> {
+    fn clone(&self) -> MapP<P, O, F> {
+        MapP {
+            parser: self.parser.clone(),
+            func: self.func.clone(),
+        }
+    }
+}
+
+impl<P: Parser + Clone, O, F: Fn(P::Output) -> O + Clone> Parser for MapP<P, O, F> {
+    type Output = O;
+
+    fn name(&self) -> String {
+        self.parser.name()
+    }
+
+    fn validate(&self) -> Result<InitialSet, GrammarError> {
+        self.parser.validate()
+    }
+
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+        use ParseResult::{Error, Failure, Success};
+
+        #[cfg(feature = "flamegraphs")]
+        span!("Map");
+
+        match self.parser.parse(stream) {
+            Success(result) => Success((self.func)(result)),
+            Failure => Failure,
+            Error(err) => Error(err),
+        }
+    }
+}
+
+/*========================================*/
 /*          Parser: Complete              */
 /*========================================*/
 
@@ -485,7 +516,7 @@ impl<P: Parser + Clone> Parser for CompleteP<P> {
 }
 
 /*========================================*/
-/*          Parser: Span                  */
+/*          Parser: Try Span              */
 /*========================================*/
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -545,7 +576,7 @@ where
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
-        span!("Span");
+        span!("TrySpan");
 
         let mut skipped_whitespace = stream.clone();
         skipped_whitespace.consume_whitespace();
@@ -569,6 +600,72 @@ where
                 span: (span.start, span.end),
             }),
         }
+    }
+}
+
+/*========================================*/
+/*          Parser: Span                  */
+/*========================================*/
+
+struct SpanP<P, O, F>
+where
+    P: Parser + Clone,
+    F: Fn(Span, P::Output) -> O + Clone,
+{
+    parser: P,
+    func: F,
+}
+
+impl<P, O, F> Clone for SpanP<P, O, F>
+where
+    P: Parser + Clone,
+    F: Fn(Span, P::Output) -> O + Clone,
+{
+    fn clone(&self) -> SpanP<P, O, F> {
+        SpanP {
+            parser: self.parser.clone(),
+            func: self.func.clone(),
+        }
+    }
+}
+
+impl<P, O, F> Parser for SpanP<P, O, F>
+where
+    P: Parser + Clone,
+    F: Fn(Span, P::Output) -> O + Clone,
+{
+    type Output = O;
+
+    fn name(&self) -> String {
+        self.parser.name()
+    }
+
+    fn validate(&self) -> Result<InitialSet, GrammarError> {
+        self.parser.validate()
+    }
+
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+        use ParseResult::{Error, Failure, Success};
+
+        #[cfg(feature = "flamegraphs")]
+        span!("Span");
+
+        let mut skipped_whitespace = stream.clone();
+        skipped_whitespace.consume_whitespace();
+        let start = skipped_whitespace.pos();
+        let source = skipped_whitespace.remaining_source();
+
+        let result = match self.parser.parse(stream) {
+            Success(succ) => succ,
+            Failure => return Failure,
+            Error(err) => return Error(err),
+        };
+
+        let end = stream.pos();
+        let substr = &source[0..end.offset - start.offset];
+        let span = Span { substr, start, end };
+
+        ParseResult::Success((self.func)(span, result))
     }
 }
 
@@ -599,13 +696,13 @@ impl<P0: Parser + Clone, P1: Parser + Clone> Parser for SeqP<P0, P1> {
         #[cfg(feature = "flamegraphs")]
         span!("Seq");
 
-        let start_pos = stream.pos();
+        let start_pos = stream.pos().offset;
         let result_0 = match self.0.parse(stream) {
             Success(succ) => succ,
             Failure => return Failure,
             Error(err) => return Error(err),
         };
-        let consumed = stream.pos() != start_pos;
+        let consumed = stream.pos().offset != start_pos;
         let result_1 = match self.1.parse(stream) {
             Success(succ) => succ,
             Error(err) => return Error(err),
@@ -704,6 +801,75 @@ impl<P: Parser + Clone> Parser for ManyP<P> {
         loop {
             match self.0.parse(stream) {
                 Success(succ) => results.push(succ),
+                Error(err) => return Error(err),
+                Failure => return Success(results),
+            }
+        }
+    }
+}
+
+/*========================================*/
+/*          Parser: Sep                   */
+/*========================================*/
+
+#[derive(Clone)]
+struct SepP<P: Parser + Clone, Q: Parser + Clone> {
+    elem: P,
+    sep: Q,
+}
+
+impl<P: Parser + Clone, Q: Parser + Clone> Parser for SepP<P, Q> {
+    type Output = Vec<P::Output>;
+
+    fn name(&self) -> String {
+        self.elem.name()
+    }
+
+    fn validate(&self) -> Result<InitialSet, GrammarError> {
+        // Initial set for up to 2 elems is guaranteed to be initial set for any number of elems
+
+        let elem_init = self.elem.validate()?;
+        let sep_init = self.sep.validate()?;
+
+        let len_0 = InitialSet::new_empty("nothing");
+        let len_1 = elem_init.clone();
+        let mut len_2 = elem_init.clone();
+        len_2.seq(sep_init)?;
+        len_2.seq(elem_init)?;
+
+        let mut init = len_0;
+        init.union("sep", len_1)?;
+        init.union("sep", len_2)?;
+        Ok(init)
+    }
+
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<P::Output>> {
+        use ParseResult::{Error, Failure, Success};
+
+        #[cfg(feature = "flamegraphs")]
+        span!("Many");
+
+        let mut results = Vec::new();
+        match self.elem.parse(stream) {
+            Success(succ) => results.push(succ),
+            Error(err) => return Error(err),
+            Failure => return Success(results),
+        }
+        loop {
+            match self.sep.parse(stream) {
+                Success(_succ) => match self.elem.parse(stream) {
+                    Success(succ) => results.push(succ),
+                    Error(err) => return Error(err),
+                    Failure => {
+                        return Error(ParseErrorCause::StandardError {
+                            expected: self.sep.name().to_owned(),
+                            found: match stream.peek() {
+                                Some(lex) => (lex.start, lex.end),
+                                None => (stream.pos(), stream.pos()),
+                            },
+                        })
+                    }
+                },
                 Error(err) => return Error(err),
                 Failure => return Success(results),
             }
