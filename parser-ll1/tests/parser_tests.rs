@@ -22,7 +22,7 @@ use std::mem;
 
 fn make_parser(
     description: &str,
-) -> Result<impl Fn(&str) -> Result<String, ParseError>, GrammarError> {
+) -> Result<impl Fn(&str, &str) -> Result<String, ParseError>, GrammarError> {
     let mut grammar = Grammar::with_whitespace(" +")?;
     let mut stack: Vec<Box<dyn Parser<Output = String>>> = Vec::new();
     let mut word = String::new();
@@ -121,19 +121,22 @@ fn assert_parse(
     input: &str,
     expected: Result<String, String>,
 ) {
-    let expected = match expected {
+    let mut expected = match expected {
         Ok(result) => format!("ok {}", result),
         Err(err) => format!("err {}", err),
     };
+    // Compare only the first line
+    expected = expected.lines().next().unwrap().to_owned();
 
-    let actual = match make_parser(parser_description) {
-        Ok(parse) => match parse(input) {
+    let mut actual = match make_parser(parser_description) {
+        Ok(parse) => match parse("test case", input) {
             Ok(result) => format!("ok {}", result),
             Err(err) => format!("err {}", err),
         },
-        // Compare only the first line of the error message
-        Err(err) => format!("err {}", err.to_string().lines().next().unwrap()),
+        Err(err) => format!("err {}", err),
     };
+    // Compare only the first line
+    actual = actual.lines().next().unwrap().to_owned();
 
     if actual != expected {
         panic!(

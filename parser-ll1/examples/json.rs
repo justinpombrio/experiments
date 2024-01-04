@@ -60,12 +60,12 @@ impl fmt::Display for Json {
     }
 }
 
-fn make_json_parser() -> Result<impl Fn(&str) -> Result<Json, ParseError>, GrammarError> {
+fn make_json_parser() -> Result<impl Fn(&str, &str) -> Result<Json, ParseError>, GrammarError> {
     use std::str::FromStr;
 
     let mut g = Grammar::with_whitespace("[ \t\r\n]+")?;
 
-    let json_p = Recursive::new("json");
+    let json_p = Recursive::new("json value");
 
     // Null
     let null_p = g.string("null")?.value(Json::Null);
@@ -77,7 +77,7 @@ fn make_json_parser() -> Result<impl Fn(&str) -> Result<Json, ParseError>, Gramm
 
     // Numbers. This is a bad regex that only works for some numbers
     let number_p = g
-        .regex("number", "[1-9][0-9]*(\\.[0-9]*)?")?
+        .regex("number", "[1-9][0-9]*(\\.[0-9]*)?|\\.[0-9]*")?
         .try_span(|s| f64::from_str(s.substr).map_err(|e| e.to_string()))
         .map(Json::Number);
 
@@ -110,8 +110,10 @@ fn make_json_parser() -> Result<impl Fn(&str) -> Result<Json, ParseError>, Gramm
 fn main() {
     use std::io;
 
-    let parser = make_json_parser().unwrap();
+    let parse = make_json_parser().unwrap();
     let input = io::read_to_string(io::stdin()).unwrap();
-    let json = parser(&input).unwrap();
-    println!("{}", json);
+    match parse("stdin", &input) {
+        Err(err) => println!("{}", err),
+        Ok(json) => println!("{}", json),
+    }
 }

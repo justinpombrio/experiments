@@ -157,7 +157,7 @@ impl Lexer {
             source,
             lexer: self,
             position: Position {
-                pos: 0,
+                offset: 0,
                 line: 0,
                 col: 0,
                 utf8_col: 0,
@@ -192,16 +192,20 @@ pub struct Lexeme<'s> {
 /*          Position                      */
 /*========================================*/
 
+pub type Offset = usize;
+pub type Line = u32;
+pub type Col = u32;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position {
     /// Byte offset from the beginning of the source string.
-    pub pos: usize,
+    pub offset: Offset,
     /// Line number.
-    pub line: usize,
+    pub line: Line,
     /// Column number, counted in bytes.
-    pub col: usize,
+    pub col: Col,
     /// Column number, counted in utf8 codepoints.
-    pub utf8_col: usize,
+    pub utf8_col: Col,
 }
 
 impl fmt::Display for Position {
@@ -212,13 +216,13 @@ impl fmt::Display for Position {
 
 impl Position {
     fn advance(&mut self, ch: char) {
-        self.pos += ch.len_utf8();
+        self.offset += ch.len_utf8() as Offset;
         if ch == '\n' {
             self.col = 0;
             self.utf8_col = 0;
             self.line += 1;
         } else {
-            self.col += ch.len_utf8();
+            self.col += ch.len_utf8() as Col;
             self.utf8_col += 1;
         }
     }
@@ -249,6 +253,12 @@ impl<'l, 's> LexemeIter<'l, 's> {
         self.clone().next()
     }
 
+    pub fn consume_whitespace(&mut self) {
+        if let Some(span) = self.lexer.whitespace.find(self.source) {
+            self.consume(span.end());
+        }
+    }
+
     fn consume(&mut self, len: usize) -> (&'s str, Position, Position) {
         let start = self.position;
         for ch in self.source[..len].chars() {
@@ -266,10 +276,7 @@ impl<'l, 's> Iterator for LexemeIter<'l, 's> {
     type Item = Lexeme<'s>;
 
     fn next(&mut self) -> Option<Lexeme<'s>> {
-        // Consume whitespace
-        if let Some(span) = self.lexer.whitespace.find(self.source) {
-            self.consume(span.end());
-        }
+        self.consume_whitespace();
 
         // If we're at the end of the file, we're done.
         if self.source.is_empty() {

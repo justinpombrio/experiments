@@ -25,25 +25,32 @@
 
 mod initial_set;
 mod lexer;
+mod parse_error;
 mod parser_recur;
 mod tuples;
 mod vec_map;
 
 use crate::lexer::{LexemeIter, LexerBuilder, Position, Token};
 use dyn_clone::{clone_box, DynClone};
+use parse_error::ParseErrorCause;
 use regex::Error as RegexError;
 use std::fmt;
 use thiserror::Error;
-
-pub use tuples::{choice, seq, ChoiceTuple, SeqTuple};
-
-pub use parser_recur::Recursive;
 
 /*========================================*/
 /*          Interface                     */
 /*========================================*/
 
 pub use initial_set::InitialSet;
+pub use parse_error::ParseError;
+pub use parser_recur::Recursive;
+pub use tuples::{choice, seq, ChoiceTuple, SeqTuple};
+
+pub enum ParseResult<T> {
+    Success(T),
+    Failure,
+    Error(ParseErrorCause),
+}
 
 pub trait Parser: DynClone {
     type Output;
@@ -206,38 +213,6 @@ impl<T> Parser for Box<dyn Parser<Output = T>> {
 }
 
 /*========================================*/
-/*          Parse Errors                  */
-/*========================================*/
-
-pub enum ParseResult<T> {
-    Success(T),
-    Failure,
-    Error(ParseError),
-}
-
-#[derive(Debug, Error)]
-pub enum ParseError {
-    #[error("Parse error: {0}")]
-    CustomError(String),
-    #[error("Parse error: expected {expected} but found '{found}'.")]
-    WrongToken { expected: String, found: String },
-    #[error("Parse error: expected {0} but found end of file.")]
-    Incomplete(String),
-    #[error("Parse error: expected end of file but found '{0}'.")]
-    TooMuch(String),
-}
-
-impl ParseError {
-    pub fn new(expected: String, found: Option<String>) -> ParseError {
-        if let Some(found) = found {
-            ParseError::WrongToken { expected, found }
-        } else {
-            ParseError::Incomplete(expected)
-        }
-    }
-}
-
-/*========================================*/
 /*          Grammar                       */
 /*========================================*/
 
@@ -282,19 +257,19 @@ impl Grammar {
     pub fn make_parse_fn<P: Parser + Clone>(
         &self,
         parser: P,
-    ) -> Result<impl Fn(&str) -> Result<P::Output, ParseError>, GrammarError> {
+    ) -> Result<impl Fn(&str, &str) -> Result<P::Output, ParseError>, GrammarError> {
         use ParseResult::{Error, Failure, Success};
 
         let lexer = self.clone().0.finish();
         let parser = parser.complete(); // ensure whole stream is consumed
         parser.validate()?;
 
-        Ok(move |input: &str| {
+        Ok(move |filename: &str, input: &str| {
             let mut lexemes = lexer.lex(input);
             match parser.parse(&mut lexemes) {
                 Success(succ) => Ok(succ),
                 Failure => panic!("Bug in CompleteP parser"), // CompleteP never returns Failure
-                Error(err) => Err(err),
+                Error(err) => Err(err.build_error(filename, input)),
             }
         })
     }
@@ -414,10 +389,19 @@ impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Parser
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
         use ParseResult::{Error, Failure, Success};
 
+        let mut skipped_whitespace = stream.clone();
+        skipped_whitespace.consume_whitespace();
+        let start = skipped_whitespace.pos();
         match self.parser.parse(stream) {
             Success(result) => match (self.func)(result) {
                 Ok(succ) => ParseResult::Success(succ),
-                Err(err) => ParseResult::Error(ParseError::CustomError(err)),
+                Err(err) => {
+                    let end = stream.pos();
+                    ParseResult::Error(ParseErrorCause::CustomError {
+                        message: err,
+                        span: (start, end),
+                    })
+                }
             },
             Failure => Failure,
             Error(err) => Error(err),
@@ -449,12 +433,18 @@ impl<P: Parser + Clone> Parser for CompleteP<P> {
         match self.0.parse(stream) {
             Success(succ) => match stream.next() {
                 None => Success(succ),
-                Some(lex) => Error(ParseError::TooMuch(lex.lexeme.to_owned())),
+                Some(lex) => Error(ParseErrorCause::StandardError {
+                    expected: "end of file".to_owned(),
+                    found: (lex.start, lex.end),
+                }),
             },
-            Failure => Error(ParseError::new(
-                self.0.name().to_owned(),
-                stream.peek().map(|lex| lex.lexeme.to_owned()),
-            )),
+            Failure => Error(ParseErrorCause::StandardError {
+                expected: self.0.name().to_owned(),
+                found: match stream.peek() {
+                    Some(lex) => (lex.start, lex.end),
+                    None => (stream.pos(), stream.pos()),
+                },
+            }),
             Error(err) => Error(err),
         }
     }
@@ -509,9 +499,10 @@ impl<P: Parser + Clone, O, F: Fn(Span, P::Output) -> Result<O, String> + Clone> 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
         use ParseResult::{Error, Failure, Success};
 
-        let zero = stream.pos();
-        let source = stream.remaining_source();
-        let start = stream.peek().map(|lex| lex.start).unwrap_or(zero);
+        let mut skipped_whitespace = stream.clone();
+        skipped_whitespace.consume_whitespace();
+        let start = skipped_whitespace.pos();
+        let source = skipped_whitespace.remaining_source();
 
         let result = match self.parser.parse(stream) {
             Success(succ) => succ,
@@ -520,12 +511,15 @@ impl<P: Parser + Clone, O, F: Fn(Span, P::Output) -> Result<O, String> + Clone> 
         };
 
         let end = stream.pos();
-        let substr = &source[start.pos - zero.pos..end.pos - zero.pos];
+        let substr = &source[0..end.offset - start.offset];
         let span = Span { substr, start, end };
 
         match (self.func)(span, result) {
             Ok(succ) => ParseResult::Success(succ),
-            Err(err) => ParseResult::Error(ParseError::CustomError(err)),
+            Err(err) => ParseResult::Error(ParseErrorCause::CustomError {
+                message: err,
+                span: (span.start, span.end),
+            }),
         }
     }
 }
@@ -566,10 +560,13 @@ impl<P0: Parser + Clone, P1: Parser + Clone> Parser for SeqP<P0, P1> {
             Error(err) => return Error(err),
             Failure => {
                 if consumed {
-                    return Error(ParseError::new(
-                        self.1.name().to_owned(),
-                        stream.peek().map(|lex| lex.lexeme.to_owned()),
-                    ));
+                    return Error(ParseErrorCause::StandardError {
+                        expected: self.1.name().to_owned(),
+                        found: match stream.peek() {
+                            Some(lex) => (lex.start, lex.end),
+                            None => (stream.pos(), stream.pos()),
+                        },
+                    });
                 } else {
                     return Failure;
                 }
