@@ -1,4 +1,4 @@
-use parser_ll1::{choice, seq, Grammar, GrammarError, ParseError, Parser, Recursive};
+use parser_ll1::{choice, tuple, Grammar, GrammarError, ParseError, Parser, Recursive};
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -68,17 +68,17 @@ fn make_json_parser() -> Result<impl Fn(&str, &str) -> Result<Json, ParseError>,
     let json_p = Recursive::new("json value");
 
     // Null
-    let null_p = g.string("null")?.value(Json::Null);
+    let null_p = g.string("null")?.constant(Json::Null);
 
     // Bools
-    let true_p = g.string("true")?.value(Json::Bool(true));
-    let false_p = g.string("false")?.value(Json::Bool(false));
+    let true_p = g.string("true")?.constant(Json::Bool(true));
+    let false_p = g.string("false")?.constant(Json::Bool(false));
     let bool_p = choice("boolean", (true_p, false_p));
 
     // Numbers. This is a bad regex that only works for some numbers
     let number_p = g
         .regex("number", "[1-9][0-9]*(\\.[0-9]*)?|\\.[0-9]*")?
-        .try_span(|s| f64::from_str(s.substr).map_err(|e| e.to_string()))
+        .try_span(|s| f64::from_str(s.substr))
         .map(Json::Number);
 
     // Strings. Not implementing Json string escapes for this small test case.
@@ -88,15 +88,15 @@ fn make_json_parser() -> Result<impl Fn(&str, &str) -> Result<Json, ParseError>,
     let string_p = plain_string_p.clone().map(Json::String);
 
     // Arrays
-    let array_elems_p = json_p.refn().sep(g.string(",")?);
-    let array_p = seq((g.string("[")?, array_elems_p, g.string("]")?))
+    let array_elems_p = json_p.refn().many_sep0(g.string(",")?);
+    let array_p = tuple((g.string("[")?, array_elems_p, g.string("]")?))
         .map(|(_, elems, _)| Json::Array(elems));
 
     // Objects
     let entry_p =
-        seq((plain_string_p, g.string(":")?, json_p.refn())).map(|(key, _, val)| (key, val));
-    let entries_p = entry_p.sep(g.string(",")?);
-    let dict_p = seq((g.string("{")?, entries_p, g.string("}")?))
+        tuple((plain_string_p, g.string(":")?, json_p.refn())).map(|(key, _, val)| (key, val));
+    let entries_p = entry_p.many_sep0(g.string(",")?);
+    let dict_p = tuple((g.string("{")?, entries_p, g.string("}")?))
         .map(|(_, entries, _)| Json::Object(entries));
 
     let json_p = json_p.define(choice(

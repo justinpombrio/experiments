@@ -160,7 +160,7 @@ where
 /*          Parsers: Seq                  */
 /*========================================*/
 
-pub fn seq<T: SeqTuple>(tuple: T) -> impl Parser<Output = T::Output> + Clone {
+pub fn tuple<T: SeqTuple>(tuple: T) -> impl Parser<Output = T::Output> + Clone {
     tuple.make_seq()
 }
 

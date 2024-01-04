@@ -1,4 +1,4 @@
-use parser_ll1::{choice, empty, seq, Grammar, GrammarError, ParseError, Parser};
+use parser_ll1::{choice, empty, tuple, Grammar, GrammarError, ParseError, Parser};
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -54,7 +54,7 @@ fn make_parser(
             }
             '*' => {
                 let parser = stack.pop().unwrap();
-                let parser = parser.many().map(|vec| format!("({})", vec.join(" ")));
+                let parser = parser.many0().map(|vec| format!("({})", vec.join(" ")));
                 stack.push(Box::new(parser));
             }
             '$' => {
@@ -66,7 +66,7 @@ fn make_parser(
                 let parser_2 = stack.pop().unwrap();
                 let parser_1 = stack.pop().unwrap();
                 let parser = parser_1
-                    .sep(parser_2)
+                    .many_sep0(parser_2)
                     .map(|vec| format!("({})", vec.join(" ")));
                 stack.push(Box::new(parser));
             }
@@ -75,7 +75,7 @@ fn make_parser(
                     chars.next();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = seq((parser_1, parser_2)).map(|(a, b)| format!("({} {})", a, b));
+                    let parser = tuple((parser_1, parser_2)).map(|(a, b)| format!("({} {})", a, b));
                     stack.push(Box::new(parser));
                 }
                 Some('3') => {
@@ -83,7 +83,7 @@ fn make_parser(
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = seq((parser_1, parser_2, parser_3))
+                    let parser = tuple((parser_1, parser_2, parser_3))
                         .map(|(a, b, c)| format!("({} {} {})", a, b, c));
                     stack.push(Box::new(parser));
                 }
