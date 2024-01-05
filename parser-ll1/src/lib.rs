@@ -9,7 +9,7 @@
 // [x] Review combinator names
 // [ ] Add iterator combinator for streaming parsing?
 // [ ] Add context() combinator?
-// [ ] Change Parser<Output = T> to Parser<T>
+// [x] Change Parser<Output = T> to Parser<T>
 // [ ] Try having parsers lex directly instead of having a separate lexer;
 //     see if that dramatically improves the speed.
 // [ ] Docs
@@ -17,7 +17,7 @@
 // This design achieves all of the following:
 //
 // - The lexer isn't exposed (i.e. `Token` isn't in the interface).
-// - The types of parsers is reasonable if a bit long `impl Parser<Output = T>`.
+// - The types of parsers is reasonable if a bit long `impl Parser<T>`.
 // - The implementation of recursive parsers doesn't threaten to summon Cthulu.
 // - Parsers can be cloned without having the illegal `Box<Trait + Clone>`.
 // - Implementing a parser combinator isn't too onerous.
@@ -41,6 +41,7 @@ use parse_error::ParseErrorCause;
 use regex::Error as RegexError;
 use std::error;
 use std::fmt;
+use std::marker::PhantomData;
 use thiserror::Error;
 
 #[cfg(feature = "flamegraphs")]
@@ -61,106 +62,111 @@ pub enum ParseResult<T> {
     Error(ParseErrorCause),
 }
 
-pub trait Parser: DynClone {
-    type Output;
-
+pub trait Parser<T>: DynClone {
     fn name(&self) -> String;
     fn validate(&self) -> Result<InitialSet, GrammarError>;
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Self::Output>;
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T>;
 
-    fn try_map<O>(
-        self,
-        func: impl Fn(Self::Output) -> Result<O, String> + Clone,
-    ) -> impl Parser<Output = O> + Clone
+    fn try_map<T2>(self, func: impl Fn(T) -> Result<T2, String> + Clone) -> impl Parser<T2> + Clone
     where
         Self: Clone,
     {
-        TryMapP { parser: self, func }
+        TryMapP {
+            parser: self,
+            func,
+            phantom: PhantomData,
+        }
     }
 
-    fn map<O>(self, func: impl Fn(Self::Output) -> O + Clone) -> impl Parser<Output = O> + Clone
+    fn map<T2>(self, func: impl Fn(T) -> T2 + Clone) -> impl Parser<T2> + Clone
     where
         Self: Clone,
     {
-        MapP { parser: self, func }
+        MapP {
+            parser: self,
+            func,
+            phantom: PhantomData,
+        }
     }
 
-    fn constant<O: Clone>(self, value: O) -> impl Parser<Output = O> + Clone
+    fn constant<T2: Clone>(self, value: T2) -> impl Parser<T2> + Clone
     where
         Self: Clone,
     {
         self.try_map(move |_| Ok(value.clone()))
     }
 
-    fn span<O>(self, func: impl Fn(Span) -> O + Clone) -> impl Parser<Output = O> + Clone
+    fn span<T2>(self, func: impl Fn(Span) -> T2 + Clone) -> impl Parser<T2> + Clone
     where
         Self: Clone,
     {
         self.map_span(move |span, _| func(span))
     }
 
-    fn map_span<O>(
-        self,
-        func: impl Fn(Span, Self::Output) -> O + Clone,
-    ) -> impl Parser<Output = O> + Clone
+    fn map_span<T2>(self, func: impl Fn(Span, T) -> T2 + Clone) -> impl Parser<T2> + Clone
     where
         Self: Clone,
     {
-        SpanP { parser: self, func }
+        SpanP {
+            parser: self,
+            func,
+            phantom: PhantomData,
+        }
     }
 
-    fn try_span<O, E: error::Error>(
+    fn try_span<T2, E: error::Error>(
         self,
-        func: impl Fn(Span) -> Result<O, E> + Clone,
-    ) -> impl Parser<Output = O> + Clone
+        func: impl Fn(Span) -> Result<T2, E> + Clone,
+    ) -> impl Parser<T2> + Clone
     where
         Self: Clone,
     {
         self.try_map_span(move |span, _| func(span))
     }
 
-    fn try_map_span<O, E: error::Error>(
+    fn try_map_span<T2, E: error::Error>(
         self,
-        func: impl Fn(Span, Self::Output) -> Result<O, E> + Clone,
-    ) -> impl Parser<Output = O> + Clone
+        func: impl Fn(Span, T) -> Result<T2, E> + Clone,
+    ) -> impl Parser<T2> + Clone
     where
         Self: Clone,
     {
-        TrySpanP { parser: self, func }
+        TrySpanP {
+            parser: self,
+            func,
+            phantom: PhantomData,
+        }
     }
 
-    fn and<P: Parser + Clone>(
-        self,
-        other: P,
-    ) -> impl Parser<Output = (Self::Output, P::Output)> + Clone
+    fn and<T2, P: Parser<T2> + Clone>(self, other: P) -> impl Parser<(T, T2)> + Clone
     where
         Self: Clone,
     {
-        SeqP(self, other)
+        SeqP(self, other, PhantomData)
     }
 
-    fn preceded<P: Parser + Clone>(self, other: P) -> impl Parser<Output = P::Output> + Clone
+    fn preceded<T2, P: Parser<T2> + Clone>(self, other: P) -> impl Parser<T2> + Clone
     where
         Self: Clone,
     {
         self.and(other).map(|(_, v1)| v1)
     }
 
-    fn terminated<P: Parser + Clone>(self, other: P) -> impl Parser<Output = Self::Output> + Clone
+    fn terminated<P: Parser<T> + Clone>(self, other: P) -> impl Parser<T> + Clone
     where
         Self: Clone,
     {
         self.and(other).map(|(v0, _)| v0)
     }
 
-    fn complete(self) -> impl Parser<Output = Self::Output> + Clone
+    fn complete(self) -> impl Parser<T> + Clone
     where
         Self: Clone,
     {
-        CompleteP(self)
+        CompleteP(self, PhantomData)
     }
 
-    fn opt(self) -> impl Parser<Output = Option<Self::Output>> + Clone
+    fn opt(self) -> impl Parser<Option<T>> + Clone
     where
         Self: Clone,
     {
@@ -169,32 +175,36 @@ pub trait Parser: DynClone {
         choice(&name, (self.map(Some), empty().map(|_| None)))
     }
 
-    fn many0(self) -> impl Parser<Output = Vec<Self::Output>> + Clone
+    fn many0(self) -> impl Parser<Vec<T>> + Clone
     where
         Self: Clone,
     {
-        ManyP(self)
+        ManyP(self, PhantomData)
     }
 
-    fn many1(self) -> impl Parser<Output = Vec<Self::Output>> + Clone
+    fn many1(self) -> impl Parser<Vec<T>> + Clone
     where
         Self: Clone,
     {
         // TODO: this could be more efficient!
-        self.clone().and(ManyP(self)).map(|(val, mut vec)| {
+        self.clone().and(self.many0()).map(|(val, mut vec)| {
             vec.insert(0, val);
             vec
         })
     }
 
-    fn many_sep0(self, sep: impl Parser + Clone) -> impl Parser<Output = Vec<Self::Output>> + Clone
+    fn many_sep0<T2>(self, sep: impl Parser<T2> + Clone) -> impl Parser<Vec<T>> + Clone
     where
         Self: Clone,
     {
-        SepP { elem: self, sep }
+        SepP {
+            elem: self,
+            sep,
+            phantom: PhantomData,
+        }
     }
 
-    fn many_sep1(self, sep: impl Parser + Clone) -> impl Parser<Output = Vec<Self::Output>> + Clone
+    fn many_sep1<T2>(self, sep: impl Parser<T2> + Clone) -> impl Parser<Vec<T>> + Clone
     where
         Self: Clone,
     {
@@ -206,15 +216,13 @@ pub trait Parser: DynClone {
     }
 }
 
-impl<T> Clone for Box<dyn Parser<Output = T>> {
+impl<T> Clone for Box<dyn Parser<T>> {
     fn clone(&self) -> Self {
         clone_box(self.as_ref())
     }
 }
 
-impl<T> Parser for Box<dyn Parser<Output = T>> {
-    type Output = T;
-
+impl<T> Parser<T> for Box<dyn Parser<T>> {
     fn name(&self) -> String {
         self.as_ref().name()
     }
@@ -223,7 +231,7 @@ impl<T> Parser for Box<dyn Parser<Output = T>> {
         self.as_ref().validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Self::Output> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
         self.as_ref().parse(stream)
     }
 }
@@ -251,10 +259,7 @@ impl Grammar {
         Ok(Grammar(lexer_builder))
     }
 
-    pub fn string(
-        &mut self,
-        string: &str,
-    ) -> Result<impl Parser<Output = ()> + Clone, GrammarError> {
+    pub fn string(&mut self, string: &str) -> Result<impl Parser<()> + Clone, GrammarError> {
         let name = format!("'{}'", string);
         let token = self.0.string(string)?;
         Ok(TokenP { name, token })
@@ -264,16 +269,16 @@ impl Grammar {
         &mut self,
         name: &str,
         regex: &str,
-    ) -> Result<impl Parser<Output = ()> + Clone, GrammarError> {
+    ) -> Result<impl Parser<()> + Clone, GrammarError> {
         let token = self.0.regex(regex)?;
         let name = name.to_owned();
         Ok(TokenP { name, token })
     }
 
-    pub fn make_parse_fn<P: Parser + Clone>(
+    pub fn make_parse_fn<T2, P: Parser<T2> + Clone>(
         &self,
         parser: P,
-    ) -> Result<impl Fn(&str, &str) -> Result<P::Output, ParseError>, GrammarError> {
+    ) -> Result<impl Fn(&str, &str) -> Result<T2, ParseError>, GrammarError> {
         use ParseResult::{Error, Failure, Success};
 
         let lexer = self.clone().0.finish();
@@ -317,9 +322,7 @@ pub enum GrammarError {
 #[derive(Clone)]
 struct EmptyP;
 
-impl Parser for EmptyP {
-    type Output = ();
-
+impl Parser<()> for EmptyP {
     fn name(&self) -> String {
         "nothing".to_owned()
     }
@@ -333,7 +336,7 @@ impl Parser for EmptyP {
     }
 }
 
-pub fn empty() -> impl Parser<Output = ()> + Clone {
+pub fn empty() -> impl Parser<()> + Clone {
     EmptyP
 }
 
@@ -347,9 +350,7 @@ struct TokenP {
     token: Token,
 }
 
-impl Parser for TokenP {
-    type Output = ();
-
+impl Parser<()> for TokenP {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -376,27 +377,27 @@ impl Parser for TokenP {
 /*          Parser: Try Map               */
 /*========================================*/
 
-struct TryMapP<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> {
-    parser: P,
+struct TryMapP<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> Result<T1, String> + Clone> {
+    parser: P0,
     func: F,
+    phantom: PhantomData<(T0, T1)>,
 }
 
-impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Clone
-    for TryMapP<P, O, F>
+impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> Result<T1, String> + Clone> Clone
+    for TryMapP<T0, P0, T1, F>
 {
-    fn clone(&self) -> TryMapP<P, O, F> {
+    fn clone(&self) -> TryMapP<T0, P0, T1, F> {
         TryMapP {
             parser: self.parser.clone(),
             func: self.func.clone(),
+            phantom: PhantomData,
         }
     }
 }
 
-impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Parser
-    for TryMapP<P, O, F>
+impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> Result<T1, String> + Clone> Parser<T1>
+    for TryMapP<T0, P0, T1, F>
 {
-    type Output = O;
-
     fn name(&self) -> String {
         self.parser.name()
     }
@@ -405,7 +406,7 @@ impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Parser
         self.parser.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T1> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -435,23 +436,23 @@ impl<P: Parser + Clone, O, F: Fn(P::Output) -> Result<O, String> + Clone> Parser
 /*          Parser: Map                   */
 /*========================================*/
 
-struct MapP<P: Parser + Clone, O, F: Fn(P::Output) -> O + Clone> {
-    parser: P,
+struct MapP<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> T1 + Clone> {
+    parser: P0,
     func: F,
+    phantom: PhantomData<(T0, T1)>,
 }
 
-impl<P: Parser + Clone, O, F: Fn(P::Output) -> O + Clone> Clone for MapP<P, O, F> {
-    fn clone(&self) -> MapP<P, O, F> {
+impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> T1 + Clone> Clone for MapP<T0, P0, T1, F> {
+    fn clone(&self) -> MapP<T0, P0, T1, F> {
         MapP {
             parser: self.parser.clone(),
             func: self.func.clone(),
+            phantom: PhantomData,
         }
     }
 }
 
-impl<P: Parser + Clone, O, F: Fn(P::Output) -> O + Clone> Parser for MapP<P, O, F> {
-    type Output = O;
-
+impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> T1 + Clone> Parser<T1> for MapP<T0, P0, T1, F> {
     fn name(&self) -> String {
         self.parser.name()
     }
@@ -460,7 +461,7 @@ impl<P: Parser + Clone, O, F: Fn(P::Output) -> O + Clone> Parser for MapP<P, O, 
         self.parser.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T1> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -478,12 +479,15 @@ impl<P: Parser + Clone, O, F: Fn(P::Output) -> O + Clone> Parser for MapP<P, O, 
 /*          Parser: Complete              */
 /*========================================*/
 
-#[derive(Clone)]
-struct CompleteP<P: Parser>(P);
+struct CompleteP<T, P: Parser<T> + Clone>(P, PhantomData<T>);
 
-impl<P: Parser + Clone> Parser for CompleteP<P> {
-    type Output = P::Output;
+impl<T, P: Parser<T> + Clone> Clone for CompleteP<T, P> {
+    fn clone(&self) -> Self {
+        CompleteP(self.0.clone(), PhantomData)
+    }
+}
 
+impl<T, P: Parser<T> + Clone> Parser<T> for CompleteP<T, P> {
     fn name(&self) -> String {
         self.0.name()
     }
@@ -492,7 +496,7 @@ impl<P: Parser + Clone> Parser for CompleteP<P> {
         self.0.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<P::Output> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -535,38 +539,38 @@ impl<'s> fmt::Display for Span<'s> {
     }
 }
 
-struct TrySpanP<P, O, E, F>
+struct TrySpanP<T0, P0, T1, E1, F>
 where
-    P: Parser + Clone,
-    E: error::Error,
-    F: Fn(Span, P::Output) -> Result<O, E> + Clone,
+    P0: Parser<T0> + Clone,
+    E1: error::Error,
+    F: Fn(Span, T0) -> Result<T1, E1> + Clone,
 {
-    parser: P,
+    parser: P0,
     func: F,
+    phantom: PhantomData<(T0, T1, E1)>,
 }
 
-impl<P, O, E, F> Clone for TrySpanP<P, O, E, F>
+impl<T0, P0, T1, E1, F> Clone for TrySpanP<T0, P0, T1, E1, F>
 where
-    P: Parser + Clone,
-    E: error::Error,
-    F: Fn(Span, P::Output) -> Result<O, E> + Clone,
+    P0: Parser<T0> + Clone,
+    E1: error::Error,
+    F: Fn(Span, T0) -> Result<T1, E1> + Clone,
 {
-    fn clone(&self) -> TrySpanP<P, O, E, F> {
+    fn clone(&self) -> TrySpanP<T0, P0, T1, E1, F> {
         TrySpanP {
             parser: self.parser.clone(),
             func: self.func.clone(),
+            phantom: PhantomData,
         }
     }
 }
 
-impl<P, O, E, F> Parser for TrySpanP<P, O, E, F>
+impl<T0, P0, T1, E1, F> Parser<T1> for TrySpanP<T0, P0, T1, E1, F>
 where
-    P: Parser + Clone,
-    E: error::Error,
-    F: Fn(Span, P::Output) -> Result<O, E> + Clone,
+    P0: Parser<T0> + Clone,
+    E1: error::Error,
+    F: Fn(Span, T0) -> Result<T1, E1> + Clone,
 {
-    type Output = O;
-
     fn name(&self) -> String {
         self.parser.name()
     }
@@ -575,7 +579,7 @@ where
         self.parser.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T1> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -610,35 +614,35 @@ where
 /*          Parser: Span                  */
 /*========================================*/
 
-struct SpanP<P, O, F>
+struct SpanP<T0, P0, T1, F>
 where
-    P: Parser + Clone,
-    F: Fn(Span, P::Output) -> O + Clone,
+    P0: Parser<T0> + Clone,
+    F: Fn(Span, T0) -> T1 + Clone,
 {
-    parser: P,
+    parser: P0,
     func: F,
+    phantom: PhantomData<(T0, T1)>,
 }
 
-impl<P, O, F> Clone for SpanP<P, O, F>
+impl<T0, P0, T1, F> Clone for SpanP<T0, P0, T1, F>
 where
-    P: Parser + Clone,
-    F: Fn(Span, P::Output) -> O + Clone,
+    P0: Parser<T0> + Clone,
+    F: Fn(Span, T0) -> T1 + Clone,
 {
-    fn clone(&self) -> SpanP<P, O, F> {
+    fn clone(&self) -> SpanP<T0, P0, T1, F> {
         SpanP {
             parser: self.parser.clone(),
             func: self.func.clone(),
+            phantom: PhantomData,
         }
     }
 }
 
-impl<P, O, F> Parser for SpanP<P, O, F>
+impl<T0, P0, T1, F> Parser<T1> for SpanP<T0, P0, T1, F>
 where
-    P: Parser + Clone,
-    F: Fn(Span, P::Output) -> O + Clone,
+    P0: Parser<T0> + Clone,
+    F: Fn(Span, T0) -> T1 + Clone,
 {
-    type Output = O;
-
     fn name(&self) -> String {
         self.parser.name()
     }
@@ -647,7 +651,7 @@ where
         self.parser.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T1> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -676,12 +680,26 @@ where
 /*          Parser: Seq                   */
 /*========================================*/
 
-#[derive(Clone)]
-struct SeqP<P0: Parser + Clone, P1: Parser + Clone>(P0, P1);
+struct SeqP<T0, P0, T1, P1>(P0, P1, PhantomData<(T0, T1)>)
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone;
 
-impl<P0: Parser + Clone, P1: Parser + Clone> Parser for SeqP<P0, P1> {
-    type Output = (P0::Output, P1::Output);
+impl<T0, P0, T1, P1> Clone for SeqP<T0, P0, T1, P1>
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+{
+    fn clone(&self) -> Self {
+        SeqP(self.0.clone(), self.1.clone(), PhantomData)
+    }
+}
 
+impl<T0, P0, T1, P1> Parser<(T0, T1)> for SeqP<T0, P0, T1, P1>
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+{
     fn name(&self) -> String {
         self.0.name()
     }
@@ -693,7 +711,7 @@ impl<P0: Parser + Clone, P1: Parser + Clone> Parser for SeqP<P0, P1> {
         Ok(init_0)
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<(P0::Output, P1::Output)> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<(T0, T1)> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -731,16 +749,33 @@ impl<P0: Parser + Clone, P1: Parser + Clone> Parser for SeqP<P0, P1> {
 /*          Parser: Choice                */
 /*========================================*/
 
-#[derive(Clone)]
-struct ChoiceP<P0: Parser + Clone, P1: Parser<Output = P0::Output> + Clone> {
+struct ChoiceP<T, P0, P1>
+where
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
+{
     name: String,
     parser_0: P0,
     parser_1: P1,
+    phantom: PhantomData<T>,
 }
 
-impl<P0: Parser + Clone, P1: Parser<Output = P0::Output> + Clone> Parser for ChoiceP<P0, P1> {
-    type Output = P0::Output;
+impl<T, P0, P1> Clone for ChoiceP<T, P0, P1>
+where
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
+{
+    fn clone(&self) -> Self {
+        ChoiceP {
+            name: self.name.clone(),
+            parser_0: self.parser_0.clone(),
+            parser_1: self.parser_1.clone(),
+            phantom: PhantomData,
+        }
+    }
+}
 
+impl<T, P0: Parser<T> + Clone, P1: Parser<T> + Clone> Parser<T> for ChoiceP<T, P0, P1> {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -753,7 +788,7 @@ impl<P0: Parser + Clone, P1: Parser<Output = P0::Output> + Clone> Parser for Cho
         Ok(init_0)
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<P0::Output> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -775,12 +810,15 @@ impl<P0: Parser + Clone, P1: Parser<Output = P0::Output> + Clone> Parser for Cho
 /*          Parser: Many                  */
 /*========================================*/
 
-#[derive(Clone)]
-struct ManyP<P: Parser + Clone>(P);
+struct ManyP<T, P: Parser<T> + Clone>(P, PhantomData<T>);
 
-impl<P: Parser + Clone> Parser for ManyP<P> {
-    type Output = Vec<P::Output>;
+impl<T, P: Parser<T> + Clone> Clone for ManyP<T, P> {
+    fn clone(&self) -> Self {
+        ManyP(self.0.clone(), PhantomData)
+    }
+}
 
+impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
     fn name(&self) -> String {
         self.0.name()
     }
@@ -794,7 +832,7 @@ impl<P: Parser + Clone> Parser for ManyP<P> {
         Ok(init)
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<P::Output>> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<T>> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -815,15 +853,35 @@ impl<P: Parser + Clone> Parser for ManyP<P> {
 /*          Parser: Sep                   */
 /*========================================*/
 
-#[derive(Clone)]
-struct SepP<P: Parser + Clone, Q: Parser + Clone> {
-    elem: P,
-    sep: Q,
+struct SepP<T0, P0, T1, P1>
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+{
+    elem: P0,
+    sep: P1,
+    phantom: PhantomData<(T0, T1)>,
 }
 
-impl<P: Parser + Clone, Q: Parser + Clone> Parser for SepP<P, Q> {
-    type Output = Vec<P::Output>;
+impl<T0, P0, T1, P1> Clone for SepP<T0, P0, T1, P1>
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+{
+    fn clone(&self) -> Self {
+        SepP {
+            elem: self.elem.clone(),
+            sep: self.sep.clone(),
+            phantom: PhantomData,
+        }
+    }
+}
 
+impl<T0, P0, T1, P1> Parser<Vec<T0>> for SepP<T0, P0, T1, P1>
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+{
     fn name(&self) -> String {
         self.elem.name()
     }
@@ -846,7 +904,7 @@ impl<P: Parser + Clone, Q: Parser + Clone> Parser for SepP<P, Q> {
         Ok(init)
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<P::Output>> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<T0>> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]

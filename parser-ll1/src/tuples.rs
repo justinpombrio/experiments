@@ -1,44 +1,40 @@
 use crate::{ChoiceP, Parser, SeqP};
+use std::marker::PhantomData;
 
 /*========================================*/
 /*          Parsers: Choice               */
 /*========================================*/
 
-pub fn choice<T: ChoiceTuple>(name: &str, tuple: T) -> impl Parser<Output = T::Output> + Clone {
+pub fn choice<T, C: ChoiceTuple<T>>(name: &str, tuple: C) -> impl Parser<T> + Clone {
     tuple.make_choice(name.to_owned())
 }
 
-pub trait ChoiceTuple {
-    type Output;
-
-    fn make_choice(self, name: String) -> impl Parser<Output = Self::Output> + Clone;
+pub trait ChoiceTuple<T> {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone;
 }
 
-impl<O, P0, P1> ChoiceTuple for (P0, P1)
+impl<T, P0, P1> ChoiceTuple<T> for (P0, P1)
 where
-    P0: Parser<Output = O> + Clone,
-    P1: Parser<Output = O> + Clone,
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
 {
-    type Output = O;
-
-    fn make_choice(self, name: String) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone {
         ChoiceP {
             name,
             parser_0: self.0,
             parser_1: self.1,
+            phantom: PhantomData,
         }
     }
 }
 
-impl<O, P0, P1, P2> ChoiceTuple for (P0, P1, P2)
+impl<T, P0, P1, P2> ChoiceTuple<T> for (P0, P1, P2)
 where
-    P0: Parser<Output = O> + Clone,
-    P1: Parser<Output = O> + Clone,
-    P2: Parser<Output = O> + Clone,
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
+    P2: Parser<T> + Clone,
 {
-    type Output = O;
-
-    fn make_choice(self, name: String) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone {
         let parser = self.2;
         let parser = (self.1, parser).make_choice(name.clone());
         let parser = (self.0, parser).make_choice(name);
@@ -46,16 +42,14 @@ where
     }
 }
 
-impl<O, P0, P1, P2, P3> ChoiceTuple for (P0, P1, P2, P3)
+impl<T, P0, P1, P2, P3> ChoiceTuple<T> for (P0, P1, P2, P3)
 where
-    P0: Parser<Output = O> + Clone,
-    P1: Parser<Output = O> + Clone,
-    P2: Parser<Output = O> + Clone,
-    P3: Parser<Output = O> + Clone,
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
+    P2: Parser<T> + Clone,
+    P3: Parser<T> + Clone,
 {
-    type Output = O;
-
-    fn make_choice(self, name: String) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone {
         let parser = self.3;
         let parser = (self.2, parser).make_choice(name.clone());
         let parser = (self.1, parser).make_choice(name.clone());
@@ -64,17 +58,15 @@ where
     }
 }
 
-impl<O, P0, P1, P2, P3, P4> ChoiceTuple for (P0, P1, P2, P3, P4)
+impl<T, P0, P1, P2, P3, P4> ChoiceTuple<T> for (P0, P1, P2, P3, P4)
 where
-    P0: Parser<Output = O> + Clone,
-    P1: Parser<Output = O> + Clone,
-    P2: Parser<Output = O> + Clone,
-    P3: Parser<Output = O> + Clone,
-    P4: Parser<Output = O> + Clone,
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
+    P2: Parser<T> + Clone,
+    P3: Parser<T> + Clone,
+    P4: Parser<T> + Clone,
 {
-    type Output = O;
-
-    fn make_choice(self, name: String) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone {
         let parser = self.4;
         let parser = (self.3, parser).make_choice(name.clone());
         let parser = (self.2, parser).make_choice(name.clone());
@@ -84,18 +76,16 @@ where
     }
 }
 
-impl<O, P0, P1, P2, P3, P4, P5> ChoiceTuple for (P0, P1, P2, P3, P4, P5)
+impl<T, P0, P1, P2, P3, P4, P5> ChoiceTuple<T> for (P0, P1, P2, P3, P4, P5)
 where
-    P0: Parser<Output = O> + Clone,
-    P1: Parser<Output = O> + Clone,
-    P2: Parser<Output = O> + Clone,
-    P3: Parser<Output = O> + Clone,
-    P4: Parser<Output = O> + Clone,
-    P5: Parser<Output = O> + Clone,
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
+    P2: Parser<T> + Clone,
+    P3: Parser<T> + Clone,
+    P4: Parser<T> + Clone,
+    P5: Parser<T> + Clone,
 {
-    type Output = O;
-
-    fn make_choice(self, name: String) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone {
         let parser = self.5;
         let parser = (self.4, parser).make_choice(name.clone());
         let parser = (self.3, parser).make_choice(name.clone());
@@ -106,19 +96,17 @@ where
     }
 }
 
-impl<O, P0, P1, P2, P3, P4, P5, P6> ChoiceTuple for (P0, P1, P2, P3, P4, P5, P6)
+impl<T, P0, P1, P2, P3, P4, P5, P6> ChoiceTuple<T> for (P0, P1, P2, P3, P4, P5, P6)
 where
-    P0: Parser<Output = O> + Clone,
-    P1: Parser<Output = O> + Clone,
-    P2: Parser<Output = O> + Clone,
-    P3: Parser<Output = O> + Clone,
-    P4: Parser<Output = O> + Clone,
-    P5: Parser<Output = O> + Clone,
-    P6: Parser<Output = O> + Clone,
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
+    P2: Parser<T> + Clone,
+    P3: Parser<T> + Clone,
+    P4: Parser<T> + Clone,
+    P5: Parser<T> + Clone,
+    P6: Parser<T> + Clone,
 {
-    type Output = O;
-
-    fn make_choice(self, name: String) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone {
         let parser = self.6;
         let parser = (self.5, parser).make_choice(name.clone());
         let parser = (self.4, parser).make_choice(name.clone());
@@ -130,20 +118,18 @@ where
     }
 }
 
-impl<O, P0, P1, P2, P3, P4, P5, P6, P7> ChoiceTuple for (P0, P1, P2, P3, P4, P5, P6, P7)
+impl<T, P0, P1, P2, P3, P4, P5, P6, P7> ChoiceTuple<T> for (P0, P1, P2, P3, P4, P5, P6, P7)
 where
-    P0: Parser<Output = O> + Clone,
-    P1: Parser<Output = O> + Clone,
-    P2: Parser<Output = O> + Clone,
-    P3: Parser<Output = O> + Clone,
-    P4: Parser<Output = O> + Clone,
-    P5: Parser<Output = O> + Clone,
-    P6: Parser<Output = O> + Clone,
-    P7: Parser<Output = O> + Clone,
+    P0: Parser<T> + Clone,
+    P1: Parser<T> + Clone,
+    P2: Parser<T> + Clone,
+    P3: Parser<T> + Clone,
+    P4: Parser<T> + Clone,
+    P5: Parser<T> + Clone,
+    P6: Parser<T> + Clone,
+    P7: Parser<T> + Clone,
 {
-    type Output = O;
-
-    fn make_choice(self, name: String) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone {
         let parser = self.7;
         let parser = (self.6, parser).make_choice(name.clone());
         let parser = (self.5, parser).make_choice(name.clone());
@@ -160,37 +146,31 @@ where
 /*          Parsers: Seq                  */
 /*========================================*/
 
-pub fn tuple<T: SeqTuple>(tuple: T) -> impl Parser<Output = T::Output> + Clone {
+pub fn tuple<T, S: SeqTuple<T>>(tuple: S) -> impl Parser<T> + Clone {
     tuple.make_seq()
 }
 
-pub trait SeqTuple {
-    type Output;
-
-    fn make_seq(self) -> impl Parser<Output = Self::Output> + Clone;
+pub trait SeqTuple<T> {
+    fn make_seq(self) -> impl Parser<T> + Clone;
 }
 
-impl<P0, P1> SeqTuple for (P0, P1)
+impl<T0, T1, P0, P1> SeqTuple<(T0, T1)> for (P0, P1)
 where
-    P0: Parser + Clone,
-    P1: Parser + Clone,
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
 {
-    type Output = (P0::Output, P1::Output);
-
-    fn make_seq(self) -> impl Parser<Output = Self::Output> + Clone {
-        SeqP(self.0, self.1)
+    fn make_seq(self) -> impl Parser<(T0, T1)> + Clone {
+        SeqP(self.0, self.1, PhantomData)
     }
 }
 
-impl<P0, P1, P2> SeqTuple for (P0, P1, P2)
+impl<T0, T1, T2, P0, P1, P2> SeqTuple<(T0, T1, T2)> for (P0, P1, P2)
 where
-    P0: Parser + Clone,
-    P1: Parser + Clone,
-    P2: Parser + Clone,
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    P2: Parser<T2> + Clone,
 {
-    type Output = (P0::Output, P1::Output, P2::Output);
-
-    fn make_seq(self) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_seq(self) -> impl Parser<(T0, T1, T2)> + Clone {
         let parser = self.2;
         let parser = (self.1, parser).make_seq();
         let parser = (self.0, parser).make_seq();
@@ -198,16 +178,14 @@ where
     }
 }
 
-impl<P0, P1, P2, P3> SeqTuple for (P0, P1, P2, P3)
+impl<T0, T1, T2, T3, P0, P1, P2, P3> SeqTuple<(T0, T1, T2, T3)> for (P0, P1, P2, P3)
 where
-    P0: Parser + Clone,
-    P1: Parser + Clone,
-    P2: Parser + Clone,
-    P3: Parser + Clone,
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    P2: Parser<T2> + Clone,
+    P3: Parser<T3> + Clone,
 {
-    type Output = (P0::Output, P1::Output, P2::Output, P3::Output);
-
-    fn make_seq(self) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_seq(self) -> impl Parser<(T0, T1, T2, T3)> + Clone {
         let parser = self.3;
         let parser = (self.2, parser).make_seq();
         let parser = (self.1, parser).make_seq();
@@ -216,17 +194,15 @@ where
     }
 }
 
-impl<P0, P1, P2, P3, P4> SeqTuple for (P0, P1, P2, P3, P4)
+impl<T0, T1, T2, T3, T4, P0, P1, P2, P3, P4> SeqTuple<(T0, T1, T2, T3, T4)> for (P0, P1, P2, P3, P4)
 where
-    P0: Parser + Clone,
-    P1: Parser + Clone,
-    P2: Parser + Clone,
-    P3: Parser + Clone,
-    P4: Parser + Clone,
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    P2: Parser<T2> + Clone,
+    P3: Parser<T3> + Clone,
+    P4: Parser<T4> + Clone,
 {
-    type Output = (P0::Output, P1::Output, P2::Output, P3::Output, P4::Output);
-
-    fn make_seq(self) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_seq(self) -> impl Parser<(T0, T1, T2, T3, T4)> + Clone {
         let parser = self.4;
         let parser = (self.3, parser).make_seq();
         let parser = (self.2, parser).make_seq();
@@ -236,25 +212,17 @@ where
     }
 }
 
-impl<P0, P1, P2, P3, P4, P5> SeqTuple for (P0, P1, P2, P3, P4, P5)
+impl<T0, T1, T2, T3, T4, T5, P0, P1, P2, P3, P4, P5> SeqTuple<(T0, T1, T2, T3, T4, T5)>
+    for (P0, P1, P2, P3, P4, P5)
 where
-    P0: Parser + Clone,
-    P1: Parser + Clone,
-    P2: Parser + Clone,
-    P3: Parser + Clone,
-    P4: Parser + Clone,
-    P5: Parser + Clone,
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    P2: Parser<T2> + Clone,
+    P3: Parser<T3> + Clone,
+    P4: Parser<T4> + Clone,
+    P5: Parser<T5> + Clone,
 {
-    type Output = (
-        P0::Output,
-        P1::Output,
-        P2::Output,
-        P3::Output,
-        P4::Output,
-        P5::Output,
-    );
-
-    fn make_seq(self) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_seq(self) -> impl Parser<(T0, T1, T2, T3, T4, T5)> + Clone {
         let parser = self.5;
         let parser = (self.4, parser).make_seq();
         let parser = (self.3, parser).make_seq();
@@ -265,27 +233,18 @@ where
     }
 }
 
-impl<P0, P1, P2, P3, P4, P5, P6> SeqTuple for (P0, P1, P2, P3, P4, P5, P6)
+impl<T0, T1, T2, T3, T4, T5, T6, P0, P1, P2, P3, P4, P5, P6> SeqTuple<(T0, T1, T2, T3, T4, T5, T6)>
+    for (P0, P1, P2, P3, P4, P5, P6)
 where
-    P0: Parser + Clone,
-    P1: Parser + Clone,
-    P2: Parser + Clone,
-    P3: Parser + Clone,
-    P4: Parser + Clone,
-    P5: Parser + Clone,
-    P6: Parser + Clone,
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    P2: Parser<T2> + Clone,
+    P3: Parser<T3> + Clone,
+    P4: Parser<T4> + Clone,
+    P5: Parser<T5> + Clone,
+    P6: Parser<T6> + Clone,
 {
-    type Output = (
-        P0::Output,
-        P1::Output,
-        P2::Output,
-        P3::Output,
-        P4::Output,
-        P5::Output,
-        P6::Output,
-    );
-
-    fn make_seq(self) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_seq(self) -> impl Parser<(T0, T1, T2, T3, T4, T5, T6)> + Clone {
         let parser = self.6;
         let parser = (self.5, parser).make_seq();
         let parser = (self.4, parser).make_seq();
@@ -297,29 +256,19 @@ where
     }
 }
 
-impl<P0, P1, P2, P3, P4, P5, P6, P7> SeqTuple for (P0, P1, P2, P3, P4, P5, P6, P7)
+impl<T0, T1, T2, T3, T4, T5, T6, T7, P0, P1, P2, P3, P4, P5, P6, P7>
+    SeqTuple<(T0, T1, T2, T3, T4, T5, T6, T7)> for (P0, P1, P2, P3, P4, P5, P6, P7)
 where
-    P0: Parser + Clone,
-    P1: Parser + Clone,
-    P2: Parser + Clone,
-    P3: Parser + Clone,
-    P4: Parser + Clone,
-    P5: Parser + Clone,
-    P6: Parser + Clone,
-    P7: Parser + Clone,
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    P2: Parser<T2> + Clone,
+    P3: Parser<T3> + Clone,
+    P4: Parser<T4> + Clone,
+    P5: Parser<T5> + Clone,
+    P6: Parser<T6> + Clone,
+    P7: Parser<T7> + Clone,
 {
-    type Output = (
-        P0::Output,
-        P1::Output,
-        P2::Output,
-        P3::Output,
-        P4::Output,
-        P5::Output,
-        P6::Output,
-        P7::Output,
-    );
-
-    fn make_seq(self) -> impl Parser<Output = Self::Output> + Clone {
+    fn make_seq(self) -> impl Parser<(T0, T1, T2, T3, T4, T5, T6, T7)> + Clone {
         let parser = self.7;
         let parser = (self.6, parser).make_seq();
         let parser = (self.5, parser).make_seq();

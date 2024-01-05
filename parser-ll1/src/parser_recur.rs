@@ -10,7 +10,7 @@ use std::rc::{Rc, Weak};
 
 struct RecurP<O: Clone> {
     name: String,
-    parser: OnceCell<Box<dyn Parser<Output = O>>>,
+    parser: OnceCell<Box<dyn Parser<O>>>,
     initial_set: Cell<Option<InitialSet>>,
 }
 
@@ -24,9 +24,7 @@ impl<O: Clone> Clone for RecurP<O> {
     }
 }
 
-impl<O: Clone> Parser for RecurP<O> {
-    type Output = O;
-
+impl<O: Clone> Parser<O> for RecurP<O> {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -65,17 +63,14 @@ impl<O: Clone> Recursive<O> {
         }))
     }
 
-    pub fn refn(&self) -> impl Parser<Output = O> + Clone {
+    pub fn refn(&self) -> impl Parser<O> + Clone {
         RecurPWeak {
             name: self.0.name.clone(),
             weak: Rc::downgrade(&self.0),
         }
     }
 
-    pub fn define(
-        self,
-        parser: impl Parser<Output = O> + Clone + 'static,
-    ) -> impl Parser<Output = O> + Clone {
+    pub fn define(self, parser: impl Parser<O> + Clone + 'static) -> impl Parser<O> + Clone {
         match self.0.parser.set(Box::new(parser)) {
             Ok(()) => (),
             Err(_) => panic!("Bug in recur: failed to set OnceCell"),
@@ -104,9 +99,7 @@ impl<O: Clone> RecurPWeak<O> {
     }
 }
 
-impl<O: Clone> Parser for RecurPWeak<O> {
-    type Output = O;
-
+impl<O: Clone> Parser<O> for RecurPWeak<O> {
     fn name(&self) -> String {
         self.unwrap(|p| p.name())
     }
@@ -125,9 +118,7 @@ impl<O: Clone> Parser for RecurPWeak<O> {
 #[derive(Clone)]
 struct RecurPStrong<O: Clone>(Rc<RecurP<O>>);
 
-impl<O: Clone> Parser for RecurPStrong<O> {
-    type Output = O;
-
+impl<O: Clone> Parser<O> for RecurPStrong<O> {
     fn name(&self) -> String {
         self.0.as_ref().name()
     }

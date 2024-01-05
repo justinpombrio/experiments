@@ -24,7 +24,7 @@ fn make_parser(
     description: &str,
 ) -> Result<impl Fn(&str, &str) -> Result<String, ParseError>, GrammarError> {
     let mut grammar = Grammar::with_whitespace(" +")?;
-    let mut stack: Vec<Box<dyn Parser<Output = String>>> = Vec::new();
+    let mut stack: Vec<Box<dyn Parser<String>>> = Vec::new();
     let mut word = String::new();
     let mut chars = description.chars().peekable();
     while let Some(ch) = chars.next() {
@@ -34,7 +34,7 @@ fn make_parser(
             '/' => {
                 let word = mem::take(&mut word);
                 let parser = grammar
-                    .regex("regex", &word)?
+                    .regex(&word, &word)?
                     .span(|span| span.substr.to_owned());
                 stack.push(Box::new(parser));
             }
