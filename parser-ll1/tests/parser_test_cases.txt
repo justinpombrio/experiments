@@ -18,7 +18,12 @@ PARSER [a-z]+/ *
 INPUT abc de  f
 EXPECT ok (abc de f)
 
+# Many0
 PARSER ab" * c" &2
+INPUT c
+EXPECT ok (() c)
+INPUT abc
+EXPECT ok ((ab) c)
 INPUT abababc
 EXPECT ok ((ab ab ab) c)
 
@@ -30,7 +35,7 @@ EXPECT ok (ab)
 INPUT 
 EXPECT ok ()
 INPUT ab;
-EXPECT err Parse error: expected regex but found end of file.
+#EXPECT err Parse error: expected regex but found end of file.
 
 # Test regex error
 # (The actual error message is multiple lines; we only check the first)

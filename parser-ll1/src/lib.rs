@@ -10,9 +10,12 @@
 // [ ] Add iterator combinator for streaming parsing?
 // [ ] Add context() combinator?
 // [x] Change Parser<Output = T> to Parser<T>
-// [ ] Try having parsers lex directly instead of having a separate lexer;
-//     see if that dramatically improves the speed.
+// [x] Try having parsers lex directly instead of having a separate lexer;
+//     see if that dramatically improves the speed. Yes: by 20%.
 // [ ] Docs
+// [ ] Testing
+
+// NOTE: Current time to parse dummy.json: 6.5 ms
 
 // This design achieves all of the following:
 //
@@ -27,6 +30,9 @@
 //
 // Any change to the design is liable to break one of these properties, so if
 // considering a change check this list first.
+//
+// It's tempting to remove the lexer. Doing so yields a ~20% speedup, but it
+// would make the parse error messages worse. Not worth it!
 
 mod initial_set;
 mod lexer;
@@ -887,20 +893,16 @@ where
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
-        // Initial set for up to 2 elems is guaranteed to be initial set for any number of elems
-
         let elem_init = self.elem.validate()?;
         let sep_init = self.sep.validate()?;
 
-        let len_0 = InitialSet::new_empty("nothing");
-        let len_1 = elem_init.clone();
-        let mut len_2 = elem_init.clone();
-        len_2.seq(sep_init)?;
-        len_2.seq(elem_init)?;
-
-        let mut init = len_0;
-        init.union("sep", len_1)?;
-        init.union("sep", len_2)?;
+        // SepBy(E, S) = (.|E(SE)*) ~= (.|E(.|SE))
+        let mut tail = sep_init;
+        tail.seq(elem_init.clone())?;
+        tail.union("sep", InitialSet::new_empty("nothing"))?;
+        let mut init = elem_init;
+        init.seq(tail)?;
+        init.union("sep", InitialSet::new_empty("nothing"))?;
         Ok(init)
     }
 
