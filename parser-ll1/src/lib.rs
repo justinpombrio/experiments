@@ -9,6 +9,9 @@
 // [x] Review combinator names
 // [ ] Add iterator combinator for streaming parsing?
 // [ ] Add context() combinator?
+// [ ] Change Parser<Output = T> to Parser<T>
+// [ ] Try having parsers lex directly instead of having a separate lexer;
+//     see if that dramatically improves the speed.
 // [ ] Docs
 
 // This design achieves all of the following:
