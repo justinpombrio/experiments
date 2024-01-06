@@ -8,14 +8,14 @@ use std::rc::{Rc, Weak};
 /*          Parser: Recursion             */
 /*========================================*/
 
-struct RecurP<O: Clone> {
+struct RecurP<T: Clone> {
     name: String,
-    parser: OnceCell<Box<dyn Parser<O>>>,
+    parser: OnceCell<Box<dyn Parser<T>>>,
     initial_set: Cell<Option<InitialSet>>,
 }
 
-impl<O: Clone> Clone for RecurP<O> {
-    fn clone(&self) -> RecurP<O> {
+impl<T: Clone> Clone for RecurP<T> {
+    fn clone(&self) -> RecurP<T> {
         RecurP {
             name: self.name.clone(),
             parser: self.parser.clone(),
@@ -24,9 +24,13 @@ impl<O: Clone> Clone for RecurP<O> {
     }
 }
 
-impl<O: Clone> Parser<O> for RecurP<O> {
-    fn name(&self) -> String {
-        self.name.clone()
+impl<T: Clone> Parser<T> for RecurP<T> {
+    fn name(&self, is_empty: Option<bool>) -> String {
+        if is_empty == Some(true) {
+            format!("empty {}", self.name.clone())
+        } else {
+            self.name.clone()
+        }
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -37,7 +41,7 @@ impl<O: Clone> Parser<O> for RecurP<O> {
         } else {
             // Compute our initial set with a recursive depth limited to 2.
             // This is guaranteed to be the same as the limit as the depth goes to infinity.
-            let initial_set_0 = InitialSet::new_void(&self.name);
+            let initial_set_0 = InitialSet::new_void();
             self.initial_set.set(Some(initial_set_0));
             let initial_set_1 = self.validate()?;
             self.initial_set.set(Some(initial_set_1));
@@ -47,15 +51,15 @@ impl<O: Clone> Parser<O> for RecurP<O> {
         }
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
         self.parser.get().unwrap().parse(stream)
     }
 }
 
-pub struct Recursive<O: Clone>(Rc<RecurP<O>>);
+pub struct Recursive<T: Clone>(Rc<RecurP<T>>);
 
-impl<O: Clone> Recursive<O> {
-    pub fn new(name: &str) -> Recursive<O> {
+impl<T: Clone> Recursive<T> {
+    pub fn new(name: &str) -> Recursive<T> {
         Recursive(Rc::new(RecurP {
             name: name.to_owned(),
             parser: OnceCell::new(),
@@ -63,14 +67,14 @@ impl<O: Clone> Recursive<O> {
         }))
     }
 
-    pub fn refn(&self) -> impl Parser<O> + Clone {
+    pub fn refn(&self) -> impl Parser<T> + Clone {
         RecurPWeak {
             name: self.0.name.clone(),
             weak: Rc::downgrade(&self.0),
         }
     }
 
-    pub fn define(self, parser: impl Parser<O> + Clone + 'static) -> impl Parser<O> + Clone {
+    pub fn define(self, parser: impl Parser<T> + Clone + 'static) -> impl Parser<T> + Clone {
         match self.0.parser.set(Box::new(parser)) {
             Ok(()) => (),
             Err(_) => panic!("Bug in recur: failed to set OnceCell"),
@@ -82,13 +86,13 @@ impl<O: Clone> Recursive<O> {
 /* ========== Recur: Weak ========== */
 
 #[derive(Clone)]
-struct RecurPWeak<O: Clone> {
+struct RecurPWeak<T: Clone> {
     name: String,
-    weak: Weak<RecurP<O>>,
+    weak: Weak<RecurP<T>>,
 }
 
-impl<O: Clone> RecurPWeak<O> {
-    fn unwrap<R>(&self, cb: impl FnOnce(&RecurP<O>) -> R) -> R {
+impl<T: Clone> RecurPWeak<T> {
+    fn unwrap<R>(&self, cb: impl FnOnce(&RecurP<T>) -> R) -> R {
         match self.weak.upgrade() {
             None => panic!(
                 "Recursive: you must call 'define()' before using recursive parser '{}'",
@@ -99,16 +103,16 @@ impl<O: Clone> RecurPWeak<O> {
     }
 }
 
-impl<O: Clone> Parser<O> for RecurPWeak<O> {
-    fn name(&self) -> String {
-        self.unwrap(|p| p.name())
+impl<T: Clone> Parser<T> for RecurPWeak<T> {
+    fn name(&self, is_empty: Option<bool>) -> String {
+        self.unwrap(|p| p.name(is_empty))
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
         self.unwrap(|p| p.validate())
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
         self.unwrap(|p| p.parse(stream))
     }
 }
@@ -116,18 +120,18 @@ impl<O: Clone> Parser<O> for RecurPWeak<O> {
 /* ========== Recur: Strong ========== */
 
 #[derive(Clone)]
-struct RecurPStrong<O: Clone>(Rc<RecurP<O>>);
+struct RecurPStrong<T: Clone>(Rc<RecurP<T>>);
 
-impl<O: Clone> Parser<O> for RecurPStrong<O> {
-    fn name(&self) -> String {
-        self.0.as_ref().name()
+impl<T: Clone> Parser<T> for RecurPStrong<T> {
+    fn name(&self, is_empty: Option<bool>) -> String {
+        self.0.as_ref().name(is_empty)
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
         self.0.as_ref().validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<O> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
         self.0.as_ref().parse(stream)
     }
 }

@@ -38,7 +38,6 @@ mod initial_set;
 mod lexer;
 mod parse_error;
 mod parser_recur;
-mod tuples;
 mod vec_map;
 
 use crate::lexer::{LexemeIter, LexerBuilder, Position, Token};
@@ -60,7 +59,6 @@ use no_nonsense_flamegraphs::span;
 pub use initial_set::InitialSet;
 pub use parse_error::ParseError;
 pub use parser_recur::Recursive;
-pub use tuples::{choice, tuple, ChoiceTuple, SeqTuple};
 
 pub enum ParseResult<T> {
     Success(T),
@@ -69,7 +67,7 @@ pub enum ParseResult<T> {
 }
 
 pub trait Parser<T>: DynClone {
-    fn name(&self) -> String;
+    fn name(&self, is_empty: Option<bool>) -> String;
     fn validate(&self) -> Result<InitialSet, GrammarError>;
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T>;
 
@@ -148,7 +146,11 @@ pub trait Parser<T>: DynClone {
     where
         Self: Clone,
     {
-        SeqP(self, other, PhantomData)
+        SeqP2 {
+            name: "sequence".to_owned(),
+            parsers: (self, other),
+            phantom: PhantomData,
+        }
     }
 
     fn preceded<T2, P: Parser<T2> + Clone>(self, other: P) -> impl Parser<T2> + Clone
@@ -176,9 +178,7 @@ pub trait Parser<T>: DynClone {
     where
         Self: Clone,
     {
-        // TODO: better name
-        let name = self.name().to_owned();
-        choice(&name, (self.map(Some), empty().map(|_| None)))
+        OptP(self, PhantomData)
     }
 
     fn many0(self) -> impl Parser<Vec<T>> + Clone
@@ -222,6 +222,14 @@ pub trait Parser<T>: DynClone {
     }
 }
 
+fn parser_names<T>(parser: &(impl Parser<T> + Clone)) -> (String, String, String) {
+    (
+        parser.name(None),
+        parser.name(Some(true)),
+        parser.name(Some(false)),
+    )
+}
+
 impl<T> Clone for Box<dyn Parser<T>> {
     fn clone(&self) -> Self {
         clone_box(self.as_ref())
@@ -229,8 +237,8 @@ impl<T> Clone for Box<dyn Parser<T>> {
 }
 
 impl<T> Parser<T> for Box<dyn Parser<T>> {
-    fn name(&self) -> String {
-        self.as_ref().name()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        self.as_ref().name(is_empty)
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -306,18 +314,18 @@ impl Grammar {
 pub enum GrammarError {
     #[error("{0}")]
     RegexError(#[from] RegexError),
-    #[error("Ambiguous grammar: parsing {start} could produce either {case_1} or {case_2}.")]
+    #[error("Ambiguous grammar: when parsing {name}, there's an ambiguity between {case_1} and {case_2}.")]
     AmbiguityOnEmpty {
-        start: String,
+        name: String,
         case_1: String,
         case_2: String,
     },
-    #[error("Ambiguous grammar: encountering {pattern} when parsing {start} could produce either {case_1} or {case_2}.")]
+    #[error("Ambiguous grammar: encountering {token} when parsing {name} could indicate either {case_1} or {case_2}.")]
     AmbiguityOnFirstToken {
-        start: String,
+        name: String,
         case_1: String,
         case_2: String,
-        pattern: String,
+        token: String,
     },
 }
 
@@ -329,12 +337,12 @@ pub enum GrammarError {
 struct EmptyP;
 
 impl Parser<()> for EmptyP {
-    fn name(&self) -> String {
+    fn name(&self, _is_empty: Option<bool>) -> String {
         "nothing".to_owned()
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
-        Ok(InitialSet::new_empty("nothing"))
+        Ok(InitialSet::new_empty())
     }
 
     fn parse(&self, _stream: &mut LexemeIter) -> ParseResult<()> {
@@ -357,8 +365,12 @@ struct TokenP {
 }
 
 impl Parser<()> for TokenP {
-    fn name(&self) -> String {
-        self.name.clone()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        if is_empty == Some(true) {
+            format!("empty {}", self.name)
+        } else {
+            self.name.clone()
+        }
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -404,8 +416,8 @@ impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> Result<T1, String> + Clone> Cl
 impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> Result<T1, String> + Clone> Parser<T1>
     for TryMapP<T0, P0, T1, F>
 {
-    fn name(&self) -> String {
-        self.parser.name()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        self.parser.name(is_empty)
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -459,8 +471,8 @@ impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> T1 + Clone> Clone for MapP<T0,
 }
 
 impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> T1 + Clone> Parser<T1> for MapP<T0, P0, T1, F> {
-    fn name(&self) -> String {
-        self.parser.name()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        self.parser.name(is_empty)
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -494,8 +506,8 @@ impl<T, P: Parser<T> + Clone> Clone for CompleteP<T, P> {
 }
 
 impl<T, P: Parser<T> + Clone> Parser<T> for CompleteP<T, P> {
-    fn name(&self) -> String {
-        self.0.name()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        self.0.name(is_empty)
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -517,11 +529,8 @@ impl<T, P: Parser<T> + Clone> Parser<T> for CompleteP<T, P> {
                 }),
             },
             Failure => Error(ParseErrorCause::StandardError {
-                expected: self.0.name().to_owned(),
-                found: match stream.peek() {
-                    Some(lex) => (lex.start, lex.end),
-                    None => (stream.pos(), stream.pos()),
-                },
+                expected: self.0.name(None),
+                found: stream.upcoming_span(),
             }),
             Error(err) => Error(err),
         }
@@ -577,8 +586,8 @@ where
     E1: error::Error,
     F: Fn(Span, T0) -> Result<T1, E1> + Clone,
 {
-    fn name(&self) -> String {
-        self.parser.name()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        self.parser.name(is_empty)
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -649,8 +658,8 @@ where
     P0: Parser<T0> + Clone,
     F: Fn(Span, T0) -> T1 + Clone,
 {
-    fn name(&self) -> String {
-        self.parser.name()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        self.parser.name(is_empty)
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -686,128 +695,353 @@ where
 /*          Parser: Seq                   */
 /*========================================*/
 
-struct SeqP<T0, P0, T1, P1>(P0, P1, PhantomData<(T0, T1)>)
-where
-    P0: Parser<T0> + Clone,
-    P1: Parser<T1> + Clone;
-
-impl<T0, P0, T1, P1> Clone for SeqP<T0, P0, T1, P1>
-where
-    P0: Parser<T0> + Clone,
-    P1: Parser<T1> + Clone,
-{
-    fn clone(&self) -> Self {
-        SeqP(self.0.clone(), self.1.clone(), PhantomData)
-    }
+pub fn tuple<T, S: SeqTuple<T>>(name: &str, tuple: S) -> impl Parser<T> + Clone {
+    tuple.make_seq(name.to_owned())
 }
 
-impl<T0, P0, T1, P1> Parser<(T0, T1)> for SeqP<T0, P0, T1, P1>
-where
-    P0: Parser<T0> + Clone,
-    P1: Parser<T1> + Clone,
-{
-    fn name(&self) -> String {
-        self.0.name()
-    }
+pub trait SeqTuple<T> {
+    fn make_seq(self, name: String) -> impl Parser<T> + Clone;
+}
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
-        let mut init_0 = self.0.validate()?;
-        let init_1 = self.1.validate()?;
-        init_0.seq(init_1)?;
-        Ok(init_0)
-    }
+macro_rules! define_seq {
+    ($struct:ident, $( ($idx:tt, $type:ident, $parser:ident) ),*) => {
+        struct $struct<$( $type ),*, $( $parser ),*>
+        where $( $parser: Parser<$type> + Clone ),*
+        {
+            name: String,
+            parsers: ($( $parser ),*),
+            phantom: PhantomData<($( $type ),*)>,
+        }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<(T0, T1)> {
-        use ParseResult::{Error, Failure, Success};
-
-        #[cfg(feature = "flamegraphs")]
-        span!("Seq");
-
-        let start_pos = stream.pos().offset;
-        let result_0 = match self.0.parse(stream) {
-            Success(succ) => succ,
-            Failure => return Failure,
-            Error(err) => return Error(err),
-        };
-        let consumed = stream.pos().offset != start_pos;
-        let result_1 = match self.1.parse(stream) {
-            Success(succ) => succ,
-            Error(err) => return Error(err),
-            Failure => {
-                if consumed {
-                    return Error(ParseErrorCause::StandardError {
-                        expected: self.1.name().to_owned(),
-                        found: match stream.peek() {
-                            Some(lex) => (lex.start, lex.end),
-                            None => (stream.pos(), stream.pos()),
-                        },
-                    });
-                } else {
-                    return Failure;
+        impl<$( $type ),*, $( $parser ),*> Clone
+        for $struct<$( $type ),*, $( $parser ),*>
+        where $( $parser: Parser<$type> + Clone ),*
+        {
+            fn clone(&self) -> Self {
+                $struct {
+                    name: self.name.clone(),
+                    parsers: self.parsers.clone(),
+                    phantom: PhantomData,
                 }
             }
-        };
-        ParseResult::Success((result_0, result_1))
+        }
+
+        impl<$( $type ),*, $( $parser ),*> Parser<($( $type ),*)>
+        for $struct<$( $type ),*, $( $parser ),*>
+        where $( $parser: Parser<$type> + Clone ),*
+        {
+            fn name(&self, is_empty: Option<bool>) -> String {
+                match is_empty {
+                    None => self.name.clone(),
+                    Some(true) => self.parsers.1.name(Some(true)),
+                    Some(false) => self.parsers.0.name(Some(false)),
+                }
+            }
+
+            fn validate(&self) -> Result<InitialSet, GrammarError> {
+                InitialSet::sequence(
+                    parser_names(self),
+                    vec![$( self.parsers.$idx.validate()? ),*],
+                )
+            }
+
+            fn parse(&self, stream: &mut LexemeIter) -> ParseResult<($( $type ),*)> {
+                use ParseResult::{Error, Failure, Success};
+
+                #[cfg(feature = "flamegraphs")]
+                span!("Seq");
+
+                let start_pos = stream.pos().offset;
+                let results = ( $(
+                    match self.parsers.$idx.parse(stream) {
+                        Success(succ) => succ,
+                        Error(err) => return Error(err),
+                        Failure => if stream.pos().offset != start_pos {
+                            return Error(ParseErrorCause::StandardError {
+                                expected: self.parsers.$idx.name(None),
+                                found: stream.upcoming_span(),
+                            })
+                        } else {
+                            return Failure
+                        }
+                    }
+                ),* );
+                ParseResult::Success(results)
+            }
+        }
+
+        impl<$( $type ),*, $( $parser ),*> SeqTuple<($( $type ),*)> for ($( $parser ),*)
+        where $( $parser: Parser<$type> + Clone ),*
+        {
+            fn make_seq(self, name: String) -> impl Parser<($( $type ),*)> + Clone {
+                $struct {
+                    name,
+                    parsers: self,
+                    phantom: PhantomData,
+                }
+            }
+        }
     }
 }
+
+define_seq!(SeqP2, (0, T0, P0), (1, T1, P1));
+define_seq!(SeqP3, (0, T0, P0), (1, T1, P1), (2, T2, P2));
+define_seq!(SeqP4, (0, T0, P0), (1, T1, P1), (2, T2, P2), (3, T3, P3));
+define_seq!(
+    SeqP5,
+    (0, T0, P0),
+    (1, T1, P1),
+    (2, T2, P2),
+    (3, T3, P3),
+    (4, T4, P4)
+);
+define_seq!(
+    SeqP6,
+    (0, T0, P0),
+    (1, T1, P1),
+    (2, T2, P2),
+    (3, T3, P3),
+    (4, T4, P4),
+    (5, T5, P5)
+);
+define_seq!(
+    SeqP7,
+    (0, T0, P0),
+    (1, T1, P1),
+    (2, T2, P2),
+    (3, T3, P3),
+    (4, T4, P4),
+    (5, T5, P5),
+    (6, T6, P6)
+);
+define_seq!(
+    SeqP8,
+    (0, T0, P0),
+    (1, T1, P1),
+    (2, T2, P2),
+    (3, T3, P3),
+    (4, T4, P4),
+    (5, T5, P5),
+    (6, T6, P6),
+    (7, T7, P7)
+);
+define_seq!(
+    SeqP9,
+    (0, T0, P0),
+    (1, T1, P1),
+    (2, T2, P2),
+    (3, T3, P3),
+    (4, T4, P4),
+    (5, T5, P5),
+    (6, T6, P6),
+    (7, T7, P7),
+    (8, T8, P8)
+);
+define_seq!(
+    SeqP10,
+    (0, T0, P0),
+    (1, T1, P1),
+    (2, T2, P2),
+    (3, T3, P3),
+    (4, T4, P4),
+    (5, T5, P5),
+    (6, T6, P6),
+    (7, T7, P7),
+    (8, T8, P8),
+    (9, T9, P9)
+);
 
 /*========================================*/
 /*          Parser: Choice                */
 /*========================================*/
 
-struct ChoiceP<T, P0, P1>
-where
-    P0: Parser<T> + Clone,
-    P1: Parser<T> + Clone,
-{
-    name: String,
-    parser_0: P0,
-    parser_1: P1,
-    phantom: PhantomData<T>,
+pub fn choice<T, C: ChoiceTuple<T>>(name: &str, tuple: C) -> impl Parser<T> + Clone {
+    tuple.make_choice(name.to_owned())
 }
 
-impl<T, P0, P1> Clone for ChoiceP<T, P0, P1>
-where
-    P0: Parser<T> + Clone,
-    P1: Parser<T> + Clone,
-{
-    fn clone(&self) -> Self {
-        ChoiceP {
-            name: self.name.clone(),
-            parser_0: self.parser_0.clone(),
-            parser_1: self.parser_1.clone(),
-            phantom: PhantomData,
+pub trait ChoiceTuple<T> {
+    fn make_choice(self, name: String) -> impl Parser<T> + Clone;
+}
+
+macro_rules! define_choice {
+    ($struct:ident, $type:ident, $( ($idx:tt, $parser:ident) ),*) => {
+        struct $struct<$type, $( $parser ),*>
+        where $( $parser: Parser<$type> + Clone ),*
+        {
+            name: String,
+            parsers: ($( $parser ),*),
+            phantom: PhantomData<$type>,
+        }
+
+        impl<$type, $( $parser ),*> Clone
+        for $struct<$type, $( $parser ),*>
+        where $( $parser: Parser<$type> + Clone ),*
+        {
+            fn clone(&self) -> Self {
+                $struct {
+                    name: self.name.clone(),
+                    parsers: self.parsers.clone(),
+                    phantom: PhantomData,
+                }
+            }
+        }
+
+        impl<$type, $( $parser ),*> Parser<$type>
+        for $struct<$type, $( $parser ),*>
+        where $( $parser: Parser<$type> + Clone ),*
+        {
+            fn name(&self, is_empty: Option<bool>) -> String {
+                if is_empty == Some(true) {
+                    format!("empty {}", self.name)
+                } else {
+                    self.name.clone()
+                }
+            }
+
+            fn validate(&self) -> Result<InitialSet, GrammarError> {
+                InitialSet::choice(
+                    parser_names(self),
+                    vec![$( self.parsers.$idx.validate()? ),*],
+                )
+            }
+
+            fn parse(&self, stream: &mut LexemeIter) -> ParseResult<$type> {
+                use ParseResult::{Error, Failure, Success};
+
+                #[cfg(feature = "flamegraphs")]
+                span!("Choice");
+
+                $(
+                    match self.parsers.$idx.parse(stream) {
+                        Success(succ) => return Success(succ),
+                        Error(err) => return Error(err),
+                        Failure => (),
+                    }
+                )*
+                Failure
+            }
+        }
+
+        impl<$type, $( $parser ),*> ChoiceTuple<$type> for ($( $parser ),*)
+        where $( $parser: Parser<$type> + Clone ),*
+        {
+            fn make_choice(self, name: String) -> impl Parser<$type> + Clone {
+                $struct {
+                    name,
+                    parsers: self,
+                    phantom: PhantomData,
+                }
+            }
         }
     }
 }
 
-impl<T, P0: Parser<T> + Clone, P1: Parser<T> + Clone> Parser<T> for ChoiceP<T, P0, P1> {
-    fn name(&self) -> String {
-        self.name.clone()
+define_choice!(ChoiceP2, T, (0, P0), (1, P1));
+define_choice!(ChoiceP3, T, (0, P0), (1, P1), (2, P2));
+define_choice!(ChoiceP4, T, (0, P0), (1, P1), (2, P2), (3, P3));
+define_choice!(ChoiceP5, T, (0, P0), (1, P1), (2, P2), (3, P3), (4, P4));
+define_choice!(
+    ChoiceP6,
+    T,
+    (0, P0),
+    (1, P1),
+    (2, P2),
+    (3, P3),
+    (4, P4),
+    (5, P5)
+);
+define_choice!(
+    ChoiceP7,
+    T,
+    (0, P0),
+    (1, P1),
+    (2, P2),
+    (3, P3),
+    (4, P4),
+    (5, P5),
+    (6, P6)
+);
+define_choice!(
+    ChoiceP8,
+    T,
+    (0, P0),
+    (1, P1),
+    (2, P2),
+    (3, P3),
+    (4, P4),
+    (5, P5),
+    (6, P6),
+    (7, P7)
+);
+define_choice!(
+    ChoiceP9,
+    T,
+    (0, P0),
+    (1, P1),
+    (2, P2),
+    (3, P3),
+    (4, P4),
+    (5, P5),
+    (6, P6),
+    (7, P7),
+    (8, P8)
+);
+define_choice!(
+    ChoiceP10,
+    T,
+    (0, P0),
+    (1, P1),
+    (2, P2),
+    (3, P3),
+    (4, P4),
+    (5, P5),
+    (6, P6),
+    (7, P7),
+    (8, P8),
+    (9, P9)
+);
+
+/*========================================*/
+/*          Parser: Optional              */
+/*========================================*/
+
+struct OptP<T, P: Parser<T> + Clone>(P, PhantomData<T>);
+
+impl<T, P: Parser<T> + Clone> Clone for OptP<T, P> {
+    fn clone(&self) -> Self {
+        OptP(self.0.clone(), PhantomData)
+    }
+}
+
+impl<T, P: Parser<T> + Clone> Parser<Option<T>> for OptP<T, P> {
+    fn name(&self, is_empty: Option<bool>) -> String {
+        match is_empty {
+            None => format!("optional {}", self.0.name(None)),
+            Some(true) => format!("empty optional {}", self.0.name(None)),
+            Some(false) => self.0.name(Some(false)),
+        }
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
-        let mut init_0 = self.parser_0.validate()?;
-        let init_1 = self.parser_1.validate()?;
-        // TODO: bad grammar error here
-        init_0.union(&self.name, init_1)?;
-        Ok(init_0)
+        // If `self.0` accepts empty then this union will produce an error.
+        // Otherwise the initial set is simply `self.0`s initial set
+        // together with empty.
+        InitialSet::choice(
+            parser_names(self),
+            vec![InitialSet::new_empty(), self.0.validate()?],
+        )
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Option<T>> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
-        span!("Choice");
+        span!("Opt");
 
-        match self.parser_0.parse(stream) {
-            Success(succ) => Success(succ),
+        match self.0.parse(stream) {
+            Success(succ) => Success(Some(succ)),
             Error(err) => Error(err),
-            Failure => match self.parser_1.parse(stream) {
-                Success(succ) => Success(succ),
-                Error(err) => Error(err),
-                Failure => Failure,
-            },
+            Failure => Success(None),
         }
     }
 }
@@ -825,17 +1059,22 @@ impl<T, P: Parser<T> + Clone> Clone for ManyP<T, P> {
 }
 
 impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
-    fn name(&self) -> String {
-        self.0.name()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        match is_empty {
+            None => format!("many0 of {}", self.0.name(None)),
+            Some(true) => format!("empty many0 of {}", self.0.name(None)),
+            Some(false) => self.0.name(Some(false)),
+        }
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
         // If `self.0` accepts empty then this union will produce an error.
         // Otherwise the initial set is simply `self.0`s initial set
         // together with empty.
-        let mut init = self.0.validate()?;
-        init.union("nothing", InitialSet::new_empty("nothing"))?;
-        Ok(init)
+        InitialSet::choice(
+            parser_names(self),
+            vec![InitialSet::new_empty(), self.0.validate()?],
+        )
     }
 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<T>> {
@@ -888,8 +1127,14 @@ where
     P0: Parser<T0> + Clone,
     P1: Parser<T1> + Clone,
 {
-    fn name(&self) -> String {
-        self.elem.name()
+    fn name(&self, is_empty: Option<bool>) -> String {
+        let elem_name = self.elem.name(None);
+        let sep_name = self.elem.name(None);
+        if is_empty == Some(true) {
+            format!("empty {} separated by {}", elem_name, sep_name)
+        } else {
+            format!("empty {} separated by {}", elem_name, sep_name)
+        }
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -897,13 +1142,11 @@ where
         let sep_init = self.sep.validate()?;
 
         // SepBy(E, S) = (.|E(SE)*) ~= (.|E(.|SE))
-        let mut tail = sep_init;
-        tail.seq(elem_init.clone())?;
-        tail.union("sep", InitialSet::new_empty("nothing"))?;
-        let mut init = elem_init;
-        init.seq(tail)?;
-        init.union("sep", InitialSet::new_empty("nothing"))?;
-        Ok(init)
+        let names = parser_names(self);
+        let sep_elem = InitialSet::sequence(names.clone(), vec![sep_init, elem_init.clone()])?;
+        let tail = InitialSet::choice(parser_names(self), vec![InitialSet::new_empty(), sep_elem])?;
+        let nonempty = InitialSet::sequence(parser_names(self), vec![elem_init, tail])?;
+        InitialSet::choice(parser_names(self), vec![InitialSet::new_empty(), nonempty])
     }
 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<T0>> {
@@ -925,11 +1168,8 @@ where
                     Error(err) => return Error(err),
                     Failure => {
                         return Error(ParseErrorCause::StandardError {
-                            expected: self.sep.name().to_owned(),
-                            found: match stream.peek() {
-                                Some(lex) => (lex.start, lex.end),
-                                None => (stream.pos(), stream.pos()),
-                            },
+                            expected: self.sep.name(None),
+                            found: stream.upcoming_span(),
                         })
                     }
                 },

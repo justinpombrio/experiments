@@ -25,7 +25,10 @@ impl ParseErrorCause {
             CustomError { span, .. } => span,
             StandardError { found, .. } => found,
         };
-        let line_contents = source.lines().nth(span.0.line as usize).unwrap().to_owned();
+        let line_contents = match source.lines().nth(span.0.line as usize) {
+            Some(line) => line.to_owned(),
+            None => "".to_owned(),
+        };
         let message = match self {
             CustomError { message, .. } => message,
             StandardError { expected, found } => {

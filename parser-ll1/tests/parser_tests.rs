@@ -75,7 +75,8 @@ fn make_parser(
                     chars.next();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = tuple((parser_1, parser_2)).map(|(a, b)| format!("({} {})", a, b));
+                    let parser =
+                        tuple("&2", (parser_1, parser_2)).map(|(a, b)| format!("({} {})", a, b));
                     stack.push(Box::new(parser));
                 }
                 Some('3') => {
@@ -83,7 +84,7 @@ fn make_parser(
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = tuple((parser_1, parser_2, parser_3))
+                    let parser = tuple("&3", (parser_1, parser_2, parser_3))
                         .map(|(a, b, c)| format!("({} {} {})", a, b, c));
                     stack.push(Box::new(parser));
                 }
@@ -94,7 +95,7 @@ fn make_parser(
                     chars.next();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = choice("|", (parser_1, parser_2));
+                    let parser = choice("|2", (parser_1, parser_2));
                     stack.push(Box::new(parser));
                 }
                 Some('3') => {
@@ -102,7 +103,7 @@ fn make_parser(
                     let parser_3 = stack.pop().unwrap();
                     let parser_2 = stack.pop().unwrap();
                     let parser_1 = stack.pop().unwrap();
-                    let parser = choice("|", (parser_1, parser_2, parser_3));
+                    let parser = choice("|3", (parser_1, parser_2, parser_3));
                     stack.push(Box::new(parser));
                 }
                 _ => panic!("Bad count after '|' in parser test case"),
@@ -159,11 +160,11 @@ fn test_parser() {
         line_num += 1;
         if line == "" || line.starts_with("#") {
             continue;
-        } else if let Some(parser_str) = line.strip_prefix("PARSER ") {
+        } else if let Some(parser_str) = line.strip_prefix("PARSER") {
             parser = parser_str.trim().to_owned();
-        } else if let Some(input_str) = line.strip_prefix("INPUT ") {
+        } else if let Some(input_str) = line.strip_prefix("INPUT") {
             input = input_str.trim().to_owned();
-        } else if let Some(expect_str) = line.strip_prefix("EXPECT ") {
+        } else if let Some(expect_str) = line.strip_prefix("EXPECT") {
             let expect_str = expect_str.trim();
             if let Some(ok_str) = expect_str.strip_prefix("ok") {
                 assert_parse(line_num, &parser, &input, Ok(ok_str.trim().to_owned()));

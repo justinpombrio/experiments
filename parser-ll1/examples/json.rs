@@ -89,14 +89,17 @@ fn make_json_parser() -> Result<impl Fn(&str, &str) -> Result<Json, ParseError>,
 
     // Arrays
     let array_elems_p = json_p.refn().many_sep0(g.string(",")?);
-    let array_p = tuple((g.string("[")?, array_elems_p, g.string("]")?))
+    let array_p = tuple("array", (g.string("[")?, array_elems_p, g.string("]")?))
         .map(|(_, elems, _)| Json::Array(elems));
 
     // Objects
-    let entry_p =
-        tuple((plain_string_p, g.string(":")?, json_p.refn())).map(|(key, _, val)| (key, val));
+    let entry_p = tuple(
+        "dictionary entry",
+        (plain_string_p, g.string(":")?, json_p.refn()),
+    )
+    .map(|(key, _, val)| (key, val));
     let entries_p = entry_p.many_sep0(g.string(",")?);
-    let dict_p = tuple((g.string("{")?, entries_p, g.string("}")?))
+    let dict_p = tuple("dictionary", (g.string("{")?, entries_p, g.string("}")?))
         .map(|(_, entries, _)| Json::Object(entries));
 
     let json_p = json_p.define(choice(

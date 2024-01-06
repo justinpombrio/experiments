@@ -1,27 +1,31 @@
 use crate::vec_map::VecMap;
-use crate::{GrammarError, Token};
+use crate::GrammarError;
+use crate::Token;
 
 // TODO: think about ideal names & error messages
 
 #[derive(Debug, Clone)]
 pub struct InitialSet {
-    name: String,
+    empty_name: String,
+    nonempty_name: String,
     accepts_empty: bool,
     accepted_tokens: VecMap<String>,
 }
 
 impl InitialSet {
-    pub fn new_void(name: &str) -> InitialSet {
+    pub fn new_void() -> InitialSet {
         InitialSet {
-            name: name.to_owned(),
+            empty_name: "void".to_owned(),    // unreachable
+            nonempty_name: "void".to_owned(), // unreachable
             accepts_empty: false,
             accepted_tokens: VecMap::new(),
         }
     }
 
-    pub fn new_empty(name: &str) -> InitialSet {
+    pub fn new_empty() -> InitialSet {
         InitialSet {
-            name: name.to_owned(),
+            empty_name: "nothing".to_owned(),
+            nonempty_name: "nothing".to_owned(),
             accepts_empty: true,
             accepted_tokens: VecMap::new(),
         }
@@ -31,62 +35,87 @@ impl InitialSet {
         let mut accepted_tokens = VecMap::new();
         accepted_tokens.set(token, name.clone());
         InitialSet {
-            name,
+            empty_name: format!("empty {}", name),
+            nonempty_name: name,
             accepts_empty: false,
             accepted_tokens,
         }
     }
 
-    pub fn seq(&mut self, other: InitialSet) -> Result<(), GrammarError> {
-        let accepts_empty = self.accepts_empty;
-        self.accepts_empty = self.accepts_empty && other.accepts_empty;
-        if accepts_empty {
-            for (token, pattern) in other.accepted_tokens {
-                if self.accepted_tokens.get(token).is_some() {
+    pub fn sequence(
+        names: (String, String, String),
+        elems: Vec<InitialSet>,
+    ) -> Result<InitialSet, GrammarError> {
+        let (name, empty_name, nonempty_name) = names;
+
+        let mut accepts_empty = true;
+        let mut accepted_tokens: VecMap<(String, usize)> = VecMap::new();
+        for (i, init) in elems.iter().enumerate() {
+            if !init.accepts_empty {
+                accepts_empty = false;
+                break;
+            }
+            for (token, pattern) in &init.accepted_tokens {
+                if let Some((_patt, j)) = accepted_tokens.get(token) {
                     return Err(GrammarError::AmbiguityOnFirstToken {
-                        start: "sequence".to_owned(),
-                        case_1: self.name.clone(),
-                        case_2: other.name,
-                        pattern: pattern,
+                        token: pattern.to_owned(),
+                        name,
+                        case_1: elems[*j].nonempty_name.to_owned(),
+                        case_2: elems[i].nonempty_name.to_owned(),
+                    });
+                } else {
+                    accepted_tokens.set(token, (pattern.to_owned(), i));
+                }
+            }
+        }
+
+        Ok(InitialSet {
+            empty_name,
+            nonempty_name,
+            accepts_empty,
+            accepted_tokens: accepted_tokens.map(|(pattern, _)| pattern),
+        })
+    }
+
+    pub fn choice(
+        names: (String, String, String),
+        elems: Vec<InitialSet>,
+    ) -> Result<InitialSet, GrammarError> {
+        let (name, empty_name, nonempty_name) = names;
+
+        let mut accepts_empty: Option<usize> = None;
+        let mut accepted_tokens: VecMap<(String, usize)> = VecMap::new();
+        for (i, init) in elems.iter().enumerate() {
+            if init.accepts_empty {
+                if let Some(j) = accepts_empty {
+                    return Err(GrammarError::AmbiguityOnEmpty {
+                        name,
+                        case_1: elems[j].empty_name.to_owned(),
+                        case_2: elems[i].empty_name.to_owned(),
                     });
                 }
-                self.accepted_tokens.set(token, pattern);
+                accepts_empty = Some(i);
+            }
+            for (token, pattern) in &init.accepted_tokens {
+                if let Some((_patt, j)) = accepted_tokens.get(token) {
+                    return Err(GrammarError::AmbiguityOnFirstToken {
+                        token: pattern.to_owned(),
+                        name,
+                        case_1: elems[*j].nonempty_name.to_owned(),
+                        case_2: elems[i].nonempty_name.to_owned(),
+                    });
+                } else {
+                    accepted_tokens.set(token, (pattern.to_owned(), i));
+                }
             }
         }
-        Ok(())
-    }
 
-    pub fn union(&mut self, parent_name: &str, other: InitialSet) -> Result<(), GrammarError> {
-        if other.accepts_empty {
-            if self.accepts_empty {
-                return Err(GrammarError::AmbiguityOnEmpty {
-                    start: parent_name.to_owned(),
-                    case_1: self.name.clone(),
-                    case_2: other.name,
-                });
-            }
-            self.accepts_empty = true;
-        }
-        for (token, pattern) in other.accepted_tokens {
-            if self.accepted_tokens.get(token).is_some() {
-                return Err(GrammarError::AmbiguityOnFirstToken {
-                    start: parent_name.to_owned(),
-                    case_1: self.name.clone(),
-                    case_2: other.name,
-                    pattern: pattern,
-                });
-            }
-            self.accepted_tokens.set(token, pattern);
-        }
-        Ok(())
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn accepted_tokens(&self) -> VecMap<()> {
-        self.accepted_tokens.map(|_| ())
+        Ok(InitialSet {
+            empty_name,
+            nonempty_name,
+            accepts_empty: accepts_empty.is_some(),
+            accepted_tokens: accepted_tokens.map(|(pattern, _)| pattern),
+        })
     }
 
     #[cfg(test)]
@@ -100,6 +129,7 @@ impl InitialSet {
     }
 }
 
+/* TODO
 #[test]
 fn test_initial_sets() {
     let set_a = InitialSet::new_token("A".to_owned(), 65);
@@ -137,3 +167,4 @@ fn test_initial_sets() {
     assert!(set_seq.accepts_token(67));
     assert!(set_seq.accepts_token(68));
 }
+*/

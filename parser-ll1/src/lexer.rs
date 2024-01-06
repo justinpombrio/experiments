@@ -277,6 +277,13 @@ impl<'l, 's> LexemeIter<'l, 's> {
         result
     }
 
+    pub fn upcoming_span(&mut self) -> (Position, Position) {
+        match self.peek() {
+            Some(lex) => (lex.start, lex.end),
+            None => (self.pos(), self.pos()),
+        }
+    }
+
     pub fn consume_whitespace(&mut self) {
         if let Some(span) = self.lexer.whitespace.find(self.source) {
             self.consume(span.end());
