@@ -7,7 +7,7 @@ use std::fmt;
 /*          Parse Error Cause             */
 /*========================================*/
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseErrorCause {
     CustomError {
         message: String,
@@ -63,7 +63,7 @@ impl ParseErrorCause {
 ///   expected and what token was found instead.
 /// - A user-written error thrown from a method like [`Parser::try_map`] or
 ///   [`Parser::try_span`].
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     message: String,
     filename: String,
@@ -76,7 +76,7 @@ impl fmt::Display for ParseError {
         writeln!(f, "Parse error: {}.", self.message)?;
         let (start, end) = self.span;
         if start.line == end.line {
-            writeln!(f, "At '{}' line {}.", self.filename, start.line + 1)?;
+            writeln!(f, "At '{}' line {}:", self.filename, start.line + 1)?;
             writeln!(f)?;
             writeln!(f, "{}", self.line_contents)?;
             for _ in 0..start.utf8_col {
@@ -89,7 +89,7 @@ impl fmt::Display for ParseError {
         } else {
             writeln!(
                 f,
-                "At '{}' lines {}-{}.",
+                "At '{}' lines {}-{}:",
                 self.filename,
                 start.line + 1,
                 end.line + 1

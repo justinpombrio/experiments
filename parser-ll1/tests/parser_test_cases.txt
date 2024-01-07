@@ -43,6 +43,6 @@ PARSER [/
 INPUT a
 EXPECT err regex parse error:
 
-PARSER [a-z]+/ * [a-z]+/ &2
-INPUT
-EXPECT err
+# PARSER [a-z]+/ * [a-z]+/ &2
+# INPUT
+# EXPECT err

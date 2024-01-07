@@ -37,6 +37,8 @@
 use regex::{escape, Error as RegexError, Regex, RegexSet};
 use std::fmt;
 
+// TODO: things would get cleaner with a special EOF token.
+// The error messages saying "end of file" would no longer be special cases.
 /// A category of lexeme, such as "INTEGER" or "VARIABLE" or "OPEN_PAREN". The special Token called
 /// [`TOKEN_ERROR`] represents a lexing error.
 pub type Token = usize;

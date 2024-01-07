@@ -40,7 +40,27 @@
 //!
 //! **Guaranteed linear time parsing with typed parser combinators.**
 //!
-//! Features:
+//! ```
+//! use parser_ll1::{Grammar, Parser, CompiledParser};
+//! use std::str::FromStr;
+//!
+//! let mut g = Grammar::with_whitespace("[ \t\n]+").unwrap();
+//! let number = g.regex("number", "[0-9]+").unwrap()
+//!     .try_span(|s| i32::from_str(s.substr));
+//! let numbers = number.many_sep1(g.string("+").unwrap())
+//!     .map(|nums| nums.into_iter().sum());
+//! let parser = g.compile_parser(numbers).unwrap();
+//!
+//! assert_eq!(parser.parse("test case", "1 + 2 + 3"), Ok(6));
+//! assert_eq!(format!("{}", parser.parse("test case", "1 + + 2").unwrap_err()),
+//! "Parse error: expected number but found '+'.
+//! At 'test case' line 1:
+//!
+//! 1 + + 2
+//!     ^");
+//! ```
+//!
+//! ## Features
 //!
 //! - Guaranteed linear time parsing, due to `parse_ll1` checking that
 //!   your grammar is LL1. You won't find guaranteed linear time parsing in
@@ -55,9 +75,9 @@
 //!   it lexes before it parses (so it knows what to point at if the next
 //!   token is unexpected).
 //! - Easier to use than `nom` or `pest`.
-//! - Runs on stable Rust (TODO).
+//! - Runs on stable Rust.
 //!
-//! Non-features:
+//! ## Non-features
 //!
 //! - Grammars that aren't LL1! (In the future I may add backtracking
 //!   versions of some of the combinators, which would allow parsing
@@ -72,10 +92,6 @@
 //!   of `nom`, which to be clear is still very fast.
 //! - There's no separate grammar file, which some people like because
 //!   it's so declarative. Use [`pest`](https://pest.rs/) instead.
-//!
-//! ## Example
-//!
-//! TODO
 
 mod initial_set;
 mod lexer;
@@ -243,6 +259,24 @@ pub trait Parser<T>: DynClone {
         ManyP(self, PhantomData)
     }
 
+    /// Parse `self`, followed by zero or more occurrences of `parser`.
+    /// Combine the outputs using `fold`.
+    fn fold_many0<T2>(
+        self,
+        parser: impl Parser<T2> + Clone,
+        fold: impl Fn(T, T2) -> T + Clone,
+    ) -> impl Parser<T> + Clone
+    where
+        Self: Clone,
+    {
+        FoldP {
+            first_parser: self,
+            many_parser: parser,
+            fold,
+            phantom: PhantomData,
+        }
+    }
+
     /// Parse `self` one or more times.
     fn many1(self) -> impl Parser<Vec<T>> + Clone
     where
@@ -284,6 +318,30 @@ pub trait Parser<T>: DynClone {
             vec.insert(0, last);
             vec
         })
+    }
+
+    /// Parse `self` followed by `next`, producing a tuple of their outputs.
+    fn and<T2>(self, next: impl Parser<T2> + Clone) -> impl Parser<(T, T2)> + Clone
+    where
+        Self: Clone,
+    {
+        tuple("'and'", (self, next))
+    }
+
+    /// Parse `prev` followed by `self`, keeping only the output of `self`.
+    fn preceded<T2>(self, prev: impl Parser<T2> + Clone) -> impl Parser<T> + Clone
+    where
+        Self: Clone,
+    {
+        tuple("'and'", (prev, self)).map(|(_, v)| v)
+    }
+
+    /// Parse `self` followed by `next`, keeping only the output of `self`.
+    fn terminated<T2>(self, next: impl Parser<T2> + Clone) -> impl Parser<T> + Clone
+    where
+        Self: Clone,
+    {
+        tuple("'and'", (self, next)).map(|(v, _)| v)
     }
 }
 
@@ -1191,6 +1249,88 @@ impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
                 Success(succ) => results.push(succ),
                 Error(err) => return Error(err),
                 Failure => return Success(results),
+            }
+        }
+    }
+}
+
+/*========================================*/
+/*          Parser: Fold                  */
+/*========================================*/
+
+struct FoldP<T0, P0, T1, P1, F>
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    F: Fn(T0, T1) -> T0 + Clone,
+{
+    first_parser: P0,
+    many_parser: P1,
+    fold: F,
+    phantom: PhantomData<(T0, T1)>,
+}
+
+impl<T0, P0, T1, P1, F> Clone for FoldP<T0, P0, T1, P1, F>
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    F: Fn(T0, T1) -> T0 + Clone,
+{
+    fn clone(&self) -> Self {
+        FoldP {
+            first_parser: self.first_parser.clone(),
+            many_parser: self.many_parser.clone(),
+            fold: self.fold.clone(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<T0, P0, T1, P1, F> Parser<T0> for FoldP<T0, P0, T1, P1, F>
+where
+    P0: Parser<T0> + Clone,
+    P1: Parser<T1> + Clone,
+    F: Fn(T0, T1) -> T0 + Clone,
+{
+    fn name(&self) -> String {
+        format!(
+            "{}.fold_many0({})",
+            self.first_parser.name(),
+            self.many_parser.name()
+        )
+    }
+
+    fn validate(&self) -> Result<InitialSet, GrammarError> {
+        // If `self.0` accepts empty then this union will produce an error.
+        // Otherwise the initial set is simply `self.0`s initial set
+        // together with empty.
+        let init_first = self.first_parser.validate()?;
+        let init_many = self.many_parser.validate()?;
+        InitialSet::sequence(
+            self.name(),
+            vec![
+                init_first,
+                InitialSet::choice(self.name(), vec![InitialSet::empty(), init_many])?,
+            ],
+        )
+    }
+
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T0> {
+        use ParseResult::{Error, Failure, Success};
+
+        #[cfg(feature = "flamegraphs")]
+        span!("Fold");
+
+        let mut result = match self.first_parser.parse(stream) {
+            Success(succ) => succ,
+            Error(err) => return Error(err),
+            Failure => return Failure,
+        };
+        loop {
+            match self.many_parser.parse(stream) {
+                Success(succ) => result = (self.fold)(result, succ),
+                Error(err) => return Error(err),
+                Failure => return Success(result),
             }
         }
     }
