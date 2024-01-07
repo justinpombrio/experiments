@@ -1,4 +1,4 @@
-use parser_ll1::{choice, tuple, Grammar, GrammarError, ParseError, Parser, Recursive};
+use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive};
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ impl fmt::Display for Json {
     }
 }
 
-fn make_json_parser() -> Result<impl Fn(&str, &str) -> Result<Json, ParseError>, GrammarError> {
+fn make_json_parser() -> Result<impl CompiledParser<Json>, GrammarError> {
     use std::str::FromStr;
 
     let mut g = Grammar::with_whitespace("[ \t\r\n]+")?;
@@ -113,9 +113,9 @@ fn make_json_parser() -> Result<impl Fn(&str, &str) -> Result<Json, ParseError>,
 fn main() {
     use std::io;
 
-    let parse = make_json_parser().unwrap();
+    let parser = make_json_parser().unwrap();
     let input = io::read_to_string(io::stdin()).unwrap();
-    match parse("stdin", &input) {
+    match parser.parse("stdin", &input) {
         Err(err) => println!("{}", err),
         Ok(json) => println!("{}", json),
     }

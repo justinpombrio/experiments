@@ -1,4 +1,4 @@
-use parser_ll1::{choice, empty, tuple, Grammar, GrammarError, ParseError, Parser};
+use parser_ll1::{choice, empty, tuple, CompiledParser, Grammar, GrammarError, Parser};
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -20,9 +20,7 @@ use std::mem;
 /// X Y Z |3  -- X or Y or Z
 /// ```
 
-fn make_parser(
-    description: &str,
-) -> Result<impl Fn(&str, &str) -> Result<String, ParseError>, GrammarError> {
+fn make_parser(description: &str) -> Result<impl CompiledParser<String>, GrammarError> {
     let mut grammar = Grammar::with_whitespace(" +")?;
     let mut stack: Vec<Box<dyn Parser<String>>> = Vec::new();
     let mut word = String::new();
@@ -125,7 +123,7 @@ fn assert_parse(
     expected = expected.lines().next().unwrap().to_owned();
 
     let mut actual = match make_parser(parser_description) {
-        Ok(parse) => match parse("test case", input) {
+        Ok(parser) => match parser.parse("test case", input) {
             Ok(result) => format!("ok {}", result),
             Err(err) => format!("err {}", err),
         },

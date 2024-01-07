@@ -1,4 +1,3 @@
-#![feature(trait_alias)]
 // TODO:
 // [x] Make something nicer than seq_n and choice_n for users
 // [x] Have recur's interface use mutation, and panic on drop
@@ -13,7 +12,7 @@
 // [x] Change Parser<Output = T> to Parser<T>
 // [x] Try having parsers lex directly instead of having a separate lexer;
 //     see if that dramatically improves the speed. Yes: by 20%.
-// [ ] Make things run on stable Rust, it's a feature. Don't need `trait =`.
+// [x] Make things run on stable Rust, it's a feature. Don't need `trait =`.
 // [x] Docs
 // [ ] Testing
 // [ ] Review docs, add example
@@ -85,7 +84,7 @@ mod parser_recur;
 mod vec_map;
 
 use dyn_clone::{clone_box, DynClone};
-use lexer::{LexemeIter, LexerBuilder, Token};
+use lexer::{LexemeIter, Lexer, LexerBuilder, Token};
 use parse_error::ParseErrorCause;
 use regex::Error as RegexError;
 use std::error;
@@ -321,9 +320,11 @@ pub struct Grammar(LexerBuilder);
 const UNICODE_WHITESPACE_REGEX: &str =
     "[\\u0009\\u000A\\u000B\\u000C\\u000D\\u0020\\u0085\\u200E\\u200F\\u2028\\u2029]*";
 
-/// A compiled parsing function. Takes arguments `(filename, input)`. The `input`
-/// is parsed; `filename` is used only for error messages.
-pub trait ParseFn<T> = Fn(&str, &str) -> Result<T, ParseError>;
+/// A compiled parsing function, ready to use.
+pub trait CompiledParser<T> {
+    /// Parse the `input` text. `filename` is used only for error messages.
+    fn parse(&self, filename: &str, input: &str) -> Result<T, ParseError>;
+}
 
 impl Grammar {
     /// Construct a new grammar that uses the `Pattern_White_Space` Unicode property
@@ -371,21 +372,36 @@ impl Grammar {
     pub fn compile_parser<T2, P: Parser<T2> + Clone>(
         &self,
         parser: P,
-    ) -> Result<impl ParseFn<T2>, GrammarError> {
+    ) -> Result<impl CompiledParser<T2>, GrammarError> {
         use ParseResult::{Error, Failure, Success};
+
+        struct CompiledParserImpl<T, P: Parser<T> + Clone> {
+            lexer: Lexer,
+            parser: P,
+            phantom: PhantomData<T>,
+        }
+
+        impl<T, P: Parser<T> + Clone> CompiledParser<T> for CompiledParserImpl<T, P> {
+            fn parse(&self, filename: &str, input: &str) -> Result<T, ParseError> {
+                let mut lexeme_iter = self.lexer.lex(input);
+                match self.parser.parse(&mut lexeme_iter) {
+                    Success(succ) => Ok(succ),
+                    // CompleteP never returns Failure
+                    Failure => panic!("Bug in CompleteP parser"),
+                    Error(err) => Err(err.build_error(filename, input)),
+                }
+            }
+        }
 
         let lexer = self.clone().0.finish();
         let parser = CompleteP(parser, PhantomData); // ensure whole stream is consumed
         parser.validate()?;
 
-        Ok(Box::new(move |filename: &str, input: &str| {
-            let mut lexemes = lexer.lex(input);
-            match parser.parse(&mut lexemes) {
-                Success(succ) => Ok(succ),
-                Failure => panic!("Bug in CompleteP parser"), // CompleteP never returns Failure
-                Error(err) => Err(err.build_error(filename, input)),
-            }
-        }))
+        Ok(CompiledParserImpl {
+            lexer,
+            parser,
+            phantom: PhantomData,
+        })
     }
 }
 
