@@ -64,7 +64,15 @@ impl PartialEq for Pattern {
 impl Eq for Pattern {}
 
 fn new_regex(regex: &str) -> Result<Regex, RegexError> {
-    Regex::new(&format!("^({})", regex))
+    match Regex::new(&format!("^({})", regex)) {
+        Ok(regex) => Ok(regex),
+        Err(err) => match Regex::new(regex) {
+            // This error message is better because it doesn't have the ^({}) wrapper in it.
+            Err(err) => Err(err),
+            // Not sure why this wasn't an error too but there's still an issue.
+            Ok(_) => Err(err),
+        },
+    }
 }
 
 /*========================================*/
@@ -165,13 +173,6 @@ impl Lexer {
             peeked: None,
         }
     }
-
-    // TODO
-    /*
-    pub fn get_token_name(&self, token: Token) -> &str {
-        &self.patterns[token].name
-    }
-    */
 }
 
 /*========================================*/
@@ -197,6 +198,8 @@ pub type Offset = usize;
 pub type Line = u32;
 pub type Col = u32;
 
+/// A position in the input text, _between_ two characters (or at the
+/// start or end of a line). For example, "xyz" has 4 possible positions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position {
     /// Byte offset from the beginning of the source string.

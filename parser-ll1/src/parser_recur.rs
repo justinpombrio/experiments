@@ -1,5 +1,7 @@
 use crate::initial_set::InitialSet;
 use crate::lexer::LexemeIter;
+#[cfg(doc)]
+use crate::Grammar;
 use crate::{GrammarError, ParseResult, Parser};
 use std::cell::{Cell, OnceCell};
 use std::rc::{Rc, Weak};
@@ -7,6 +9,47 @@ use std::rc::{Rc, Weak};
 /*========================================*/
 /*          Parser: Recursion             */
 /*========================================*/
+
+/// Used to define recursive parsers.
+///
+/// The key is that you can [`Recursive::refn`] it before you [`Recursive::define`] it!
+pub struct Recursive<T: Clone>(Rc<RecurP<T>>);
+
+impl<T: Clone> Recursive<T> {
+    /// Declare a new recursive parser. **You must [`Recursive::define`] it later!**
+    ///
+    /// # Panics
+    ///
+    /// The recursive parser will panic if you attempt to [`Grammar::compile_parser`]
+    /// it before it has been `define`d.
+    pub fn new(name: &str) -> Recursive<T> {
+        Recursive(Rc::new(RecurP {
+            name: name.to_owned(),
+            parser: OnceCell::new(),
+            initial_set: Cell::new(None),
+        }))
+    }
+
+    /// Construct a reference to this recursive parser. Importantly, you may use this
+    /// reference _before_ `define`ing the parser.
+    pub fn refn(&self) -> impl Parser<T> + Clone {
+        RecurPWeak {
+            name: self.0.name.clone(),
+            weak: Rc::downgrade(&self.0),
+        }
+    }
+
+    /// Define this recursive parser to be equal to `parser`. `parser` may make use
+    /// of [`Recursive::refn`]s inside of itself (and indeed it ought to; otherwise
+    /// there was no need to use `Recursive`).
+    pub fn define(self, parser: impl Parser<T> + Clone + 'static) -> impl Parser<T> + Clone {
+        match self.0.parser.set(Box::new(parser)) {
+            Ok(()) => (),
+            Err(_) => panic!("Bug in recur: failed to set OnceCell"),
+        }
+        RecurPStrong(self.0)
+    }
+}
 
 struct RecurP<T: Clone> {
     name: String,
@@ -25,12 +68,8 @@ impl<T: Clone> Clone for RecurP<T> {
 }
 
 impl<T: Clone> Parser<T> for RecurP<T> {
-    fn name(&self, is_empty: Option<bool>) -> String {
-        if is_empty == Some(true) {
-            format!("empty {}", self.name.clone())
-        } else {
-            self.name.clone()
-        }
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -41,7 +80,7 @@ impl<T: Clone> Parser<T> for RecurP<T> {
         } else {
             // Compute our initial set with a recursive depth limited to 2.
             // This is guaranteed to be the same as the limit as the depth goes to infinity.
-            let initial_set_0 = InitialSet::new_void();
+            let initial_set_0 = InitialSet::void();
             self.initial_set.set(Some(initial_set_0));
             let initial_set_1 = self.validate()?;
             self.initial_set.set(Some(initial_set_1));
@@ -53,33 +92,6 @@ impl<T: Clone> Parser<T> for RecurP<T> {
 
     fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
         self.parser.get().unwrap().parse(stream)
-    }
-}
-
-pub struct Recursive<T: Clone>(Rc<RecurP<T>>);
-
-impl<T: Clone> Recursive<T> {
-    pub fn new(name: &str) -> Recursive<T> {
-        Recursive(Rc::new(RecurP {
-            name: name.to_owned(),
-            parser: OnceCell::new(),
-            initial_set: Cell::new(None),
-        }))
-    }
-
-    pub fn refn(&self) -> impl Parser<T> + Clone {
-        RecurPWeak {
-            name: self.0.name.clone(),
-            weak: Rc::downgrade(&self.0),
-        }
-    }
-
-    pub fn define(self, parser: impl Parser<T> + Clone + 'static) -> impl Parser<T> + Clone {
-        match self.0.parser.set(Box::new(parser)) {
-            Ok(()) => (),
-            Err(_) => panic!("Bug in recur: failed to set OnceCell"),
-        }
-        RecurPStrong(self.0)
     }
 }
 
@@ -104,8 +116,8 @@ impl<T: Clone> RecurPWeak<T> {
 }
 
 impl<T: Clone> Parser<T> for RecurPWeak<T> {
-    fn name(&self, is_empty: Option<bool>) -> String {
-        self.unwrap(|p| p.name(is_empty))
+    fn name(&self) -> String {
+        self.unwrap(|p| p.name())
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
@@ -123,8 +135,8 @@ impl<T: Clone> Parser<T> for RecurPWeak<T> {
 struct RecurPStrong<T: Clone>(Rc<RecurP<T>>);
 
 impl<T: Clone> Parser<T> for RecurPStrong<T> {
-    fn name(&self, is_empty: Option<bool>) -> String {
-        self.0.as_ref().name(is_empty)
+    fn name(&self) -> String {
+        self.0.as_ref().name()
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {

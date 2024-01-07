@@ -1,4 +1,6 @@
 use crate::lexer::Position;
+#[cfg(doc)]
+use crate::Parser;
 use std::fmt;
 
 /*========================================*/
@@ -53,6 +55,14 @@ impl ParseErrorCause {
 /*          Parse Error                   */
 /*========================================*/
 
+/// An error encountered while parsing.
+///
+/// There are two kinds of errors:
+///
+/// - An error because the input didn't match the grammar, saying what was
+///   expected and what token was found instead.
+/// - A user-written error thrown from a method like [`Parser::try_map`] or
+///   [`Parser::try_span`].
 #[derive(Debug)]
 pub struct ParseError {
     message: String,

@@ -107,7 +107,7 @@ fn make_json_parser() -> Result<impl Fn(&str, &str) -> Result<Json, ParseError>,
         (null_p, bool_p, number_p, string_p, array_p, dict_p),
     ));
 
-    g.make_parse_fn(json_p)
+    g.compile_parser(json_p)
 }
 
 fn main() {

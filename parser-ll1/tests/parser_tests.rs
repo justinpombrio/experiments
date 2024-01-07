@@ -57,11 +57,6 @@ fn make_parser(
                 let parser = parser.many0().map(|vec| format!("({})", vec.join(" ")));
                 stack.push(Box::new(parser));
             }
-            '$' => {
-                let parser = stack.pop().unwrap();
-                let parser = parser.complete();
-                stack.push(Box::new(parser));
-            }
             ',' => {
                 let parser_2 = stack.pop().unwrap();
                 let parser_1 = stack.pop().unwrap();
@@ -113,7 +108,7 @@ fn make_parser(
     }
     assert_eq!(stack.len(), 1, "Bad parser test case");
     let parser = stack.into_iter().next().unwrap();
-    grammar.make_parse_fn(parser)
+    grammar.compile_parser(parser)
 }
 
 fn assert_parse(
