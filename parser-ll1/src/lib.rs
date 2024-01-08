@@ -261,7 +261,7 @@ pub trait Parser<T>: DynClone {
 
     /// Parse `self`, followed by zero or more occurrences of `parser`.
     /// Combine the outputs using `fold`.
-    fn fold_many0<T2>(
+    fn fold_many1<T2>(
         self,
         parser: impl Parser<T2> + Clone,
         fold: impl Fn(T, T2) -> T + Clone,
@@ -269,9 +269,27 @@ pub trait Parser<T>: DynClone {
     where
         Self: Clone,
     {
-        FoldP {
+        Fold1P {
             first_parser: self,
             many_parser: parser,
+            fold,
+            phantom: PhantomData,
+        }
+    }
+
+    /// Parse zero or more occurrences of `self`.
+    /// Combine the outputs using `fold`.
+    fn fold_many0<V: Clone>(
+        self,
+        initial_value: V,
+        fold: impl Fn(V, T) -> V + Clone,
+    ) -> impl Parser<V> + Clone
+    where
+        Self: Clone,
+    {
+        Fold0P {
+            parser: self,
+            initial_value,
             fold,
             phantom: PhantomData,
         }
@@ -1258,7 +1276,7 @@ impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
 /*          Parser: Fold                  */
 /*========================================*/
 
-struct FoldP<T0, P0, T1, P1, F>
+struct Fold1P<T0, P0, T1, P1, F>
 where
     P0: Parser<T0> + Clone,
     P1: Parser<T1> + Clone,
@@ -1270,14 +1288,14 @@ where
     phantom: PhantomData<(T0, T1)>,
 }
 
-impl<T0, P0, T1, P1, F> Clone for FoldP<T0, P0, T1, P1, F>
+impl<T0, P0, T1, P1, F> Clone for Fold1P<T0, P0, T1, P1, F>
 where
     P0: Parser<T0> + Clone,
     P1: Parser<T1> + Clone,
     F: Fn(T0, T1) -> T0 + Clone,
 {
     fn clone(&self) -> Self {
-        FoldP {
+        Fold1P {
             first_parser: self.first_parser.clone(),
             many_parser: self.many_parser.clone(),
             fold: self.fold.clone(),
@@ -1286,7 +1304,7 @@ where
     }
 }
 
-impl<T0, P0, T1, P1, F> Parser<T0> for FoldP<T0, P0, T1, P1, F>
+impl<T0, P0, T1, P1, F> Parser<T0> for Fold1P<T0, P0, T1, P1, F>
 where
     P0: Parser<T0> + Clone,
     P1: Parser<T1> + Clone,
@@ -1294,16 +1312,13 @@ where
 {
     fn name(&self) -> String {
         format!(
-            "{}.fold_many0({})",
+            "{}.fold_many1({})",
             self.first_parser.name(),
             self.many_parser.name()
         )
     }
 
     fn validate(&self) -> Result<InitialSet, GrammarError> {
-        // If `self.0` accepts empty then this union will produce an error.
-        // Otherwise the initial set is simply `self.0`s initial set
-        // together with empty.
         let init_first = self.first_parser.validate()?;
         let init_many = self.many_parser.validate()?;
         InitialSet::sequence(
@@ -1319,7 +1334,7 @@ where
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
-        span!("Fold");
+        span!("Fold1");
 
         let mut result = match self.first_parser.parse(stream) {
             Success(succ) => succ,
@@ -1328,6 +1343,53 @@ where
         };
         loop {
             match self.many_parser.parse(stream) {
+                Success(succ) => result = (self.fold)(result, succ),
+                Error(err) => return Error(err),
+                Failure => return Success(result),
+            }
+        }
+    }
+}
+
+struct Fold0P<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> {
+    parser: P,
+    initial_value: V,
+    fold: F,
+    phantom: PhantomData<T>,
+}
+
+impl<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> Clone for Fold0P<T, P, V, F> {
+    fn clone(&self) -> Self {
+        Fold0P {
+            parser: self.parser.clone(),
+            initial_value: self.initial_value.clone(),
+            fold: self.fold.clone(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> Parser<V> for Fold0P<T, P, V, F> {
+    fn name(&self) -> String {
+        format!("{}.fold_many0()", self.parser.name(),)
+    }
+
+    fn validate(&self) -> Result<InitialSet, GrammarError> {
+        InitialSet::choice(
+            self.name(),
+            vec![InitialSet::empty(), self.parser.validate()?],
+        )
+    }
+
+    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<V> {
+        use ParseResult::{Error, Failure, Success};
+
+        #[cfg(feature = "flamegraphs")]
+        span!("Fold0");
+
+        let mut result = self.initial_value.clone();
+        loop {
+            match self.parser.parse(stream) {
                 Success(succ) => result = (self.fold)(result, succ),
                 Error(err) => return Error(err),
                 Failure => return Success(result),
