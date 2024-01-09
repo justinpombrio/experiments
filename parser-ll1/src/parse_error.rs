@@ -8,45 +8,22 @@ use std::fmt;
 /*========================================*/
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParseErrorCause {
-    CustomError {
-        message: String,
-        span: (Position, Position),
-    },
-    StandardError {
-        expected: String,
-        found: (Position, Position),
-    },
+pub struct ParseErrorCause {
+    pub message: String,
+    pub span: (Position, Position),
 }
 
 impl ParseErrorCause {
     pub fn build_error(self, filename: &str, source: &str) -> ParseError {
-        use ParseErrorCause::{CustomError, StandardError};
-
-        let span = match self {
-            CustomError { span, .. } => span,
-            StandardError { found, .. } => found,
-        };
-        let line_contents = match source.lines().nth(span.0.line as usize) {
+        let line_contents = match source.lines().nth(self.span.0.line as usize) {
             Some(line) => line.to_owned(),
             None => "".to_owned(),
         };
-        let message = match self {
-            CustomError { message, .. } => message,
-            StandardError { expected, found } => {
-                if found.0 == found.1 {
-                    format!("expected {} but found end of file", expected)
-                } else {
-                    let token = &source[found.0.offset..found.1.offset];
-                    format!("expected {} but found '{}'", expected, token)
-                }
-            }
-        };
         ParseError {
-            message,
+            message: self.message,
             filename: filename.to_owned(),
             line_contents,
-            span,
+            span: self.span,
         }
     }
 }

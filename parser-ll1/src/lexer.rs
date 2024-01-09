@@ -37,13 +37,13 @@
 use regex::{escape, Error as RegexError, Regex, RegexSet};
 use std::fmt;
 
-// TODO: things would get cleaner with a special EOF token.
-// The error messages saying "end of file" would no longer be special cases.
 /// A category of lexeme, such as "INTEGER" or "VARIABLE" or "OPEN_PAREN". The special Token called
 /// [`TOKEN_ERROR`] represents a lexing error.
 pub type Token = usize;
 
-pub const TOKEN_ERROR: Token = Token::MAX;
+// Must match use in `LexerBuilder::new()`
+pub const TOKEN_ERROR: Token = 0;
+pub const TOKEN_EOF: Token = 1;
 
 /*========================================*/
 /*          Pattern                       */
@@ -51,8 +51,7 @@ pub const TOKEN_ERROR: Token = Token::MAX;
 
 #[derive(Debug, Clone)]
 pub struct Pattern {
-    // TODO
-    // name: String,
+    name: String,
     regex: Regex,
     length: Option<usize>,
 }
@@ -89,9 +88,20 @@ pub struct LexerBuilder {
 
 impl LexerBuilder {
     pub fn new(whitespace_regex: &str) -> Result<LexerBuilder, RegexError> {
+        let error_pattern = Pattern {
+            name: "ERROR".to_owned(),
+            regex: Regex::new("!.").unwrap(), // never used
+            length: Some(0),
+        };
+        let eof_pattern = Pattern {
+            name: "end of file".to_owned(),
+            regex: Regex::new("\\z").unwrap(), // never used
+            length: Some(0),
+        };
         Ok(LexerBuilder {
             whitespace: new_regex(whitespace_regex)?,
-            patterns: vec![],
+            // Must match definitions of TOKEN_ERROR and TOKEN_EOF
+            patterns: vec![error_pattern, eof_pattern],
         })
     }
 
@@ -99,7 +109,7 @@ impl LexerBuilder {
     /// produced whenever this pattern matches.
     pub fn string(&mut self, constant: &str) -> Result<Token, RegexError> {
         let pattern = Pattern {
-            //name: format!("'{}'", constant),
+            name: format!("'{}'", constant),
             regex: new_regex(&escape(constant))?,
             length: Some(constant.len()),
         };
@@ -120,9 +130,9 @@ impl LexerBuilder {
     ///
     /// The syntax is that of the `regex` crate. You do not need to begin the pattern with a
     /// start-of-string character `^`.
-    pub fn regex(&mut self, regex: &str) -> Result<Token, RegexError> {
+    pub fn regex(&mut self, name: &str, regex: &str) -> Result<Token, RegexError> {
         let pattern = Pattern {
-            //name: name.to_owned(),
+            name: name.to_owned(),
             regex: new_regex(regex)?,
             length: None,
         };
@@ -256,9 +266,9 @@ impl<'l, 's> LexemeIter<'l, 's> {
         &self.source
     }
 
-    pub fn peek(&mut self) -> Option<Lexeme<'s>> {
+    pub fn peek(&mut self) -> Lexeme<'s> {
         if let Some((_, _, lexeme)) = self.peeked {
-            return Some(lexeme);
+            return lexeme;
         }
 
         // Save current state
@@ -266,27 +276,19 @@ impl<'l, 's> LexemeIter<'l, 's> {
         let old_src = self.source;
 
         // Lex one token and save what we find
-        let result = match self.next() {
-            Some(lexeme) => {
-                self.peeked = Some((self.position, self.source, lexeme));
-                Some(lexeme)
-            }
-            None => None,
-        };
+        let lexeme = self.next();
+        self.peeked = Some((self.position, self.source, lexeme));
 
         // Restore previous state
         self.position = old_pos;
         self.source = old_src;
 
         // Return lexed token
-        result
+        lexeme
     }
 
-    pub fn upcoming_span(&mut self) -> (Position, Position) {
-        match self.peek() {
-            Some(lex) => (lex.start, lex.end),
-            None => (self.pos(), self.pos()),
-        }
+    pub fn token_name(&self, token: Token) -> &str {
+        &self.lexer.patterns[token].name
     }
 
     pub fn consume_whitespace(&mut self) {
@@ -306,23 +308,25 @@ impl<'l, 's> LexemeIter<'l, 's> {
         self.source = &self.source[len..];
         (lexeme, start, end)
     }
-}
 
-impl<'l, 's> Iterator for LexemeIter<'l, 's> {
-    type Item = Lexeme<'s>;
-
-    fn next(&mut self) -> Option<Lexeme<'s>> {
+    pub fn next(&mut self) -> Lexeme<'s> {
         if let Some((pos, source, lexeme)) = self.peeked.take() {
             self.position = pos;
             self.source = source;
-            return Some(lexeme);
+            return lexeme;
         }
 
+        let pos = self.position;
         self.consume_whitespace();
 
-        // If we're at the end of the file, we're done.
+        // If we're at the end of the file, return TOKEN::EOF.
         if self.source.is_empty() {
-            return None;
+            return Lexeme {
+                token: TOKEN_EOF,
+                lexeme: "",
+                start: pos,
+                end: pos,
+            };
         }
 
         // Find the best match (longest, with a tie-breaker of is_str)
@@ -351,12 +355,12 @@ impl<'l, 's> Iterator for LexemeIter<'l, 's> {
         // If there was a best match, consume and return it.
         if let Some((token, len, _)) = best_match {
             let (lexeme, start, end) = self.consume(len);
-            return Some(Lexeme {
+            return Lexeme {
                 token,
                 lexeme,
                 start,
                 end,
-            });
+            };
         }
 
         // Otherwise, nothing matched. Lex error! By definition we can't lex, but let's say the
@@ -368,11 +372,11 @@ impl<'l, 's> Iterator for LexemeIter<'l, 's> {
             self.source.len()
         };
         let (lexeme, start, end) = self.consume(len);
-        Some(Lexeme {
+        Lexeme {
             token: TOKEN_ERROR,
             lexeme,
             start,
             end,
-        })
+        }
     }
 }

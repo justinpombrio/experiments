@@ -100,7 +100,7 @@ mod parser_recur;
 mod vec_map;
 
 use dyn_clone::{clone_box, DynClone};
-use lexer::{LexemeIter, Lexer, LexerBuilder, Token};
+use lexer::{LexemeIter, Lexer, LexerBuilder, Token, TOKEN_EOF};
 use parse_error::ParseErrorCause;
 use regex::Error as RegexError;
 use std::error;
@@ -437,7 +437,7 @@ impl Grammar {
         name: &str,
         regex: &str,
     ) -> Result<impl Parser<()> + Clone, GrammarError> {
-        let token = self.0.regex(regex)?;
+        let token = self.0.regex(name, regex)?;
         let name = name.to_owned();
         Ok(TokenP { name, token })
     }
@@ -462,15 +462,16 @@ impl Grammar {
                 let mut lexeme_iter = self.lexer.lex(input);
                 match self.parser.parse(&mut lexeme_iter) {
                     Success(succ) => Ok(succ),
-                    // CompleteP never returns Failure
-                    Failure => panic!("Bug in CompleteP parser"),
+                    // TODO: fixme
+                    Failure => panic!("Bug in parser wrapper"),
                     Error(err) => Err(err.build_error(filename, input)),
                 }
             }
         }
 
         let lexer = self.clone().0.finish();
-        let parser = CompleteP(parser, PhantomData); // ensure whole stream is consumed
+        // ensure the whole stream is consuemd
+        let parser = tuple(&parser.name(), (parser, eof())).map(|(v, _)| v);
         parser.validate()?;
 
         Ok(CompiledParserImpl {
@@ -553,13 +554,18 @@ impl Parser<()> for TokenP {
         #[cfg(feature = "flamegraphs")]
         span!("Token");
 
-        if let Some(lexeme) = stream.peek() {
-            if lexeme.token == self.token {
-                stream.next();
-                return ParseResult::Success(());
-            }
+        if stream.peek().token == self.token {
+            stream.next();
+            return ParseResult::Success(());
         }
         ParseResult::Failure
+    }
+}
+
+fn eof() -> impl Parser<()> + Clone {
+    TokenP {
+        name: "end of file".to_owned(),
+        token: TOKEN_EOF,
     }
 }
 
@@ -621,7 +627,7 @@ where
                 Ok(succ) => ParseResult::Success(succ),
                 Err(err) => {
                     let end = stream.pos();
-                    ParseResult::Error(ParseErrorCause::CustomError {
+                    ParseResult::Error(ParseErrorCause {
                         message: err.to_string(),
                         span: (start, end),
                     })
@@ -671,50 +677,6 @@ impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> T1 + Clone> Parser<T1> for Map
         match self.parser.parse(stream) {
             Success(result) => Success((self.func)(result)),
             Failure => Failure,
-            Error(err) => Error(err),
-        }
-    }
-}
-
-/*========================================*/
-/*          Parser: Complete              */
-/*========================================*/
-
-struct CompleteP<T, P: Parser<T> + Clone>(P, PhantomData<T>);
-
-impl<T, P: Parser<T> + Clone> Clone for CompleteP<T, P> {
-    fn clone(&self) -> Self {
-        CompleteP(self.0.clone(), PhantomData)
-    }
-}
-
-impl<T, P: Parser<T> + Clone> Parser<T> for CompleteP<T, P> {
-    fn name(&self) -> String {
-        self.0.name()
-    }
-
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
-        self.0.validate()
-    }
-
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
-        use ParseResult::{Error, Failure, Success};
-
-        #[cfg(feature = "flamegraphs")]
-        span!("Complete");
-
-        match self.0.parse(stream) {
-            Success(succ) => match stream.next() {
-                None => Success(succ),
-                Some(lex) => Error(ParseErrorCause::StandardError {
-                    expected: "end of file".to_owned(),
-                    found: (lex.start, lex.end),
-                }),
-            },
-            Failure => Error(ParseErrorCause::StandardError {
-                expected: self.0.name(),
-                found: stream.upcoming_span(),
-            }),
             Error(err) => Error(err),
         }
     }
@@ -804,7 +766,7 @@ where
 
         match (self.func)(span, result) {
             Ok(succ) => ParseResult::Success(succ),
-            Err(err) => ParseResult::Error(ParseErrorCause::CustomError {
+            Err(err) => ParseResult::Error(ParseErrorCause {
                 message: format!("{}", err),
                 span: (span.start, span.end),
             }),
@@ -946,9 +908,10 @@ macro_rules! define_seq {
                         Success(succ) => succ,
                         Error(err) => return Error(err),
                         Failure => if stream.pos().offset != start_pos {
-                            return Error(ParseErrorCause::StandardError {
-                                expected: self.parsers.$idx.name(),
-                                found: stream.upcoming_span(),
+                            let lexeme = stream.peek();
+                            return Error(ParseErrorCause {
+                                message: format!("expected {} but found {}", self.parsers.$idx.name(), stream.token_name(lexeme.token).to_owned()),
+                                span: (lexeme.start, lexeme.end),
                             })
                         } else {
                             return Failure
@@ -1465,10 +1428,15 @@ where
                     Success(succ) => results.push(succ),
                     Error(err) => return Error(err),
                     Failure => {
-                        return Error(ParseErrorCause::StandardError {
-                            expected: self.sep.name(),
-                            found: stream.upcoming_span(),
-                        })
+                        let lexeme = stream.peek();
+                        return Error(ParseErrorCause {
+                            message: format!(
+                                "expected {} but found {}",
+                                self.sep.name(),
+                                stream.token_name(lexeme.token).to_owned()
+                            ),
+                            span: (lexeme.start, lexeme.end),
+                        });
                     }
                 },
                 Error(err) => return Error(err),
