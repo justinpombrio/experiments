@@ -149,13 +149,7 @@ pub trait Parser<T>: DynClone {
     #[doc(hidden)]
     fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T>;
 
-    // TODO: used to have a few more combinators, though I removed them
-    // because they lacked names and thus would produce worse error messages:
-    //
-    // - and
-    // - preceded
-    // - terminated
-    // - complete (implicitly inserted by `compile_parser()`)
+    // ========== Mapping ========== //
 
     /// Ignore this parser's output, replacing it with `value`.
     fn constant<T2: Clone>(self, value: T2) -> impl Parser<T2> + Clone
@@ -204,6 +198,21 @@ pub trait Parser<T>: DynClone {
         self.map_span(move |span, _| func(span))
     }
 
+    /// Ignore this parser's output, replacing it with `func(Span)` instead.
+    /// Produce a parse error if `func` returns an `Err`.
+    ///
+    /// The `Span` gives the region of the input text which was matched, including
+    /// the substring.
+    fn try_span<T2, E: error::Error>(
+        self,
+        func: impl Fn(Span) -> Result<T2, E> + Clone,
+    ) -> impl Parser<T2> + Clone
+    where
+        Self: Clone,
+    {
+        self.try_map_span(move |span, _| func(span))
+    }
+
     /// Combine this parser's output (of type `T`) together with the matched `Span`,
     /// to produce an output of type `T2`.
     ///
@@ -218,21 +227,6 @@ pub trait Parser<T>: DynClone {
             func,
             phantom: PhantomData,
         }
-    }
-
-    /// Ignore this parser's output, replacing it with `func(Span)` instead.
-    /// Produce a parse error if `func` returns an `Err`.
-    ///
-    /// The `Span` gives the region of the input text which was matched, including
-    /// the substring.
-    fn try_span<T2, E: error::Error>(
-        self,
-        func: impl Fn(Span) -> Result<T2, E> + Clone,
-    ) -> impl Parser<T2> + Clone
-    where
-        Self: Clone,
-    {
-        self.try_map_span(move |span, _| func(span))
     }
 
     /// Combine this parser's output (of type `T`) together with the matched `Span`,
@@ -254,6 +248,8 @@ pub trait Parser<T>: DynClone {
         }
     }
 
+    // ========== Repetition ========== //
+
     /// Either parse `self`, or parse nothing.
     fn opt(self) -> impl Parser<Option<T>> + Clone
     where
@@ -265,9 +261,27 @@ pub trait Parser<T>: DynClone {
     /// Parse `self` zero or more times.
     fn many0(self) -> impl Parser<Vec<T>> + Clone
     where
+        T: Clone,
         Self: Clone,
     {
-        ManyP(self, PhantomData)
+        fn push<E>(mut vec: Vec<E>, elem: E) -> Vec<E> {
+            vec.push(elem);
+            vec
+        }
+        self.fold_many0(Vec::new(), push)
+    }
+
+    /// Parse `self` one or more times.
+    fn many1(self) -> impl Parser<Vec<T>> + Clone
+    where
+        T: Clone,
+        Self: Clone,
+    {
+        fn push<E>(mut vec: Vec<E>, elem: E) -> Vec<E> {
+            vec.push(elem);
+            vec
+        }
+        self.clone().map(|elem| vec![elem]).fold_many1(self, push)
     }
 
     /// Parse `self`, followed by zero or more occurrences of `parser`.
@@ -289,7 +303,7 @@ pub trait Parser<T>: DynClone {
     }
 
     /// Parse zero or more occurrences of `self`.
-    /// Combine the outputs using `fold`.
+    /// Combine the outputs, starting with `initial_value`, using `fold`.
     fn fold_many0<V: Clone>(
         self,
         initial_value: V,
@@ -306,24 +320,12 @@ pub trait Parser<T>: DynClone {
         }
     }
 
-    /// Parse `self` one or more times.
-    fn many1(self) -> impl Parser<Vec<T>> + Clone
-    where
-        Self: Clone,
-    {
-        // TODO: this could be more efficient.
-        let name = format!("{}.many1()", self.name());
-        tuple(&name, (self.clone(), self.many0())).map(|(val, mut vec)| {
-            vec.insert(0, val);
-            vec
-        })
-    }
-
     /// Parse `self` zero or more times, separated by `sep`s.
     ///
     /// Collects the `self` outputs into a vector, and ignores the `sep` outputs.
     fn many_sep0<T2>(self, sep: impl Parser<T2> + Clone) -> impl Parser<Vec<T>> + Clone
     where
+        T: Clone,
         Self: Clone,
     {
         SepP {
@@ -338,23 +340,27 @@ pub trait Parser<T>: DynClone {
     /// Collects the `self` outputs into a vector, and ignores the `sep` outputs.
     fn many_sep1<T2>(self, sep: impl Parser<T2> + Clone) -> impl Parser<Vec<T>> + Clone
     where
+        T: Clone,
         Self: Clone,
     {
-        // TODO: this could be more efficient.
-        let name = format!("{}.many_sep1()", sep.name());
-        let sep_elem = tuple(&name, (sep, self.clone())).map(|(_, v)| v);
-        tuple(&name, (self.clone(), sep_elem.many0())).map(|(last, mut vec)| {
-            vec.insert(0, last);
+        fn push<E>(mut vec: Vec<E>, elem: E) -> Vec<E> {
+            vec.push(elem);
             vec
-        })
+        }
+        self.clone()
+            .map(|elem| vec![elem])
+            .fold_many1(self.preceded(sep), push)
     }
+
+    // ========== Sequencing ========== //
 
     /// Parse `self` followed by `next`, producing a tuple of their outputs.
     fn and<T2>(self, next: impl Parser<T2> + Clone) -> impl Parser<(T, T2)> + Clone
     where
         Self: Clone,
     {
-        tuple("'and'", (self, next))
+        let name = format!("{}.and({})", self.name(), next.name());
+        tuple(&name, (self, next))
     }
 
     /// Parse `prev` followed by `self`, keeping only the output of `self`.
@@ -362,7 +368,8 @@ pub trait Parser<T>: DynClone {
     where
         Self: Clone,
     {
-        tuple("'and'", (prev, self)).map(|(_, v)| v)
+        let name = format!("{}.preceded({})", self.name(), prev.name());
+        tuple(&name, (prev, self)).map(|(_, v)| v)
     }
 
     /// Parse `self` followed by `next`, keeping only the output of `self`.
@@ -370,7 +377,8 @@ pub trait Parser<T>: DynClone {
     where
         Self: Clone,
     {
-        tuple("'and'", (self, next)).map(|(v, _)| v)
+        let name = format!("{}.terminated({})", self.name(), next.name());
+        tuple(&name, (self, next)).map(|(v, _)| v)
     }
 }
 
@@ -1249,9 +1257,6 @@ impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
     }
 
     fn validate(&self) -> Result<FirstSet, GrammarError> {
-        // If `self.0` accepts empty then this union will produce an error.
-        // Otherwise the initial set is simply `self.0`s initial set
-        // together with empty.
         FirstSet::choice(self.name(), vec![FirstSet::empty(), self.0.validate()?])
     }
 
