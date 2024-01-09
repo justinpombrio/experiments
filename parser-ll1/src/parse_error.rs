@@ -14,6 +14,13 @@ pub struct ParseErrorCause {
 }
 
 impl ParseErrorCause {
+    pub fn new(expected: &str, token_name: &str, span: (Position, Position)) -> ParseErrorCause {
+        ParseErrorCause {
+            message: format!("expected {} but found {}", expected, token_name),
+            span,
+        }
+    }
+
     pub fn build_error(self, filename: &str, source: &str) -> ParseError {
         let line_contents = match source.lines().nth(self.span.0.line as usize) {
             Some(line) => line.to_owned(),

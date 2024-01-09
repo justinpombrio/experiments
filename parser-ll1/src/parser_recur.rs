@@ -90,8 +90,8 @@ impl<T: Clone> Parser<T> for RecurP<T> {
         }
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
-        self.parser.get().unwrap().parse(stream)
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T> {
+        self.parser.get().unwrap().parse(stream, required)
     }
 }
 
@@ -124,8 +124,8 @@ impl<T: Clone> Parser<T> for RecurPWeak<T> {
         self.unwrap(|p| p.validate())
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
-        self.unwrap(|p| p.parse(stream))
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T> {
+        self.unwrap(|p| p.parse(stream, required))
     }
 }
 
@@ -143,7 +143,7 @@ impl<T: Clone> Parser<T> for RecurPStrong<T> {
         self.0.as_ref().validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
-        self.0.as_ref().parse(stream)
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T> {
+        self.0.as_ref().parse(stream, required)
     }
 }

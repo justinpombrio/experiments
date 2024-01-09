@@ -14,10 +14,11 @@
 //     see if that dramatically improves the speed. Yes: by 20%.
 // [x] Make things run on stable Rust, it's a feature. Don't need `trait =`.
 // [x] Docs
+// [ ] impl Fn -> impl FnMut?
 // [ ] Testing
 // [ ] Review docs, add example
 
-// NOTE: Current time to parse dummy.json: 6.5 ms
+// NOTE: Current time to parse dummy.json: 5.75 ms
 
 // This design achieves all of the following:
 //
@@ -136,7 +137,7 @@ pub trait Parser<T>: DynClone {
     #[doc(hidden)]
     fn validate(&self) -> Result<InitialSet, GrammarError>;
     #[doc(hidden)]
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T>;
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T>;
 
     // NOTE: used to have a few more combinators, though I removed them
     // because they lacked names and thus would produce worse error messages:
@@ -378,8 +379,8 @@ impl<T> Parser<T> for Box<dyn Parser<T>> {
         self.as_ref().validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T> {
-        self.as_ref().parse(stream)
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T> {
+        self.as_ref().parse(stream, required)
     }
 }
 
@@ -460,10 +461,9 @@ impl Grammar {
         impl<T, P: Parser<T> + Clone> CompiledParser<T> for CompiledParserImpl<T, P> {
             fn parse(&self, filename: &str, input: &str) -> Result<T, ParseError> {
                 let mut lexeme_iter = self.lexer.lex(input);
-                match self.parser.parse(&mut lexeme_iter) {
+                match self.parser.parse(&mut lexeme_iter, true) {
                     Success(succ) => Ok(succ),
-                    // TODO: fixme
-                    Failure => panic!("Bug in parser wrapper"),
+                    Failure => panic!("Bug in CompiledParser"),
                     Error(err) => Err(err.build_error(filename, input)),
                 }
             }
@@ -521,7 +521,7 @@ impl Parser<()> for EmptyP {
         Ok(InitialSet::empty())
     }
 
-    fn parse(&self, _stream: &mut LexemeIter) -> ParseResult<()> {
+    fn parse(&self, _stream: &mut LexemeIter, _required: bool) -> ParseResult<()> {
         ParseResult::Success(())
     }
 }
@@ -550,15 +550,25 @@ impl Parser<()> for TokenP {
         Ok(InitialSet::token(self.name.clone(), self.token))
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<()> {
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<()> {
+        use ParseResult::{Error, Failure, Success};
+
         #[cfg(feature = "flamegraphs")]
         span!("Token");
 
-        if stream.peek().token == self.token {
+        let lexeme = stream.peek();
+        if lexeme.token == self.token {
             stream.next();
-            return ParseResult::Success(());
+            Success(())
+        } else if required {
+            Error(ParseErrorCause::new(
+                &self.name,
+                stream.token_name(lexeme.token),
+                (lexeme.start, lexeme.end),
+            ))
+        } else {
+            Failure
         }
-        ParseResult::Failure
     }
 }
 
@@ -613,16 +623,16 @@ where
         self.parser.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T1> {
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T1> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
-        span!("Map");
+        span!("TryMap");
 
         let mut skipped_whitespace = stream.clone();
         skipped_whitespace.consume_whitespace();
         let start = skipped_whitespace.pos();
-        match self.parser.parse(stream) {
+        match self.parser.parse(stream, required) {
             Success(result) => match (self.func)(result) {
                 Ok(succ) => ParseResult::Success(succ),
                 Err(err) => {
@@ -668,13 +678,13 @@ impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> T1 + Clone> Parser<T1> for Map
         self.parser.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T1> {
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T1> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
         span!("Map");
 
-        match self.parser.parse(stream) {
+        match self.parser.parse(stream, required) {
             Success(result) => Success((self.func)(result)),
             Failure => Failure,
             Error(err) => Error(err),
@@ -743,7 +753,7 @@ where
         self.parser.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T1> {
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T1> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -754,7 +764,7 @@ where
         let start = skipped_whitespace.pos();
         let source = skipped_whitespace.remaining_source();
 
-        let result = match self.parser.parse(stream) {
+        let result = match self.parser.parse(stream, required) {
             Success(succ) => succ,
             Failure => return Failure,
             Error(err) => return Error(err),
@@ -767,7 +777,7 @@ where
         match (self.func)(span, result) {
             Ok(succ) => ParseResult::Success(succ),
             Err(err) => ParseResult::Error(ParseErrorCause {
-                message: format!("{}", err),
+                message: err.to_string(),
                 span: (span.start, span.end),
             }),
         }
@@ -815,7 +825,7 @@ where
         self.parser.validate()
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T1> {
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T1> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -826,7 +836,7 @@ where
         let start = skipped_whitespace.pos();
         let source = skipped_whitespace.remaining_source();
 
-        let result = match self.parser.parse(stream) {
+        let result = match self.parser.parse(stream, required) {
             Success(succ) => succ,
             Failure => return Failure,
             Error(err) => return Error(err),
@@ -896,26 +906,24 @@ macro_rules! define_seq {
                 )
             }
 
-            fn parse(&self, stream: &mut LexemeIter) -> ParseResult<($( $type ),*)> {
+            fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<($( $type ),*)> {
                 use ParseResult::{Error, Failure, Success};
 
                 #[cfg(feature = "flamegraphs")]
                 span!("Seq");
 
                 let start_pos = stream.pos().offset;
+                let mut required = required;
+                #[allow(unused_assignments)] // last `required` assignment is never read
                 let results = ( $(
-                    match self.parsers.$idx.parse(stream) {
-                        Success(succ) => succ,
-                        Error(err) => return Error(err),
-                        Failure => if stream.pos().offset != start_pos {
-                            let lexeme = stream.peek();
-                            return Error(ParseErrorCause {
-                                message: format!("expected {} but found {}", self.parsers.$idx.name(), stream.token_name(lexeme.token).to_owned()),
-                                span: (lexeme.start, lexeme.end),
-                            })
-                        } else {
-                            return Failure
+                    match self.parsers.$idx.parse(stream, required) {
+                        Success(succ) => {
+                            // As soon as a parser has consumed anything, set required
+                            required = required || stream.pos().offset != start_pos;
+                            succ
                         }
+                        Error(err) => return Error(err),
+                        Failure => return Failure,
                     }
                 ),* );
                 ParseResult::Success(results)
@@ -1060,20 +1068,29 @@ macro_rules! define_choice {
                 )
             }
 
-            fn parse(&self, stream: &mut LexemeIter) -> ParseResult<$type> {
+            fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<$type> {
                 use ParseResult::{Error, Failure, Success};
 
                 #[cfg(feature = "flamegraphs")]
                 span!("Choice");
 
                 $(
-                    match self.parsers.$idx.parse(stream) {
+                    match self.parsers.$idx.parse(stream, false) {
                         Success(succ) => return Success(succ),
                         Error(err) => return Error(err),
                         Failure => (),
                     }
                 )*
-                Failure
+                if required {
+                    let lexeme = stream.next();
+                    Error(ParseErrorCause::new(
+                        &self.name,
+                        stream.token_name(lexeme.token),
+                        (lexeme.start, lexeme.end),
+                    ))
+                } else {
+                    Failure
+                }
             }
         }
 
@@ -1180,13 +1197,13 @@ impl<T, P: Parser<T> + Clone> Parser<Option<T>> for OptP<T, P> {
         InitialSet::choice(self.name(), vec![InitialSet::empty(), self.0.validate()?])
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Option<T>> {
+    fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Option<T>> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
         span!("Opt");
 
-        match self.0.parse(stream) {
+        match self.0.parse(stream, false) {
             Success(succ) => Success(Some(succ)),
             Error(err) => Error(err),
             Failure => Success(None),
@@ -1218,7 +1235,7 @@ impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
         InitialSet::choice(self.name(), vec![InitialSet::empty(), self.0.validate()?])
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<T>> {
+    fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Vec<T>> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -1226,7 +1243,7 @@ impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
 
         let mut results = Vec::new();
         loop {
-            match self.0.parse(stream) {
+            match self.0.parse(stream, false) {
                 Success(succ) => results.push(succ),
                 Error(err) => return Error(err),
                 Failure => return Success(results),
@@ -1293,19 +1310,19 @@ where
         )
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<T0> {
+    fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T0> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
         span!("Fold1");
 
-        let mut result = match self.first_parser.parse(stream) {
+        let mut result = match self.first_parser.parse(stream, required) {
             Success(succ) => succ,
             Error(err) => return Error(err),
             Failure => return Failure,
         };
         loop {
-            match self.many_parser.parse(stream) {
+            match self.many_parser.parse(stream, false) {
                 Success(succ) => result = (self.fold)(result, succ),
                 Error(err) => return Error(err),
                 Failure => return Success(result),
@@ -1344,7 +1361,7 @@ impl<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> Parser<V> for 
         )
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<V> {
+    fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<V> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
@@ -1352,7 +1369,7 @@ impl<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> Parser<V> for 
 
         let mut result = self.initial_value.clone();
         loop {
-            match self.parser.parse(stream) {
+            match self.parser.parse(stream, false) {
                 Success(succ) => result = (self.fold)(result, succ),
                 Error(err) => return Error(err),
                 Failure => return Success(result),
@@ -1410,34 +1427,24 @@ where
         InitialSet::choice(name, vec![InitialSet::empty(), nonempty])
     }
 
-    fn parse(&self, stream: &mut LexemeIter) -> ParseResult<Vec<T0>> {
+    fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Vec<T0>> {
         use ParseResult::{Error, Failure, Success};
 
         #[cfg(feature = "flamegraphs")]
         span!("Many");
 
         let mut results = Vec::new();
-        match self.elem.parse(stream) {
+        match self.elem.parse(stream, false) {
             Success(succ) => results.push(succ),
             Error(err) => return Error(err),
             Failure => return Success(results),
         }
         loop {
-            match self.sep.parse(stream) {
-                Success(_succ) => match self.elem.parse(stream) {
+            match self.sep.parse(stream, false) {
+                Success(_succ) => match self.elem.parse(stream, true) {
                     Success(succ) => results.push(succ),
                     Error(err) => return Error(err),
-                    Failure => {
-                        let lexeme = stream.peek();
-                        return Error(ParseErrorCause {
-                            message: format!(
-                                "expected {} but found {}",
-                                self.sep.name(),
-                                stream.token_name(lexeme.token).to_owned()
-                            ),
-                            span: (lexeme.start, lexeme.end),
-                        });
-                    }
+                    Failure => unreachable!(),
                 },
                 Error(err) => return Error(err),
                 Failure => return Success(results),

@@ -90,13 +90,13 @@ impl LexerBuilder {
     pub fn new(whitespace_regex: &str) -> Result<LexerBuilder, RegexError> {
         let error_pattern = Pattern {
             name: "ERROR".to_owned(),
-            regex: Regex::new("!.").unwrap(), // never used
-            length: Some(0),
+            regex: Regex::new("^[a&&b]").unwrap(), // never used
+            length: None,
         };
         let eof_pattern = Pattern {
             name: "end of file".to_owned(),
-            regex: Regex::new("\\z").unwrap(), // never used
-            length: Some(0),
+            regex: Regex::new("^[a&&b]").unwrap(), // never used
+            length: None,
         };
         Ok(LexerBuilder {
             whitespace: new_regex(whitespace_regex)?,
@@ -297,18 +297,6 @@ impl<'l, 's> LexemeIter<'l, 's> {
         }
     }
 
-    fn consume(&mut self, len: usize) -> (&'s str, Position, Position) {
-        let start = self.position;
-        for ch in self.source[..len].chars() {
-            self.position.advance(ch);
-        }
-        let end = self.position;
-
-        let lexeme = &self.source[..len];
-        self.source = &self.source[len..];
-        (lexeme, start, end)
-    }
-
     pub fn next(&mut self) -> Lexeme<'s> {
         if let Some((pos, source, lexeme)) = self.peeked.take() {
             self.position = pos;
@@ -378,5 +366,17 @@ impl<'l, 's> LexemeIter<'l, 's> {
             start,
             end,
         }
+    }
+
+    fn consume(&mut self, len: usize) -> (&'s str, Position, Position) {
+        let start = self.position;
+        for ch in self.source[..len].chars() {
+            self.position.advance(ch);
+        }
+        let end = self.position;
+
+        let lexeme = &self.source[..len];
+        self.source = &self.source[len..];
+        (lexeme, start, end)
     }
 }
