@@ -1,36 +1,16 @@
 //! A lexer (a.k.a. tokenizer) that produces an iterator of (token, lexeme) pairs.
 //!
-//! Usage:
+//! Whitespace is skipped. If there is a lexing error, it is represented as an item in the
+//! iterator whose `token` is `TOKEN_ERROR`.
 //!
-//! TODO: this doc test
-//! ```txt
-//! use lexer::{LexerBuilder, Lexer, LEX_ERROR};
-//!
-//! let whitespace_regex = r#"[ \t\r\n]+"#;
-//! let mut builder = LexerBuilder::new(whitespace_regex).unwrap();
-//! let tok_plus = builder.string("+").unwrap();
-//! let tok_var = builder.regex("[a-zA-Z_]+").unwrap();
-//! let lexer = builder.finish().unwrap();
-//!
-//! let mut lexemes = lexer.lex("x + y");
-//! assert_eq!(lexemes.next().unwrap().token, tok_var);
-//! assert_eq!(lexemes.next().unwrap().token, tok_plus);
-//! assert_eq!(lexemes.next().unwrap().token, tok_var);
-//! assert_eq!(lexemes.next(), None);
-//!
-//! let mut lexemes = lexer.lex("x @$!");
-//! assert_eq!(lexemes.next().unwrap().token, tok_var);
-//! assert_eq!(lexemes.next().unwrap().token, TOKEN_ERROR);
-//! ```
-//!
-//! Whitespace is skipped. If there is a lexing error, it is represented as an item in the iterator
-//! whose `token` is `TOKEN_ERROR`.
+//! The "iterator" doesn't actually implement the `Iterator` trait, because at the end
+//! of the lexeme stream it yields `TOKEN_EOF` forever. The user is expected to notice.
 //!
 //! If there are multiple possible matches:
 //!
 //! - The longest match is used.
-//! - If there is a tie, whichever token is a 'string' pattern instead of a 'regex' pattern will be
-//! used.
+//! - If there is a tie, whichever token is a 'string' pattern instead of a 'regex' pattern
+//!   will be used.
 //! - If there is _still_ a tie, the regex that's first in the list provided to `Lexer::new()` will
 //! be used.
 
@@ -51,8 +31,11 @@ pub const TOKEN_EOF: Token = 1;
 
 #[derive(Debug, Clone)]
 pub struct Pattern {
+    /// Display name
     name: String,
+    /// Regex to match tokens
     regex: Regex,
+    /// Exact length that the match must be, if known
     length: Option<usize>,
 }
 

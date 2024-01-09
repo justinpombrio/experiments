@@ -2,41 +2,43 @@ use crate::vec_map::VecMap;
 use crate::GrammarError;
 use crate::Token;
 
+/// Used for checking the LL1 property of a grammar.
+///
 #[derive(Debug, Clone)]
-pub struct InitialSet {
+pub struct FirstSet {
     name: String,
     accepts_empty: bool,
     accepted_tokens: VecMap<String>,
 }
 
-impl InitialSet {
-    pub fn void() -> InitialSet {
-        InitialSet {
+impl FirstSet {
+    pub fn void() -> FirstSet {
+        FirstSet {
             name: "void".to_owned(), // unreachable
             accepts_empty: false,
             accepted_tokens: VecMap::new(),
         }
     }
 
-    pub fn empty() -> InitialSet {
-        InitialSet {
+    pub fn empty() -> FirstSet {
+        FirstSet {
             name: "nothing".to_owned(),
             accepts_empty: true,
             accepted_tokens: VecMap::new(),
         }
     }
 
-    pub fn token(name: String, token: Token) -> InitialSet {
+    pub fn token(name: String, token: Token) -> FirstSet {
         let mut accepted_tokens = VecMap::new();
         accepted_tokens.set(token, name.clone());
-        InitialSet {
+        FirstSet {
             name,
             accepts_empty: false,
             accepted_tokens,
         }
     }
 
-    pub fn sequence(name: String, elems: Vec<InitialSet>) -> Result<InitialSet, GrammarError> {
+    pub fn sequence(name: String, elems: Vec<FirstSet>) -> Result<FirstSet, GrammarError> {
         let mut accepts_empty = true;
         let mut accepted_tokens: VecMap<(String, usize)> = VecMap::new();
         for (i, init) in elems.iter().enumerate() {
@@ -57,14 +59,14 @@ impl InitialSet {
             }
         }
 
-        Ok(InitialSet {
+        Ok(FirstSet {
             name,
             accepts_empty,
             accepted_tokens: accepted_tokens.map(|(pattern, _)| pattern),
         })
     }
 
-    pub fn choice(name: String, elems: Vec<InitialSet>) -> Result<InitialSet, GrammarError> {
+    pub fn choice(name: String, elems: Vec<FirstSet>) -> Result<FirstSet, GrammarError> {
         let mut accepts_empty: Option<usize> = None;
         let mut accepted_tokens: VecMap<(String, usize)> = VecMap::new();
         for (i, init) in elems.iter().enumerate() {
@@ -91,7 +93,7 @@ impl InitialSet {
             }
         }
 
-        Ok(InitialSet {
+        Ok(FirstSet {
             name,
             accepts_empty: accepts_empty.is_some(),
             accepted_tokens: accepted_tokens.map(|(pattern, _)| pattern),
@@ -113,34 +115,31 @@ impl InitialSet {
 fn test_initial_sets() {
     let name = String::new();
 
-    let set_a = InitialSet::token("A".to_owned(), 65);
-    let set_b = InitialSet::token("B".to_owned(), 66);
-    let set_c = InitialSet::token("C".to_owned(), 67);
-    let set_d = InitialSet::token("D".to_owned(), 68);
-    let set_empty = InitialSet::empty();
+    let set_a = FirstSet::token("A".to_owned(), 65);
+    let set_b = FirstSet::token("B".to_owned(), 66);
+    let set_c = FirstSet::token("C".to_owned(), 67);
+    let set_d = FirstSet::token("D".to_owned(), 68);
+    let set_empty = FirstSet::empty();
 
     let set_a_empty =
-        InitialSet::choice(name.clone(), vec![set_a.clone(), set_empty.clone()]).unwrap();
-    assert!(
-        InitialSet::choice(name.clone(), vec![set_a_empty.clone(), set_empty.clone()]).is_err()
-    );
+        FirstSet::choice(name.clone(), vec![set_a.clone(), set_empty.clone()]).unwrap();
+    assert!(FirstSet::choice(name.clone(), vec![set_a_empty.clone(), set_empty.clone()]).is_err());
     assert!(set_a_empty.accepts_empty());
     assert!(set_a_empty.accepts_token(65));
     assert!(!set_a_empty.accepts_token(66));
 
-    let set_bc = InitialSet::choice(name.clone(), vec![set_b.clone(), set_c.clone()]).unwrap();
-    assert!(InitialSet::choice(name.clone(), vec![set_bc.clone(), set_c.clone()]).is_err());
+    let set_bc = FirstSet::choice(name.clone(), vec![set_b.clone(), set_c.clone()]).unwrap();
+    assert!(FirstSet::choice(name.clone(), vec![set_bc.clone(), set_c.clone()]).is_err());
     assert!(!set_bc.accepts_empty());
     assert!(!set_bc.accepts_token(65));
     assert!(set_bc.accepts_token(66));
     assert!(set_bc.accepts_token(67));
 
-    let set_d_empty = InitialSet::choice(name.clone(), vec![set_d, InitialSet::empty()]).unwrap();
+    let set_d_empty = FirstSet::choice(name.clone(), vec![set_d, FirstSet::empty()]).unwrap();
     assert!(set_d_empty.accepts_empty());
     assert!(set_d_empty.accepts_token(68));
 
-    let set_seq =
-        InitialSet::sequence(name.clone(), vec![set_d_empty, set_bc, set_a_empty]).unwrap();
+    let set_seq = FirstSet::sequence(name.clone(), vec![set_d_empty, set_bc, set_a_empty]).unwrap();
     assert!(!set_seq.accepts_empty());
     assert!(!set_seq.accepts_token(65));
     assert!(set_seq.accepts_token(66));

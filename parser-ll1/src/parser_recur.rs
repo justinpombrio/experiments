@@ -1,4 +1,4 @@
-use crate::initial_set::InitialSet;
+use crate::first_set::FirstSet;
 use crate::lexer::LexemeIter;
 #[cfg(doc)]
 use crate::Grammar;
@@ -54,7 +54,7 @@ impl<T: Clone> Recursive<T> {
 struct RecurP<T: Clone> {
     name: String,
     parser: OnceCell<Box<dyn Parser<T>>>,
-    initial_set: Cell<Option<InitialSet>>,
+    initial_set: Cell<Option<FirstSet>>,
 }
 
 impl<T: Clone> Clone for RecurP<T> {
@@ -72,19 +72,20 @@ impl<T: Clone> Parser<T> for RecurP<T> {
         self.name.clone()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         if let Some(initial_set) = self.initial_set.take() {
             // We're currently in a recursive case of validate() (see `else` branch).
             // Use the initial_set we set for ourselves.
+            self.initial_set.set(Some(initial_set.clone()));
             Ok(initial_set)
         } else {
             // Compute our initial set with a recursive depth limited to 2.
             // This is guaranteed to be the same as the limit as the depth goes to infinity.
-            let initial_set_0 = InitialSet::void();
+            let initial_set_0 = FirstSet::void();
             self.initial_set.set(Some(initial_set_0));
-            let initial_set_1 = self.validate()?;
+            let initial_set_1 = self.parser.get().unwrap().validate()?;
             self.initial_set.set(Some(initial_set_1));
-            let initial_set_2 = self.validate()?;
+            let initial_set_2 = self.parser.get().unwrap().validate()?;
             self.initial_set.set(None);
             Ok(initial_set_2)
         }
@@ -97,6 +98,9 @@ impl<T: Clone> Parser<T> for RecurP<T> {
 
 /* ========== Recur: Weak ========== */
 
+/// Private. The type returned by `Recursive.refn()`.
+/// This is a _weak_ pointer so that if the outer `RecurPStrong` pointer is dropped,
+/// the RecurP can be dropped. I.e., these are the self-references.
 #[derive(Clone)]
 struct RecurPWeak<T: Clone> {
     name: String,
@@ -120,7 +124,7 @@ impl<T: Clone> Parser<T> for RecurPWeak<T> {
         self.unwrap(|p| p.name())
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         self.unwrap(|p| p.validate())
     }
 
@@ -131,6 +135,8 @@ impl<T: Clone> Parser<T> for RecurPWeak<T> {
 
 /* ========== Recur: Strong ========== */
 
+/// Private. The type returned by `Recursive.define()`.
+/// Once the Recursive has been defined, this is the unique strong pointer to its RecurP.
 #[derive(Clone)]
 struct RecurPStrong<T: Clone>(Rc<RecurP<T>>);
 
@@ -139,7 +145,7 @@ impl<T: Clone> Parser<T> for RecurPStrong<T> {
         self.0.as_ref().name()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         self.0.as_ref().validate()
     }
 

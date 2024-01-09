@@ -14,8 +14,11 @@
 //     see if that dramatically improves the speed. Yes: by 20%.
 // [x] Make things run on stable Rust, it's a feature. Don't need `trait =`.
 // [x] Docs
+// [x] Internal docs
 // [ ] impl Fn -> impl FnMut?
-// [ ] Testing
+// [ ] Hunt down remaining todos
+// [ ] Delete hand-crafted combinators that really didn't need to be hand-crafted
+// [ ] Extensive testing
 // [ ] Review docs, add example
 
 // NOTE: Current time to parse dummy.json: 5.75 ms
@@ -27,7 +30,7 @@
 // - The implementation of recursive parsers doesn't threaten to summon Cthulu.
 // - Parsers can be cloned without having the illegal `Box<Trait + Clone>`.
 // - Implementing a parser combinator isn't too onerous.
-// - `InitialSet`s aren't needlessly cloned (except if you call `compile_parser`
+// - `FirstSet`s aren't needlessly cloned (except if you call `compile_parser`
 //   many times, but whatever).
 // - No unnecessary boxing.
 //
@@ -94,7 +97,7 @@
 //! - There's no separate grammar file, which some people like because
 //!   it's so declarative. Use [`pest`](https://pest.rs/) instead.
 
-mod initial_set;
+mod first_set;
 mod lexer;
 mod parse_error;
 mod parser_recur;
@@ -116,15 +119,19 @@ use no_nonsense_flamegraphs::span;
 /*          Interface                     */
 /*========================================*/
 
-use initial_set::InitialSet;
+use first_set::FirstSet;
 pub use lexer::Position;
 pub use parse_error::ParseError;
 pub use parser_recur::Recursive;
 
 #[doc(hidden)]
 pub enum ParseResult<T> {
+    /// The parse succeeded, and has output a T.
     Success(T),
+    /// The parse failed, but in a recoverable way. There's no error message
+    /// here b.c. our caller is going to try parsing something else instead.
     Failure,
+    /// A fatal error. We're going to abort the entire parse with this message.
     Error(ParseErrorCause),
 }
 
@@ -134,12 +141,15 @@ pub enum ParseResult<T> {
 pub trait Parser<T>: DynClone {
     /// A descriptive name for this parser. Used in error messages.
     fn name(&self) -> String;
+    /// Compute which tokens can come first in inputs that this parser matches.
     #[doc(hidden)]
-    fn validate(&self) -> Result<InitialSet, GrammarError>;
+    fn validate(&self) -> Result<FirstSet, GrammarError>;
+    /// Parse the lexeme stream. If `required` is true, the `ParseResult` is
+    /// not allowed to be `ParseResult::failure`!
     #[doc(hidden)]
     fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<T>;
 
-    // NOTE: used to have a few more combinators, though I removed them
+    // TODO: used to have a few more combinators, though I removed them
     // because they lacked names and thus would produce worse error messages:
     //
     // - and
@@ -375,7 +385,7 @@ impl<T> Parser<T> for Box<dyn Parser<T>> {
         self.as_ref().name()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         self.as_ref().validate()
     }
 
@@ -517,8 +527,8 @@ impl Parser<()> for EmptyP {
         "nothing".to_owned()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
-        Ok(InitialSet::empty())
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
+        Ok(FirstSet::empty())
     }
 
     fn parse(&self, _stream: &mut LexemeIter, _required: bool) -> ParseResult<()> {
@@ -546,8 +556,8 @@ impl Parser<()> for TokenP {
         self.name.clone()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
-        Ok(InitialSet::token(self.name.clone(), self.token))
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
+        Ok(FirstSet::token(self.name.clone(), self.token))
     }
 
     fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<()> {
@@ -624,7 +634,7 @@ where
         self.parser.name()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         self.parser.validate()
     }
 
@@ -679,7 +689,7 @@ impl<T0, P0: Parser<T0> + Clone, T1, F: Fn(T0) -> T1 + Clone> Parser<T1> for Map
         self.parser.name()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         self.parser.validate()
     }
 
@@ -754,7 +764,7 @@ where
         self.parser.name()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         self.parser.validate()
     }
 
@@ -826,7 +836,7 @@ where
         self.parser.name()
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         self.parser.validate()
     }
 
@@ -904,8 +914,8 @@ macro_rules! define_seq {
                 self.name.clone()
             }
 
-            fn validate(&self) -> Result<InitialSet, GrammarError> {
-                InitialSet::sequence(
+            fn validate(&self) -> Result<FirstSet, GrammarError> {
+                FirstSet::sequence(
                     self.name(),
                     vec![$( self.parsers.$idx.validate()? ),*],
                 )
@@ -1066,8 +1076,8 @@ macro_rules! define_choice {
                 self.name.clone()
             }
 
-            fn validate(&self) -> Result<InitialSet, GrammarError> {
-                InitialSet::choice(
+            fn validate(&self) -> Result<FirstSet, GrammarError> {
+                FirstSet::choice(
                     self.name(),
                     vec![$( self.parsers.$idx.validate()? ),*],
                 )
@@ -1200,11 +1210,11 @@ impl<T, P: Parser<T> + Clone> Parser<Option<T>> for OptP<T, P> {
         format!("{}.opt()", self.0.name())
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         // If `self.0` accepts empty then this union will produce an error.
         // Otherwise the initial set is simply `self.0`s initial set
         // together with empty.
-        InitialSet::choice(self.name(), vec![InitialSet::empty(), self.0.validate()?])
+        FirstSet::choice(self.name(), vec![FirstSet::empty(), self.0.validate()?])
     }
 
     fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Option<T>> {
@@ -1238,11 +1248,11 @@ impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
         format!("{}.many0()", self.0.name())
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         // If `self.0` accepts empty then this union will produce an error.
         // Otherwise the initial set is simply `self.0`s initial set
         // together with empty.
-        InitialSet::choice(self.name(), vec![InitialSet::empty(), self.0.validate()?])
+        FirstSet::choice(self.name(), vec![FirstSet::empty(), self.0.validate()?])
     }
 
     fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Vec<T>> {
@@ -1308,14 +1318,14 @@ where
         )
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         let init_first = self.first_parser.validate()?;
         let init_many = self.many_parser.validate()?;
-        InitialSet::sequence(
+        FirstSet::sequence(
             self.name(),
             vec![
                 init_first,
-                InitialSet::choice(self.name(), vec![InitialSet::empty(), init_many])?,
+                FirstSet::choice(self.name(), vec![FirstSet::empty(), init_many])?,
             ],
         )
     }
@@ -1364,10 +1374,10 @@ impl<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> Parser<V> for 
         format!("{}.fold_many0()", self.parser.name(),)
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
-        InitialSet::choice(
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
+        FirstSet::choice(
             self.name(),
-            vec![InitialSet::empty(), self.parser.validate()?],
+            vec![FirstSet::empty(), self.parser.validate()?],
         )
     }
 
@@ -1425,16 +1435,16 @@ where
         format!("{}.many_sep0({})", self.elem.name(), self.sep.name())
     }
 
-    fn validate(&self) -> Result<InitialSet, GrammarError> {
+    fn validate(&self) -> Result<FirstSet, GrammarError> {
         let elem_init = self.elem.validate()?;
         let sep_init = self.sep.validate()?;
 
         // SepBy(E, S) = (.|E(SE)*) ~= (.|E(.|SE))
         let name = self.name();
-        let sep_elem = InitialSet::sequence(name.clone(), vec![sep_init, elem_init.clone()])?;
-        let tail = InitialSet::choice(name.clone(), vec![InitialSet::empty(), sep_elem])?;
-        let nonempty = InitialSet::sequence(name.clone(), vec![elem_init, tail])?;
-        InitialSet::choice(name, vec![InitialSet::empty(), nonempty])
+        let sep_elem = FirstSet::sequence(name.clone(), vec![sep_init, elem_init.clone()])?;
+        let tail = FirstSet::choice(name.clone(), vec![FirstSet::empty(), sep_elem])?;
+        let nonempty = FirstSet::sequence(name.clone(), vec![elem_init, tail])?;
+        FirstSet::choice(name, vec![FirstSet::empty(), nonempty])
     }
 
     fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Vec<T0>> {

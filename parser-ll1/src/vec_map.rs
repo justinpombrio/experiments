@@ -1,5 +1,7 @@
 use std::iter::IntoIterator;
 
+/// Map from `usize` to `T`, where you know a-priori that the
+/// `usize` keys will be small, densely packed numbers.
 #[derive(Debug, Clone)]
 pub struct VecMap<T>(Vec<Option<T>>);
 
