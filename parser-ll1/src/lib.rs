@@ -101,7 +101,7 @@ mod parser_recur;
 mod vec_map;
 
 use dyn_clone::{clone_box, DynClone};
-use lexer::{LexemeIter, Lexer, LexerBuilder, Token, TOKEN_EOF};
+use lexer::{LexemeIter, Lexer, LexerBuilder, Token, TOKEN_EOF, TOKEN_ERROR};
 use parse_error::ParseErrorCause;
 use regex::Error as RegexError;
 use std::error;
@@ -561,9 +561,14 @@ impl Parser<()> for TokenP {
             stream.next();
             Success(())
         } else if required {
+            let token_name = if lexeme.token == TOKEN_ERROR {
+                format!("'{}'", lexeme.lexeme)
+            } else {
+                stream.token_name(lexeme.token).to_owned()
+            };
             Error(ParseErrorCause::new(
                 &self.name,
-                stream.token_name(lexeme.token),
+                &token_name,
                 (lexeme.start, lexeme.end),
             ))
         } else {
@@ -1083,9 +1088,14 @@ macro_rules! define_choice {
                 )*
                 if required {
                     let lexeme = stream.next();
+                    let token_name = if lexeme.token == TOKEN_ERROR {
+                        format!("'{}'", lexeme.lexeme)
+                    } else {
+                        stream.token_name(lexeme.token).to_owned()
+                    };
                     Error(ParseErrorCause::new(
                         &self.name,
-                        stream.token_name(lexeme.token),
+                        &token_name,
                         (lexeme.start, lexeme.end),
                     ))
                 } else {
