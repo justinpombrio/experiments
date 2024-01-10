@@ -1,17 +1,108 @@
-Parser
-> empty
+### empty ###
+Parser > empty
+
+Input     >
+Expect ok > ()
+
+Input     >    
+Expect ok > ()
+
 Input
 >
-Expect ok
-> ()
+>
+>
+Expect ok > ()
 
-# comment
-Parser     > empty
-Input      > xyz
+Input > xyz
 Expect err
 > parse error: did not expect 'xyz'
 >  --> lexing.tests.txt:1:1
 >   |
 > 1 |xyz
 >   |^^^ unexpected
+>   |
+
+Input
+>      
+>   .  
+>      
+Expect err
+> parse error: did not expect '.'
+>  --> lexing.tests.txt:2:3
+>   |
+> 2 |  .  
+>   |  ^ unexpected
+>   |
+
+### string ###
+Parser > "xyz"
+
+Input     > xyz
+Expect ok > xyz
+
+Input     >   xyz  
+Expect ok > xyz
+
+Input
+>
+> xyz  
+>
+Expect ok > xyz
+
+Input     > xyzabc
+Expect err
+> parse error: did not expect 'abc'
+>  --> lexing.tests.txt:1:4
+>   |
+> 1 |xyzabc
+>   |   ^^^ unexpected
+>   |
+
+Input
+>
+> abcxyz
+Expect err
+> parse error: expected 'xyz' but found 'abcxyz'
+>  --> lexing.tests.txt:2:1
+>   |
+> 2 |abcxyz
+>   |^^^^^^ expected 'xyz'
+>   |
+
+### regex ###
+Parser > id/[a-z]+/
+
+Input  >
+Expect err
+> parse error: expected id but found end of file
+>  --> lexing.tests.txt:1:1
+>   |
+> 1 |
+>   |^ expected id
+>   |
+
+Input > abc
+Expect ok > abc
+
+Input
+>    
+>    abc    
+Expect ok > abc
+
+Input >  abc def
+Expect err
+> parse error: did not expect id
+>  --> lexing.tests.txt:1:6
+>   |
+> 1 | abc def
+>   |     ^^^ unexpected
+>   |
+
+Input > abc!!
+Expect err
+> parse error: did not expect '!!'
+>  --> lexing.tests.txt:1:4
+>   |
+> 1 |abc!!
+>   |   ^^ unexpected
 >   |
