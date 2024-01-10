@@ -45,8 +45,8 @@ fn make_test_case_parser() -> Result<impl CompiledParser<TestCases>, GrammarErro
     let status_p = choice(
         "Status",
         (
-            g.string("ok")?.constant(Status::Ok),
-            g.string("err")?.constant(Status::Err),
+            g.string("Ok")?.constant(Status::Ok),
+            g.string("Err")?.constant(Status::Err),
         ),
     );
     let header_p = choice(
@@ -73,6 +73,16 @@ fn make_test_case_parser() -> Result<impl CompiledParser<TestCases>, GrammarErro
 
     g.compile_parser(sections_p)
 }
+
+#[derive(Debug, Clone)]
+struct CustomError(String);
+
+impl fmt::Display for CustomError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl std::error::Error for CustomError {}
 
 fn parse_parser(parser_description: &str) -> Result<impl CompiledParser<String>, GrammarError> {
     type SExprParser = Box<dyn Parser<String>>;
@@ -102,6 +112,76 @@ fn parse_parser(parser_description: &str) -> Result<impl CompiledParser<String>,
         match word {
             "empty" => {
                 let parser = empty().constant("()".to_owned());
+                stack.push(Box::new(parser));
+            }
+
+            // Mapping
+            "constant" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1.constant("constant".to_owned());
+                stack.push(Box::new(parser));
+            }
+            "map" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1.map(|s| format!("(map {})", s));
+                stack.push(Box::new(parser));
+            }
+            "try_map" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1.try_map(|s| {
+                    if s.contains("ok") {
+                        Ok(format!("(ok {})", s))
+                    } else {
+                        Err(CustomError(format!("oops something went wrong: {}", s)))
+                    }
+                });
+                stack.push(Box::new(parser));
+            }
+            "span" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .span(|span| format!("(span {} {}-{})", span.substr, span.start, span.end));
+                stack.push(Box::new(parser));
+            }
+            "try_span" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1.try_span(|span| {
+                    if span.substr.contains("ok") {
+                        Ok(format!("(ok {} {}-{})", span.substr, span.start, span.end))
+                    } else {
+                        Err(CustomError(format!(
+                            "oops something went wrong: {} {}-{}",
+                            span.substr, span.start, span.end
+                        )))
+                    }
+                });
+                stack.push(Box::new(parser));
+            }
+            "map_span" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1.map_span(|span, s| {
+                    format!(
+                        "(map_span {} {}-{} {})",
+                        span.substr, span.start, span.end, s
+                    )
+                });
+                stack.push(Box::new(parser));
+            }
+            "try_map_span" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1.try_map_span(|span, s| {
+                    if span.substr.contains("ok") {
+                        Ok(format!(
+                            "(ok {} {}-{} {})",
+                            span.substr, span.start, span.end, s
+                        ))
+                    } else {
+                        Err(CustomError(format!(
+                            "oops something went wrong: {} {}-{} {}",
+                            span.substr, span.start, span.end, s
+                        )))
+                    }
+                });
                 stack.push(Box::new(parser));
             }
             "opt" => {
@@ -179,8 +259,8 @@ fn run_test_cases(filename: &str, test_cases: TestCases) {
 impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Status::Ok => write!(f, "ok"),
-            Status::Err => write!(f, "err"),
+            Status::Ok => write!(f, "Ok"),
+            Status::Err => write!(f, "Err"),
         }
     }
 }
