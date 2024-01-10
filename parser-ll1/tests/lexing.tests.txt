@@ -1,0 +1,11 @@
+Parser
+>empty
+Input
+>
+Expect ok
+>()
+
+
+Parser    >empty
+Input     >
+Expect ok >()
