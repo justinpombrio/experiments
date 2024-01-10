@@ -40,7 +40,7 @@ impl TestCases {
 }
 
 fn make_test_case_parser() -> Result<impl CompiledParser<TestCases>, GrammarError> {
-    let mut g = Grammar::new();
+    let mut g = Grammar::with_whitespace(r#"([ \t\n]|#[^\n]*\n)+"#).unwrap();
 
     let status_p = choice(
         "Status",
@@ -59,9 +59,13 @@ fn make_test_case_parser() -> Result<impl CompiledParser<TestCases>, GrammarErro
                 .map_span(|span, status| Header::Expect(status, span.start.line)),
         ),
     );
-    let line_p = g
-        .regex("Line", r#">[^\n]*"#)?
-        .span(|span| format!("{}", &span.substr[1..]));
+    let line_p = g.regex("Line", r#">( [^\n]*)?"#)?.span(|span| {
+        if span.substr.len() >= 2 {
+            format!("{}", &span.substr[2..])
+        } else {
+            String::new()
+        }
+    });
     let contents_p = line_p.many1().map(|lines| lines.join("\n"));
     let section_p = tuple("Section", (header_p, contents_p))
         .map(|(header, contents)| Section { header, contents });
@@ -123,6 +127,8 @@ fn run_test_case(
     input: &str,
     expected: (Status, String),
 ) {
+    colored::control::set_override(false);
+
     let parser = match parse_parser(parser_description) {
         Ok(parser) => parser,
         Err(err) => panic!("Bad test case parser:\n{}", err),
@@ -134,24 +140,24 @@ fn run_test_case(
     if actual != expected {
         println!("Parser");
         for line in parser_description.lines() {
-            println!(">{}", line);
+            println!("> {}", line);
         }
         println!("Input");
         for line in input.lines() {
-            println!(">{}", line);
+            println!("> {}", line);
         }
         if input == "" {
             println!(">");
         }
         println!("Expected {}", expected.0);
         for line in expected.1.lines() {
-            println!(">{}", line);
+            println!("> {}", line);
         }
         println!("Actual {}", expected.0);
         for line in actual.1.lines() {
-            println!(">{}", line);
+            println!("> {}", line);
         }
-        panic!("Test case failure at {}, line {}.", filename, line_num);
+        panic!("Test case failure at {}, line {}.", filename, line_num + 1);
     }
 }
 
@@ -191,7 +197,10 @@ fn run_parser_tests() {
         let file_name = entry.file_name().into_string().unwrap();
         if file_type.is_file() && file_name.ends_with(".tests.txt") {
             let file_contents = fs::read_to_string(entry.path()).unwrap();
-            let test_cases = test_case_parser.parse(&file_name, &file_contents).unwrap();
+            let test_cases = match test_case_parser.parse(&file_name, &file_contents) {
+                Ok(test_cases) => test_cases,
+                Err(err) => panic!("{}", err),
+            };
             let num_tests = test_cases.num_tests();
             run_test_cases(&file_name, test_cases);
             println!("Ran {} successful test cases from {}", num_tests, file_name);

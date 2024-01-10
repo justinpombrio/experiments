@@ -1,11 +1,17 @@
 Parser
->empty
+> empty
 Input
 >
 Expect ok
->()
+> ()
 
-
-Parser    >empty
-Input     >
-Expect ok >()
+# comment
+Parser     > empty
+Input      > xyz
+Expect err
+> parse error: did not expect 'xyz'
+>  --> lexing.tests.txt:1:1
+>   |
+> 1 |xyz
+>   |^^^ unexpected
+>   |

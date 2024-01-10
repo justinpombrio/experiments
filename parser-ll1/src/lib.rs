@@ -55,13 +55,14 @@
 //!     .map(|nums| nums.into_iter().sum());
 //! let parser = g.compile_parser(numbers).unwrap();
 //!
-//! assert_eq!(parser.parse("test case", "1 + 2 + 3"), Ok(6));
-//! assert_eq!(format!("{}", parser.parse("test case", "1 + + 2").unwrap_err()),
-//! "Parse error: expected number but found '+'.
-//! At 'test case' line 1:
-//!
-//! 1 + + 2
-//!     ^");
+//! assert_eq!(parser.parse("test_case", "1 + 2 + 3"), Ok(6));
+//! assert_eq!(format!("{}", parser.parse("test_case", "1 + + 2").unwrap_err()),
+//! "parse error: expected number but found '+'
+//!  --> test_case:1:5
+//!   |
+//! 1 |1 + + 2
+//!   |    ^ expected number
+//!   |");
 //! ```
 //!
 //! ## Features
@@ -662,6 +663,7 @@ where
                     let end = stream.pos();
                     ParseResult::Error(ParseErrorCause {
                         message: err.to_string(),
+                        caret_message: err.to_string(),
                         span: (start, end),
                     })
                 }
@@ -801,6 +803,7 @@ where
             Ok(succ) => ParseResult::Success(succ),
             Err(err) => ParseResult::Error(ParseErrorCause {
                 message: err.to_string(),
+                caret_message: err.to_string(),
                 span: (span.start, span.end),
             }),
         }
