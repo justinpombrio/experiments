@@ -108,10 +108,9 @@ use dyn_clone::{clone_box, DynClone};
 use lexer::{LexemeIter, Lexer, LexerBuilder, Token, TOKEN_EOF, TOKEN_ERROR};
 use parse_error::ParseErrorCause;
 use regex::Error as RegexError;
-use std::error;
+use std::error::Error;
 use std::fmt;
 use std::marker::PhantomData;
-use thiserror::Error;
 
 #[cfg(feature = "flamegraphs")]
 use no_nonsense_flamegraphs::span;
@@ -174,7 +173,7 @@ pub trait Parser<T>: DynClone {
 
     /// Transform this parser's output value with `func`, producing a parse
     /// error if `func` returns an `Err`.
-    fn try_map<T2, E: error::Error>(
+    fn try_map<T2, E: Error>(
         self,
         func: impl Fn(T) -> Result<T2, E> + Clone,
     ) -> impl Parser<T2> + Clone
@@ -204,7 +203,7 @@ pub trait Parser<T>: DynClone {
     ///
     /// The `Span` gives the region of the input text which was matched, including
     /// the substring.
-    fn try_span<T2, E: error::Error>(
+    fn try_span<T2, E: Error>(
         self,
         func: impl Fn(Span) -> Result<T2, E> + Clone,
     ) -> impl Parser<T2> + Clone
@@ -235,7 +234,7 @@ pub trait Parser<T>: DynClone {
     ///
     /// The `Span` gives the region of the input text which was matched, including
     /// the substring.
-    fn try_map_span<T2, E: error::Error>(
+    fn try_map_span<T2, E: Error>(
         self,
         func: impl Fn(Span, T) -> Result<T2, E> + Clone,
     ) -> impl Parser<T2> + Clone
@@ -443,7 +442,7 @@ impl Grammar {
     /// then (i) the longest match wins, and (ii) `string`s win ties.
     pub fn string(&mut self, string: &str) -> Result<impl Parser<()> + Clone, GrammarError> {
         let name = format!("'{}'", string);
-        let token = self.0.string(string)?;
+        let token = self.0.string(string).map_err(GrammarError::RegexError)?;
         Ok(TokenP { name, token })
     }
 
@@ -457,7 +456,10 @@ impl Grammar {
         name: &str,
         regex: &str,
     ) -> Result<impl Parser<()> + Clone, GrammarError> {
-        let token = self.0.regex(name, regex)?;
+        let token = self
+            .0
+            .regex(name, regex)
+            .map_err(GrammarError::RegexError)?;
         let name = name.to_owned();
         Ok(TokenP { name, token })
     }
@@ -502,20 +504,18 @@ impl Grammar {
 }
 
 /// An issue with the grammar defined by a parser.
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum GrammarError {
     /// Invalid regex.
-    #[error("{0}")]
-    RegexError(#[from] RegexError),
+    RegexError(RegexError),
     /// The defined grammar is not LL1: two alternatives accept empty.
-    #[error("Ambiguous grammar: {name} could be either empty {case_1} or empty {case_2}.")]
     AmbiguityOnEmpty {
         name: String,
         case_1: String,
         case_2: String,
     },
     /// The defined grammar is not LL1: two alternatives accept the same start token.
-    #[error("Ambiguous grammar: when parsing {name}, token {token} could start either {case_1} or {case_2}.")]
+    // #[error("Ambiguous grammar: when parsing {name}, token {token} could start either {case_1} or {case_2}.")]
     AmbiguityOnFirstToken {
         name: String,
         case_1: String,
@@ -523,6 +523,54 @@ pub enum GrammarError {
         token: String,
     },
 }
+
+impl fmt::Display for GrammarError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use colored::Colorize;
+        use GrammarError::{AmbiguityOnEmpty, AmbiguityOnFirstToken, RegexError};
+
+        match self {
+            RegexError(err) => write!(f, "{}", err),
+            AmbiguityOnEmpty {
+                name,
+                case_1,
+                case_2,
+            } => {
+                let message = format!(
+                    "{} could be either empty {} or empty {}",
+                    name, case_1, case_2
+                );
+                write!(
+                    f,
+                    "{}{} {}",
+                    "ambiguous grammar".red().bold(),
+                    ":".bold(),
+                    message.bold()
+                )
+            }
+            AmbiguityOnFirstToken {
+                name,
+                token,
+                case_1,
+                case_2,
+            } => {
+                let message = format!(
+                    "when parsing {}, token {} could start either {} or {}",
+                    name, token, case_1, case_2
+                );
+                write!(
+                    f,
+                    "{}{} {}",
+                    "ambiguous grammar".red().bold(),
+                    ":".bold(),
+                    message.bold()
+                )
+            }
+        }
+    }
+}
+
+impl Error for GrammarError {}
 
 /*========================================*/
 /*          Parser: Empty                 */
@@ -610,7 +658,7 @@ fn eof() -> impl Parser<()> + Clone {
 struct TryMapP<T0, P0, T1, E1, F>
 where
     P0: Parser<T0> + Clone,
-    E1: error::Error,
+    E1: Error,
     F: Fn(T0) -> Result<T1, E1> + Clone,
 {
     parser: P0,
@@ -621,7 +669,7 @@ where
 impl<T0, P0, T1, E1, F> Clone for TryMapP<T0, P0, T1, E1, F>
 where
     P0: Parser<T0> + Clone,
-    E1: error::Error,
+    E1: Error,
     F: Fn(T0) -> Result<T1, E1> + Clone,
 {
     fn clone(&self) -> TryMapP<T0, P0, T1, E1, F> {
@@ -636,7 +684,7 @@ where
 impl<T0, P0, T1, E1, F> Parser<T1> for TryMapP<T0, P0, T1, E1, F>
 where
     P0: Parser<T0> + Clone,
-    E1: error::Error,
+    E1: Error,
     F: Fn(T0) -> Result<T1, E1> + Clone,
 {
     fn name(&self) -> String {
@@ -741,7 +789,7 @@ impl<'s> fmt::Display for Span<'s> {
 struct TrySpanP<T0, P0, T1, E1, F>
 where
     P0: Parser<T0> + Clone,
-    E1: error::Error,
+    E1: Error,
     F: Fn(Span, T0) -> Result<T1, E1> + Clone,
 {
     parser: P0,
@@ -752,7 +800,7 @@ where
 impl<T0, P0, T1, E1, F> Clone for TrySpanP<T0, P0, T1, E1, F>
 where
     P0: Parser<T0> + Clone,
-    E1: error::Error,
+    E1: Error,
     F: Fn(Span, T0) -> Result<T1, E1> + Clone,
 {
     fn clone(&self) -> TrySpanP<T0, P0, T1, E1, F> {
@@ -767,7 +815,7 @@ where
 impl<T0, P0, T1, E1, F> Parser<T1> for TrySpanP<T0, P0, T1, E1, F>
 where
     P0: Parser<T0> + Clone,
-    E1: error::Error,
+    E1: Error,
     F: Fn(Span, T0) -> Result<T1, E1> + Clone,
 {
     fn name(&self) -> String {

@@ -106,3 +106,11 @@ Expect err
 > 1 |abc!!
 >   |   ^^ unexpected
 >   |
+
+### invalid regex ###
+Parser > id/[[[abc/
+Expect err
+> regex parse error:
+>     [[[abc
+>       ^
+> error: unclosed character class

@@ -129,14 +129,14 @@ fn run_test_case(
 ) {
     colored::control::set_override(false);
 
-    let parser = match parse_parser(parser_description) {
-        Ok(parser) => parser,
-        Err(err) => panic!("Bad test case parser:\n{}", err),
-    };
-    let actual = match parser.parse(filename, input) {
-        Ok(succ) => (Status::Ok, succ),
+    let actual = match parse_parser(parser_description) {
+        Ok(parser) => match parser.parse(filename, input) {
+            Ok(succ) => (Status::Ok, succ),
+            Err(err) => (Status::Err, format!("{}", err)),
+        },
         Err(err) => (Status::Err, format!("{}", err)),
     };
+
     if actual != expected {
         println!("Parser");
         for line in parser_description.lines() {
@@ -189,7 +189,10 @@ impl fmt::Display for Status {
 fn run_parser_tests() {
     use std::fs;
 
-    let test_case_parser = make_test_case_parser().unwrap();
+    let test_case_parser = match make_test_case_parser() {
+        Ok(parser) => parser,
+        Err(err) => panic!("{}", err),
+    };
 
     for entry in fs::read_dir("tests/").unwrap() {
         let entry = entry.unwrap();
