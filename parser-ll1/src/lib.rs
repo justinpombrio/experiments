@@ -268,7 +268,13 @@ pub trait Parser<T>: DynClone {
             vec.push(elem);
             vec
         }
-        self.fold_many0(Vec::new(), push)
+        Fold0P {
+            name: format!("{}.many0()", self.name()),
+            parser: self,
+            initial_value: Vec::new(),
+            fold: push,
+            phantom: PhantomData,
+        }
     }
 
     /// Parse `self` one or more times.
@@ -281,23 +287,11 @@ pub trait Parser<T>: DynClone {
             vec.push(elem);
             vec
         }
-        self.clone().map(|elem| vec![elem]).fold_many1(self, push)
-    }
-
-    /// Parse `self`, followed by zero or more occurrences of `parser`.
-    /// Combine the outputs using `fold`.
-    fn fold_many1<T2>(
-        self,
-        parser: impl Parser<T2> + Clone,
-        fold: impl Fn(T, T2) -> T + Clone,
-    ) -> impl Parser<T> + Clone
-    where
-        Self: Clone,
-    {
         Fold1P {
-            first_parser: self,
-            many_parser: parser,
-            fold,
+            name: format!("{}.many1()", self.name()),
+            first_parser: self.clone().map(|elem| vec![elem]),
+            many_parser: self,
+            fold: push,
             phantom: PhantomData,
         }
     }
@@ -313,8 +307,28 @@ pub trait Parser<T>: DynClone {
         Self: Clone,
     {
         Fold0P {
+            name: format!("{}.fold_many0()", self.name()),
             parser: self,
             initial_value,
+            fold,
+            phantom: PhantomData,
+        }
+    }
+
+    /// Parse `self`, followed by zero or more occurrences of `parser`.
+    /// Combine the outputs using `fold`.
+    fn fold_many1<T2>(
+        self,
+        parser: impl Parser<T2> + Clone,
+        fold: impl Fn(T, T2) -> T + Clone,
+    ) -> impl Parser<T> + Clone
+    where
+        Self: Clone,
+    {
+        Fold1P {
+            name: format!("{}.fold_many1({})", self.name(), parser.name()),
+            first_parser: self,
+            many_parser: parser,
             fold,
             phantom: PhantomData,
         }
@@ -347,9 +361,13 @@ pub trait Parser<T>: DynClone {
             vec.push(elem);
             vec
         }
-        self.clone()
-            .map(|elem| vec![elem])
-            .fold_many1(self.preceded(sep), push)
+        Fold1P {
+            name: format!("{}.many_sep1({})", self.name(), sep.name()),
+            first_parser: self.clone().map(|elem| vec![elem]),
+            many_parser: self.preceded(sep),
+            fold: push,
+            phantom: PhantomData,
+        }
     }
 
     // ========== Sequencing ========== //
@@ -536,10 +554,17 @@ impl fmt::Display for GrammarError {
                 case_1,
                 case_2,
             } => {
-                let message = format!(
-                    "{} could be either empty {} or empty {}",
-                    name, case_1, case_2
-                );
+                let case_1 = if case_1 == "empty" {
+                    "empty".to_owned()
+                } else {
+                    format!("empty {}", case_1)
+                };
+                let case_2 = if case_2 == "empty" {
+                    "empty".to_owned()
+                } else {
+                    format!("empty {}", case_2)
+                };
+                let message = format!("{} could be either {} or {}", name, case_1, case_2);
                 write!(
                     f,
                     "{}{} {}",
@@ -581,11 +606,11 @@ struct EmptyP;
 
 impl Parser<()> for EmptyP {
     fn name(&self) -> String {
-        "nothing".to_owned()
+        "empty".to_owned()
     }
 
     fn validate(&self) -> Result<FirstSet, GrammarError> {
-        Ok(FirstSet::empty())
+        Ok(FirstSet::empty("empty".to_owned()))
     }
 
     fn parse(&self, _stream: &mut LexemeIter, _required: bool) -> ParseResult<()> {
@@ -614,7 +639,7 @@ impl Parser<()> for TokenP {
     }
 
     fn validate(&self) -> Result<FirstSet, GrammarError> {
-        Ok(FirstSet::token(self.name.clone(), self.token))
+        Ok(FirstSet::token(self.name(), self.token))
     }
 
     fn parse(&self, stream: &mut LexemeIter, required: bool) -> ParseResult<()> {
@@ -1273,7 +1298,10 @@ impl<T, P: Parser<T> + Clone> Parser<Option<T>> for OptP<T, P> {
         // If `self.0` accepts empty then this union will produce an error.
         // Otherwise the initial set is simply `self.0`s initial set
         // together with empty.
-        FirstSet::choice(self.name(), vec![FirstSet::empty(), self.0.validate()?])
+        FirstSet::choice(
+            self.name(),
+            vec![FirstSet::empty(self.name()), self.0.validate()?],
+        )
     }
 
     fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Option<T>> {
@@ -1308,7 +1336,10 @@ impl<T, P: Parser<T> + Clone> Parser<Vec<T>> for ManyP<T, P> {
     }
 
     fn validate(&self) -> Result<FirstSet, GrammarError> {
-        FirstSet::choice(self.name(), vec![FirstSet::empty(), self.0.validate()?])
+        FirstSet::choice(
+            self.name(),
+            vec![FirstSet::empty(self.name()), self.0.validate()?],
+        )
     }
 
     fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Vec<T>> {
@@ -1338,6 +1369,7 @@ where
     P1: Parser<T1> + Clone,
     F: Fn(T0, T1) -> T0 + Clone,
 {
+    name: String,
     first_parser: P0,
     many_parser: P1,
     fold: F,
@@ -1352,6 +1384,7 @@ where
 {
     fn clone(&self) -> Self {
         Fold1P {
+            name: self.name.clone(),
             first_parser: self.first_parser.clone(),
             many_parser: self.many_parser.clone(),
             fold: self.fold.clone(),
@@ -1367,11 +1400,7 @@ where
     F: Fn(T0, T1) -> T0 + Clone,
 {
     fn name(&self) -> String {
-        format!(
-            "{}.fold_many1({})",
-            self.first_parser.name(),
-            self.many_parser.name()
-        )
+        self.name.clone()
     }
 
     fn validate(&self) -> Result<FirstSet, GrammarError> {
@@ -1381,7 +1410,22 @@ where
             self.name(),
             vec![
                 init_first,
-                FirstSet::choice(self.name(), vec![FirstSet::empty(), init_many])?,
+                FirstSet::choice(
+                    self.name(),
+                    vec![
+                        FirstSet::empty(self.name()),
+                        FirstSet::sequence(
+                            self.name(),
+                            vec![
+                                init_many.clone(),
+                                FirstSet::choice(
+                                    self.name(),
+                                    vec![FirstSet::empty(self.name()), init_many],
+                                )?,
+                            ],
+                        )?,
+                    ],
+                )?,
             ],
         )
     }
@@ -1408,6 +1452,7 @@ where
 }
 
 struct Fold0P<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> {
+    name: String,
     parser: P,
     initial_value: V,
     fold: F,
@@ -1417,6 +1462,7 @@ struct Fold0P<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> {
 impl<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> Clone for Fold0P<T, P, V, F> {
     fn clone(&self) -> Self {
         Fold0P {
+            name: self.name.clone(),
             parser: self.parser.clone(),
             initial_value: self.initial_value.clone(),
             fold: self.fold.clone(),
@@ -1427,13 +1473,13 @@ impl<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> Clone for Fold
 
 impl<T, P: Parser<T> + Clone, V: Clone, F: Fn(V, T) -> V + Clone> Parser<V> for Fold0P<T, P, V, F> {
     fn name(&self) -> String {
-        format!("{}.fold_many0()", self.parser.name(),)
+        self.name.clone()
     }
 
     fn validate(&self) -> Result<FirstSet, GrammarError> {
         FirstSet::choice(
             self.name(),
-            vec![FirstSet::empty(), self.parser.validate()?],
+            vec![FirstSet::empty(self.name()), self.parser.validate()?],
         )
     }
 
@@ -1498,9 +1544,12 @@ where
         // SepBy(E, S) = (.|E(SE)*) ~= (.|E(.|SE))
         let name = self.name();
         let sep_elem = FirstSet::sequence(name.clone(), vec![sep_init, elem_init.clone()])?;
-        let tail = FirstSet::choice(name.clone(), vec![FirstSet::empty(), sep_elem])?;
+        let tail = FirstSet::choice(
+            name.clone(),
+            vec![FirstSet::empty(self.sep.name()), sep_elem],
+        )?;
         let nonempty = FirstSet::sequence(name.clone(), vec![elem_init, tail])?;
-        FirstSet::choice(name, vec![FirstSet::empty(), nonempty])
+        FirstSet::choice(name.clone(), vec![FirstSet::empty(name), nonempty])
     }
 
     fn parse(&self, stream: &mut LexemeIter, _required: bool) -> ParseResult<Vec<T0>> {

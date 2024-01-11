@@ -192,12 +192,74 @@ fn parse_parser(parser_description: &str) -> Result<impl CompiledParser<String>,
                 });
                 stack.push(Box::new(parser));
             }
+            "many0" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .many0()
+                    .map(|vec| format!("(many0 {})", vec.join(" ")));
+                stack.push(Box::new(parser));
+            }
+            "many1" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .many1()
+                    .map(|vec| format!("(many1 {})", vec.join(" ")));
+                stack.push(Box::new(parser));
+            }
+            "many_sep0" => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .many_sep0(parser_2)
+                    .map(|vec| format!("(many_sep0 {})", vec.join(" ")));
+                stack.push(Box::new(parser));
+            }
+            "many_sep1" => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .many_sep1(parser_2)
+                    .map(|vec| format!("(many_sep0 {})", vec.join(" ")));
+                stack.push(Box::new(parser));
+            }
+            "fold_many0" => {
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .fold_many0("fold_base_case".to_owned(), |a, b| format!("{} {}", a, b))
+                    .map(|s| format!("(fold_many0 {})", s));
+                stack.push(Box::new(parser));
+            }
+            "fold_many1" => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .fold_many1(parser_2, |a, b| format!("{} {}", a, b))
+                    .map(|s| format!("(fold_many1 {})", s));
+                stack.push(Box::new(parser));
+            }
             _ => panic!("Bad test case parser description: {} not recognized", word),
         }
     }
     assert_eq!(stack.len(), 1, "Bad parser test case");
     let parser = stack.into_iter().next().unwrap();
     grammar.compile_parser(parser)
+}
+
+fn find_diff(string_1: &str, string_2: &str) -> (usize, usize) {
+    let mut line = 0;
+    let mut col = 0;
+    for (x, y) in string_1.chars().zip(string_2.chars()) {
+        if x != y {
+            break;
+        }
+        if x == '\n' {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+        }
+    }
+    (line, col)
 }
 
 fn run_test_case(
@@ -218,6 +280,8 @@ fn run_test_case(
     };
 
     if actual != expected {
+        let (diff_line, diff_col) = find_diff(&actual.1, &expected.1);
+
         println!("Parser");
         for line in parser_description.lines() {
             println!("> {}", line);
@@ -233,11 +297,17 @@ fn run_test_case(
         for line in expected.1.lines() {
             println!("> {}", line);
         }
-        println!("Actual {}", expected.0);
+        println!("Actual {}", actual.0);
         for line in actual.1.lines() {
             println!("> {}", line);
         }
-        panic!("Test case failure at {}, line {}.", filename, line_num + 1);
+        panic!(
+            "Test case failure at {}, line {} (diff at {}:{}).",
+            filename,
+            line_num + 1,
+            diff_line,
+            diff_col
+        );
     }
 }
 

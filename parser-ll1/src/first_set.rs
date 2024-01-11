@@ -20,9 +20,9 @@ impl FirstSet {
         }
     }
 
-    pub fn empty() -> FirstSet {
+    pub fn empty(name: String) -> FirstSet {
         FirstSet {
-            name: "nothing".to_owned(),
+            name,
             accepts_empty: true,
             accepted_tokens: VecMap::new(),
         }
@@ -119,7 +119,7 @@ fn test_initial_sets() {
     let set_b = FirstSet::token("B".to_owned(), 66);
     let set_c = FirstSet::token("C".to_owned(), 67);
     let set_d = FirstSet::token("D".to_owned(), 68);
-    let set_empty = FirstSet::empty();
+    let set_empty = FirstSet::empty("empty".to_owned());
 
     let set_a_empty =
         FirstSet::choice(name.clone(), vec![set_a.clone(), set_empty.clone()]).unwrap();
@@ -135,7 +135,11 @@ fn test_initial_sets() {
     assert!(set_bc.accepts_token(66));
     assert!(set_bc.accepts_token(67));
 
-    let set_d_empty = FirstSet::choice(name.clone(), vec![set_d, FirstSet::empty()]).unwrap();
+    let set_d_empty = FirstSet::choice(
+        name.clone(),
+        vec![set_d, FirstSet::empty("empty".to_owned())],
+    )
+    .unwrap();
     assert!(set_d_empty.accepts_empty());
     assert!(set_d_empty.accepts_token(68));
 

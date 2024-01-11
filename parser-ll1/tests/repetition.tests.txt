@@ -1,0 +1,87 @@
+### Opt ###
+
+Parser    > id/[a-z]+/ opt
+
+Input     > 
+Expect Ok > .
+
+Input     > abc
+Expect Ok > abc
+
+Input     > abc abc
+Expect Err
+> parse error: did not expect id
+>  --> repetition.tests.txt:1:5
+>   |
+> 1 |abc abc
+>   |    ^^^ unexpected
+>   |
+
+Parser     > id/[a-z]+/ opt opt
+Input      > abc
+Expect Err > ambiguous grammar: id.opt().opt() could be either empty id.opt().opt() or empty id.opt()
+
+### Many0 ###
+
+Parser    > id/[a-z]+/ many0
+
+Input     >
+Expect Ok > (many0 )
+
+Input     > abc
+Expect Ok > (many0 abc)
+
+Input     > abc def
+Expect Ok > (many0 abc def)
+
+Input     > abc def ghi
+Expect Ok > (many0 abc def ghi)
+
+Input     > !
+Expect Err
+> parse error: did not expect '!'
+>  --> repetition.tests.txt:1:1
+>   |
+> 1 |!
+>   |^ unexpected
+>   |
+
+Parser     > id/[a-z]+/ opt many0
+Input      > abc
+Expect Err > ambiguous grammar: id.opt().many0() could be either empty id.opt().many0() or empty id.opt()
+
+Parser     > id/[a-z]+/ many0 opt
+Input      > abc
+Expect Err > ambiguous grammar: id.many0().opt() could be either empty id.many0().opt() or empty id.many0()
+
+### Many1 ###
+
+Parser     > id/[a-z]+/ many1
+
+Input      >
+Expect Err
+> parse error: expected id but found end of file
+>  --> repetition.tests.txt:1:1
+>   |
+> 1 |
+>   |^ expected id
+>   |
+
+Input      > abc
+Expect Ok  > (many1 abc)
+
+Input      > abc def
+Expect Ok  > (many1 abc def)
+
+Parser     > id/[a-z]+/ many1 opt
+
+Input      >
+Expect Ok  > .
+
+Input      > abc def
+Expect Ok  > (many1 abc def)
+
+# This should error but doesn't!
+# It's a violation of the _third_ LL1 property, which I don't check!
+Parser     > id/[a-z]+/ many1 many1
+Expect Err > WRONG!
