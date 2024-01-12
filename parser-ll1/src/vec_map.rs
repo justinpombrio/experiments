@@ -30,6 +30,12 @@ impl<T> VecMap<T> {
         }
     }
 
+    pub fn clear(&mut self) {
+        for i in 0..self.0.len() {
+            self.0[i] = None;
+        }
+    }
+
     pub fn iter(&self) -> VecMapIter<T> {
         VecMapIter {
             index: 0,

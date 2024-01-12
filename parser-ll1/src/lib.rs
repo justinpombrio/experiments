@@ -105,9 +105,9 @@ mod parser_recur;
 mod vec_map;
 
 use dyn_clone::{clone_box, DynClone};
+use first_set::FirstSet;
 use lexer::{LexemeIter, Lexer, LexerBuilder, Token, TOKEN_EOF, TOKEN_ERROR};
 use parse_error::ParseErrorCause;
-use regex::Error as RegexError;
 use std::error::Error;
 use std::fmt;
 use std::marker::PhantomData;
@@ -119,7 +119,7 @@ use no_nonsense_flamegraphs::span;
 /*          Interface                     */
 /*========================================*/
 
-use first_set::FirstSet;
+pub use first_set::GrammarError;
 pub use lexer::Position;
 pub use parse_error::ParseError;
 pub use parser_recur::Recursive;
@@ -520,82 +520,6 @@ impl Grammar {
         })
     }
 }
-
-/// An issue with the grammar defined by a parser.
-#[derive(Debug)]
-pub enum GrammarError {
-    /// Invalid regex.
-    RegexError(RegexError),
-    /// The defined grammar is not LL1: two alternatives accept empty.
-    AmbiguityOnEmpty {
-        name: String,
-        case_1: String,
-        case_2: String,
-    },
-    /// The defined grammar is not LL1: two alternatives accept the same start token.
-    // #[error("Ambiguous grammar: when parsing {name}, token {token} could start either {case_1} or {case_2}.")]
-    AmbiguityOnFirstToken {
-        name: String,
-        case_1: String,
-        case_2: String,
-        token: String,
-    },
-}
-
-impl fmt::Display for GrammarError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use colored::Colorize;
-        use GrammarError::{AmbiguityOnEmpty, AmbiguityOnFirstToken, RegexError};
-
-        match self {
-            RegexError(err) => write!(f, "{}", err),
-            AmbiguityOnEmpty {
-                name,
-                case_1,
-                case_2,
-            } => {
-                let case_1 = if case_1 == "empty" {
-                    "empty".to_owned()
-                } else {
-                    format!("empty {}", case_1)
-                };
-                let case_2 = if case_2 == "empty" {
-                    "empty".to_owned()
-                } else {
-                    format!("empty {}", case_2)
-                };
-                let message = format!("{} could be either {} or {}", name, case_1, case_2);
-                write!(
-                    f,
-                    "{}{} {}",
-                    "ambiguous grammar".red().bold(),
-                    ":".bold(),
-                    message.bold()
-                )
-            }
-            AmbiguityOnFirstToken {
-                name,
-                token,
-                case_1,
-                case_2,
-            } => {
-                let message = format!(
-                    "when parsing {}, token {} could start either {} or {}",
-                    name, token, case_1, case_2
-                );
-                write!(
-                    f,
-                    "{}{} {}",
-                    "ambiguous grammar".red().bold(),
-                    ":".bold(),
-                    message.bold()
-                )
-            }
-        }
-    }
-}
-
-impl Error for GrammarError {}
 
 /*========================================*/
 /*          Parser: Empty                 */
