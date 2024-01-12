@@ -184,6 +184,8 @@ fn parse_parser(parser_description: &str) -> Result<impl CompiledParser<String>,
                 });
                 stack.push(Box::new(parser));
             }
+
+            // Repetition
             "opt" => {
                 let parser_1 = stack.pop().unwrap();
                 let parser = parser_1.opt().map(|opt| match opt {
@@ -219,7 +221,7 @@ fn parse_parser(parser_description: &str) -> Result<impl CompiledParser<String>,
                 let parser_1 = stack.pop().unwrap();
                 let parser = parser_1
                     .many_sep1(parser_2)
-                    .map(|vec| format!("(many_sep0 {})", vec.join(" ")));
+                    .map(|vec| format!("(many_sep1 {})", vec.join(" ")));
                 stack.push(Box::new(parser));
             }
             "fold_many0" => {
@@ -237,6 +239,17 @@ fn parse_parser(parser_description: &str) -> Result<impl CompiledParser<String>,
                     .map(|s| format!("(fold_many1 {})", s));
                 stack.push(Box::new(parser));
             }
+
+            // Junctions
+            "and" => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1
+                    .and(parser_2)
+                    .map(|(a, b)| format!("(and {} {})", a, b));
+                stack.push(Box::new(parser));
+            }
+
             _ => panic!("Bad test case parser description: {} not recognized", word),
         }
     }
