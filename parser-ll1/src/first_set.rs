@@ -179,11 +179,6 @@ impl FirstSet {
     fn is_first_token(&self, token: Token) -> bool {
         self.first_tokens.get(token).is_some()
     }
-
-    #[cfg(test)]
-    fn is_continuation_token(&self, token: Token) -> bool {
-        self.continuation_tokens.get(token).is_some()
-    }
 }
 
 impl fmt::Display for GrammarError {
@@ -200,17 +195,10 @@ impl fmt::Display for GrammarError {
                 case_1,
                 case_2,
             } => {
-                let case_1 = if case_1 == "empty" {
-                    "empty".to_owned()
-                } else {
-                    format!("empty {}", case_1)
-                };
-                let case_2 = if case_2 == "empty" {
-                    "empty".to_owned()
-                } else {
-                    format!("empty {}", case_2)
-                };
-                let message = format!("{} could be either {} or {}", name, case_1, case_2);
+                let message = format!(
+                    "in {}, either {} or {} could be empty",
+                    name, case_1, case_2
+                );
                 write!(
                     f,
                     "{}{} {}",

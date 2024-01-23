@@ -1,4 +1,4 @@
-use parser_ll1::{choice, empty, tuple, CompiledParser, Grammar, GrammarError, Parser};
+use parser_ll1::{choice, empty, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive};
 use std::fmt;
 
 type LineNum = u32;
@@ -89,6 +89,7 @@ fn parse_parser(parser_description: &str) -> Result<impl CompiledParser<String>,
 
     let mut grammar = Grammar::new();
     let mut stack: Vec<SExprParser> = Vec::new();
+    let mut recursive = Some(Recursive::new("recursive"));
 
     for word in parser_description.split_whitespace() {
         if word.ends_with('/') {
@@ -248,6 +249,74 @@ fn parse_parser(parser_description: &str) -> Result<impl CompiledParser<String>,
                     .and(parser_2)
                     .map(|(a, b)| format!("(and {} {})", a, b));
                 stack.push(Box::new(parser));
+            }
+            "preceded" => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1.preceded(parser_2);
+                stack.push(Box::new(parser));
+            }
+            "terminated" => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = parser_1.terminated(parser_2);
+                stack.push(Box::new(parser));
+            }
+            "tuple2" => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = tuple("tuple", (parser_1, parser_2))
+                    .map(|(a, b)| format!("(tuple {} {})", a, b));
+                stack.push(Box::new(parser));
+            }
+            "tuple3" => {
+                let parser_3 = stack.pop().unwrap();
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = tuple("tuple", (parser_1, parser_2, parser_3))
+                    .map(|(a, b, c)| format!("(tuple {} {} {})", a, b, c));
+                stack.push(Box::new(parser));
+            }
+            "tuple4" => {
+                let parser_4 = stack.pop().unwrap();
+                let parser_3 = stack.pop().unwrap();
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = tuple("tuple", (parser_1, parser_2, parser_3, parser_4))
+                    .map(|(a, b, c, d)| format!("(tuple {} {} {} {})", a, b, c, d));
+                stack.push(Box::new(parser));
+            }
+            "tuple5" => {
+                let parser_5 = stack.pop().unwrap();
+                let parser_4 = stack.pop().unwrap();
+                let parser_3 = stack.pop().unwrap();
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = tuple("tuple", (parser_1, parser_2, parser_3, parser_4, parser_5))
+                    .map(|(a, b, c, d, e)| format!("(tuple {} {} {} {} {})", a, b, c, d, e));
+                stack.push(Box::new(parser));
+            }
+            "choice2" => {
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = choice("choice", (parser_1, parser_2));
+                stack.push(Box::new(parser));
+            }
+            "choice3" => {
+                let parser_3 = stack.pop().unwrap();
+                let parser_2 = stack.pop().unwrap();
+                let parser_1 = stack.pop().unwrap();
+                let parser = choice("choice", (parser_1, parser_2, parser_3));
+                stack.push(Box::new(parser));
+            }
+
+            // Recursion
+            "refn" => {
+                stack.push(Box::new(recursive.as_ref().unwrap().refn()));
+            }
+            "define" => {
+                let parser = stack.pop().unwrap();
+                stack.push(Box::new(recursive.take().unwrap().define(parser)));
             }
 
             _ => panic!("Bad test case parser description: {} not recognized", word),

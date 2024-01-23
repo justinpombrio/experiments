@@ -19,7 +19,7 @@ Expect Err
 
 Parser     > id/[a-z]+/ opt opt
 Input      > abc
-Expect Err > ambiguous grammar: id.opt().opt() could be either empty id.opt().opt() or empty id.opt()
+Expect Err > ambiguous grammar: in id.opt().opt(), either id.opt().opt() or id.opt() could be empty
 
 ### Many0 ###
 
@@ -48,11 +48,11 @@ Expect Err
 
 Parser     > id/[a-z]+/ opt many0
 Input      > abc
-Expect Err > ambiguous grammar: id.opt().many0() could be either empty id.opt().many0() or empty id.opt()
+Expect Err > ambiguous grammar: in id.opt().many0(), either id.opt().many0() or id.opt() could be empty
 
 Parser     > id/[a-z]+/ many0 opt
 Input      > abc
-Expect Err > ambiguous grammar: id.many0().opt() could be either empty id.many0().opt() or empty id.many0()
+Expect Err > ambiguous grammar: in id.many0().opt(), either id.many0().opt() or id.many0() could be empty
 
 ### Many1 ###
 
@@ -111,7 +111,7 @@ Expect Err
 
 Parser     > id/[a-z]+/ fold_many0 opt
 Input      >
-Expect Err > ambiguous grammar: id.fold_many0().opt() could be either empty id.fold_many0().opt() or empty id.fold_many0()
+Expect Err > ambiguous grammar: in id.fold_many0().opt(), either id.fold_many0().opt() or id.fold_many0() could be empty
 
 ### Fold Many1 ###
 
