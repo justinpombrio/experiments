@@ -1,6 +1,10 @@
 use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive};
 use std::fmt;
 
+// A simple JSON parser. Does not handle things like string escapes or numbers with
+// exponents in them, as those would make this example more verbose without elucidating
+// much of anything about _ll1 parsing_.
+
 #[derive(Debug, Clone)]
 pub enum Json {
     Null,

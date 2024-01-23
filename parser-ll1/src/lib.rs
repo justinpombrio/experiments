@@ -5,9 +5,9 @@
 // [x] ParseError: fancy underlines
 // [x] GrammarError: fix message on choice
 // [x] Test errors: give line number, better error message
-// [ ] Review&test error messages
+// [x] Review&test error messages
 // [x] Review combinator names
-// [ ] Add iterator combinator for streaming parsing?
+// [-] Add iterator combinator for streaming parsing?
 // [ ] Add context() combinator?
 // [x] Change Parser<Output = T> to Parser<T>
 // [x] Try having parsers lex directly instead of having a separate lexer;
@@ -15,10 +15,10 @@
 // [x] Make things run on stable Rust, it's a feature. Don't need `trait =`.
 // [x] Docs
 // [x] Internal docs
-// [ ] impl Fn -> impl FnMut?
+// [-] impl Fn -> impl FnMut?
 // [ ] Hunt down remaining todos
-// [ ] Delete hand-crafted combinators that really didn't need to be hand-crafted
-// [ ] Extensive testing
+// [x] Delete hand-crafted combinators that really didn't need to be hand-crafted
+// [x] Extensive testing
 // [ ] Review docs, add example
 
 // NOTE: Current time to parse dummy.json: 5.75 ms
@@ -48,14 +48,20 @@
 //! use parser_ll1::{Grammar, Parser, CompiledParser};
 //! use std::str::FromStr;
 //!
+//! // Easy parsers
+//!
 //! let mut g = Grammar::with_whitespace("[ \t\n]+").unwrap();
+//!
 //! let number = g.regex("number", "[0-9]+").unwrap()
 //!     .try_span(|s| i32::from_str(s.substr));
-//! let numbers = number.many_sep1(g.string("+").unwrap())
+//!
+//! let numbers = number.clone().many_sep1(g.string("+").unwrap())
 //!     .map(|nums| nums.into_iter().sum());
+//!
 //! let parser = g.compile_parser(numbers).unwrap();
 //!
 //! assert_eq!(parser.parse("test_case", "1 + 2 + 3"), Ok(6));
+//!
 //! assert_eq!(format!("{}", parser.parse("test_case", "1 + + 2").unwrap_err()),
 //! "parse error: expected number but found '+'
 //!  --> test_case:1:5
@@ -63,13 +69,22 @@
 //! 1 |1 + + 2
 //!   |    ^ expected number
 //!   |");
+//!
+//! // Guaranteed LL1
+//!
+//! let ambiguous = number.clone().opt().and(number);
+//! assert_eq!(
+//!     format!("{}", g.compile_parser(ambiguous).unwrap_err()),
+//!     "ambiguous grammar: in number.opt().and(number), token number could either continue number.opt() or start number");
 //! ```
 //!
 //! ## Features
 //!
 //! - Guaranteed linear time parsing, due to `parse_ll1` checking that
 //!   your grammar is LL1. You won't find guaranteed linear time parsing in
-//!   any other (complete) Rust parser library. `nom` and `parsell` can take
+//!   any other (complete) Rust parser library.
+//!   [`nom`](https://docs.rs/nom/latest/nom/) and
+//!   [`parsell`](https://docs.rs/parsell/latest/parsell/) can take
 //!   exponential time to parse if they're given a poorly structured grammar.
 //! - Typed parser combinators, so that you build your parser in Rust code,
 //!   and it produces a result directly. You don't have to write separate
@@ -79,6 +94,7 @@
 //!   always knows exactly what's being parsed), and that under the hood
 //!   it lexes before it parses (so it knows what to point at if the next
 //!   token is unexpected).
+//! - Provides source locations (line, column, and UTF8-column).
 //! - Easier to use than `nom` or `pest`.
 //! - Runs on stable Rust.
 //!
@@ -94,9 +110,56 @@
 //!   or [`parsell`](https://docs.rs/parsell/latest/parsell/) instead.
 //! - Extraordinary speed. Use [`nom`](https://docs.rs/nom/latest/nom/)
 //!   instead. A preliminary benchmark puts `parse_ll1` at ~half the speed
-//!   of `nom`, which to be clear is still very fast.
+//!   of `nom`, which is still very fast.
 //! - There's no separate grammar file, which some people like because
 //!   it's so declarative. Use [`pest`](https://pest.rs/) instead.
+//!
+//! ## Combinators
+//!
+//! Here's a reference table of all the parser combinator types.
+//!
+//! ```text
+//! COMBINATOR           OUTPUT-TYPE    NOTES
+//!
+//! ~~ lexemes ~~
+//! Grammar.string()     ()
+//! Grammar.regex()      ()
+//!
+//! ~~ mapping ~~
+//! P.constant(V)        V
+//! P.map(f)             f(P)
+//! P.try_map(f)         f(P)?
+//! P.span(f)            f(Span)
+//! P.try_span(f)        f(Span)?
+//! P.map_span(f)        f(Span, P)
+//! P.try_map_span(f)    f(Span, P)?
+//!
+//! ~~ combination ~~
+//! P.and(Q)             (P, Q)
+//! P.preceded(Q)        P
+//! P.terminated(Q)      P
+//!
+//! ~~ repetition ~~
+//! P.opt()              Option<P>
+//! P.many0()            Vec<P>
+//! P.many1()            Vec<P>
+//! P.fold_many0(V, f)   V              f: Fn(V, P) -> V
+//! P.fold_many1(Q, f)   P              f: Fn(P, Q) -> P
+//! P.many_sep0(Q)       Vec<P>
+//! P.many_sep1(Q)       Vec<P>
+//!
+//! ~~ other ~~
+//! empty()
+//!   makes a parser that matches nothing and outputs ()
+//! tuple(name, (P1, ..., Pn))
+//!   makes a parser of output type (P1, ..., Pn)
+//! choice(name, (P1, ..., Pn))
+//!   requires that P1 though Pn all have the same output type,
+//!   and makes a parser of that output type
+//!
+//! ~~ recursion ~~
+//! see struct Recursive
+//! ```
 
 mod first_set;
 mod lexer;
@@ -488,13 +551,18 @@ impl Grammar {
     pub fn compile_parser<T2, P: Parser<T2> + Clone>(
         &self,
         parser: P,
-    ) -> Result<impl CompiledParser<T2>, GrammarError> {
+    ) -> Result<impl CompiledParser<T2> + fmt::Debug, GrammarError> {
         use ParseResult::{Error, Failure, Success};
 
         struct CompiledParserImpl<T, P: Parser<T> + Clone> {
             lexer: Lexer,
             parser: P,
             phantom: PhantomData<T>,
+        }
+        impl<T, P: Parser<T> + Clone> fmt::Debug for CompiledParserImpl<T, P> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "Compiled parser for '{}'", self.parser.name())
+            }
         }
 
         impl<T, P: Parser<T> + Clone> CompiledParser<T> for CompiledParserImpl<T, P> {
