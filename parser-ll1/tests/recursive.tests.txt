@@ -1,3 +1,0 @@
-Parser     > "[" refn many0 "]" tuple3 define
-Input      > [[]]
-Expect Ok  > (tuple [ (many0 (tuple [ (many0 ) ])) ])
