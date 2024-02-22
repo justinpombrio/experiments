@@ -106,13 +106,19 @@ fn main() {
     let notation = json_to_notation(json);
     let ms_to_construct = start.elapsed().as_millis();
 
-    // Print the Notation
+    // Pretty print the Notation
     let start = Instant::now();
-    println!("{}", pretty_print(notation, 120));
-    let ms_to_print = start.elapsed().as_millis();
+    let output = pretty_print(notation, 120);
+    let ms_to_pretty_print = start.elapsed().as_millis();
+
+    // Print it to the terminal
+    let start = Instant::now();
+    println!("{}", output);
+    let ms_to_output = start.elapsed().as_millis();
 
     // Print timing info to stderr
-    eprintln!("Time to parse file as Json: {} ms", ms_to_parse);
-    eprintln!("Time to construct Notation: {} ms", ms_to_construct);
-    eprintln!("Time to print Notation:     {} ms", ms_to_print);
+    eprintln!("Time to parse file as Json:    {} ms", ms_to_parse);
+    eprintln!("Time to construct Notation:    {} ms", ms_to_construct);
+    eprintln!("Time to pretty print Notation: {} ms", ms_to_pretty_print);
+    eprintln!("Time to print to terminal:     {} ms", ms_to_output);
 }
