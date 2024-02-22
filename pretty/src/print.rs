@@ -1,25 +1,25 @@
 use crate::notation::{Notation, NotationInner};
 
-pub fn pretty_print(notation: Notation, printing_width: u32) -> String {
+pub fn pretty_print(notation: &Notation, printing_width: u32) -> String {
     let mut printer = PrettyPrinter::new(notation, printing_width);
     printer.print()
 }
 
-struct PrettyPrinter {
+struct PrettyPrinter<'a> {
     width: u32,
     col: u32,
-    chunks: Vec<Chunk>,
+    chunks: Vec<Chunk<'a>>,
 }
 
-#[derive(Debug, Clone)]
-struct Chunk {
-    notation: Notation,
+#[derive(Debug, Clone, Copy)]
+struct Chunk<'a> {
+    notation: &'a Notation,
     indent: u32,
     flat: bool,
 }
 
-impl Chunk {
-    fn with_notation(self: &Chunk, notation: Notation) -> Chunk {
+impl<'a> Chunk<'a> {
+    fn with_notation(self, notation: &'a Notation) -> Chunk<'a> {
         Chunk {
             notation,
             indent: self.indent,
@@ -27,7 +27,7 @@ impl Chunk {
         }
     }
 
-    fn indented(self: &Chunk, indent: u32, notation: Notation) -> Chunk {
+    fn indented(self, indent: u32, notation: &'a Notation) -> Chunk<'a> {
         Chunk {
             notation,
             indent: self.indent + indent,
@@ -35,7 +35,7 @@ impl Chunk {
         }
     }
 
-    fn flat(self: &Chunk, notation: Notation) -> Chunk {
+    fn flat(self, notation: &'a Notation) -> Chunk<'a> {
         Chunk {
             notation,
             indent: self.indent,
@@ -44,8 +44,8 @@ impl Chunk {
     }
 }
 
-impl PrettyPrinter {
-    fn new(notation: Notation, width: u32) -> PrettyPrinter {
+impl<'a> PrettyPrinter<'a> {
+    fn new(notation: &'a Notation, width: u32) -> PrettyPrinter<'a> {
         let chunk = Chunk {
             notation,
             indent: 0,
@@ -75,17 +75,17 @@ impl PrettyPrinter {
                     output.push_str(text);
                     self.col += width;
                 }
-                Flat(x) => self.chunks.push(chunk.flat(x.clone())),
-                Indent(i, x) => self.chunks.push(chunk.indented(*i, x.clone())),
+                Flat(x) => self.chunks.push(chunk.flat(x)),
+                Indent(i, x) => self.chunks.push(chunk.indented(*i, x)),
                 Concat(x, y) => {
-                    self.chunks.push(chunk.with_notation(y.clone()));
-                    self.chunks.push(chunk.with_notation(x.clone()));
+                    self.chunks.push(chunk.with_notation(y));
+                    self.chunks.push(chunk.with_notation(x));
                 }
                 Choice(x, y) => {
-                    if chunk.flat || self.fits(chunk.with_notation(x.clone())) {
-                        self.chunks.push(chunk.with_notation(x.clone()));
+                    if chunk.flat || self.fits(chunk.with_notation(x)) {
+                        self.chunks.push(chunk.with_notation(x));
                     } else {
-                        self.chunks.push(chunk.with_notation(y.clone()));
+                        self.chunks.push(chunk.with_notation(y));
                     }
                 }
             }
@@ -93,7 +93,7 @@ impl PrettyPrinter {
         output
     }
 
-    fn fits(&self, chunk: Chunk) -> bool {
+    fn fits(&self, chunk: Chunk<'a>) -> bool {
         use NotationInner::*;
 
         let mut remaining = self.width.saturating_sub(self.col);
@@ -107,7 +107,7 @@ impl PrettyPrinter {
                     None => return true,
                     Some((chunk, more_chunks)) => {
                         chunks = more_chunks;
-                        chunk.clone()
+                        *chunk
                     }
                 },
             };
@@ -121,19 +121,19 @@ impl PrettyPrinter {
                         return false;
                     }
                 }
-                Flat(x) => stack.push(chunk.flat(x.clone())),
-                Indent(i, x) => stack.push(chunk.indented(*i, x.clone())),
+                Flat(x) => stack.push(chunk.flat(x)),
+                Indent(i, x) => stack.push(chunk.indented(*i, x)),
                 Concat(x, y) => {
-                    stack.push(chunk.with_notation(y.clone()));
-                    stack.push(chunk.with_notation(x.clone()));
+                    stack.push(chunk.with_notation(y));
+                    stack.push(chunk.with_notation(x));
                 }
                 Choice(x, y) => {
                     if chunk.flat {
-                        stack.push(chunk.with_notation(x.clone()));
+                        stack.push(chunk.with_notation(x));
                     } else {
                         // Relies on the rule that for every choice `x | y`,
                         // the first line of `y` is no longer than the first line of `x`.
-                        stack.push(chunk.with_notation(y.clone()));
+                        stack.push(chunk.with_notation(y));
                     }
                 }
             }

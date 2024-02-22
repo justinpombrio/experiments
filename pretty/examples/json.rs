@@ -108,7 +108,7 @@ fn main() {
 
     // Pretty print the Notation
     let start = Instant::now();
-    let output = pretty_print(notation, 120);
+    let output = pretty_print(&notation, 120);
     let ms_to_pretty_print = start.elapsed().as_millis();
 
     // Print it to the terminal
