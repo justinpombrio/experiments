@@ -14,11 +14,11 @@ pub fn json_bool(b: bool) -> Notation {
 
 pub fn json_string(s: &str) -> Notation {
     // TODO: escape sequences
-    txt(&format!("\"{}\"", s))
+    txt(format!("\"{}\"", s))
 }
 
 pub fn json_number(n: impl ToString) -> Notation {
-    txt(&n.to_string())
+    txt(n)
 }
 
 fn comma_sep_single_line(elems: &[Notation]) -> Notation {
@@ -42,9 +42,8 @@ fn surrounded(open: &str, elems: &[Notation], closed: &str) -> Notation {
         return txt(open) & txt(closed);
     }
 
-    let single_line = txt(open) & comma_sep_single_line(&elems) & txt(closed);
-    let multi_line =
-        txt(open) & indent(4, nl() & comma_sep_multi_line(&elems)) & nl() & txt(closed);
+    let single_line = txt(open) & comma_sep_single_line(elems) & txt(closed);
+    let multi_line = txt(open) & indent(4, nl() & comma_sep_multi_line(elems)) & nl() & txt(closed);
     single_line | multi_line
 }
 
@@ -109,8 +108,7 @@ fn main() {
 
     // Print the Notation
     let start = Instant::now();
-    pretty_print(notation, 120);
-    println!(); // trailing newline
+    println!("{}", pretty_print(notation, 120));
     let ms_to_print = start.elapsed().as_millis();
 
     // Print timing info to stderr

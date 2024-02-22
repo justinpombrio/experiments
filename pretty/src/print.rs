@@ -1,8 +1,8 @@
 use crate::notation::{Notation, NotationInner};
 
-pub fn pretty_print(notation: Notation, printing_width: u32) {
+pub fn pretty_print(notation: Notation, printing_width: u32) -> String {
     let mut printer = PrettyPrinter::new(notation, printing_width);
-    printer.print();
+    printer.print()
 }
 
 struct PrettyPrinter {
@@ -58,17 +58,21 @@ impl PrettyPrinter {
         }
     }
 
-    fn print(&mut self) {
+    fn print(&mut self) -> String {
         use NotationInner::*;
 
+        let mut output = String::new();
         while let Some(chunk) = self.chunks.pop() {
             match chunk.notation.0.as_ref() {
                 Newline => {
-                    print!("\n{:spaces$}", "", spaces = chunk.indent as usize);
+                    output.push('\n');
+                    for _ in 0..chunk.indent {
+                        output.push(' ');
+                    }
                     self.col = chunk.indent;
                 }
                 Text(text, width) => {
-                    print!("{}", text);
+                    output.push_str(text);
                     self.col += width;
                 }
                 Flat(x) => self.chunks.push(chunk.flat(x.clone())),
@@ -86,6 +90,7 @@ impl PrettyPrinter {
                 }
             }
         }
+        output
     }
 
     fn fits(&self, chunk: Chunk) -> bool {
