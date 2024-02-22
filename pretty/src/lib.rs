@@ -28,5 +28,5 @@
 mod notation;
 mod print;
 
-pub use notation::{flat, indent, nl, txt, Notation};
+pub use notation::{Notation, NotationBuilder, NotationRef};
 pub use print::pretty_print;

@@ -1,25 +1,25 @@
-use crate::notation::{Notation, NotationInner};
+use crate::notation::{Notation, NotationRef};
 
-pub fn pretty_print(notation: Notation, printing_width: u32) -> String {
+pub fn pretty_print(notation: NotationRef, printing_width: u32) -> String {
     let mut printer = PrettyPrinter::new(notation, printing_width);
     printer.print()
 }
 
-struct PrettyPrinter {
+struct PrettyPrinter<'a> {
     width: u32,
     col: u32,
-    chunks: Vec<Chunk>,
+    chunks: Vec<Chunk<'a>>,
 }
 
-#[derive(Debug, Clone)]
-struct Chunk {
-    notation: Notation,
+#[derive(Debug, Clone, Copy)]
+struct Chunk<'a> {
+    notation: NotationRef<'a>,
     indent: u32,
     flat: bool,
 }
 
-impl Chunk {
-    fn with_notation(self: &Chunk, notation: Notation) -> Chunk {
+impl<'a> Chunk<'a> {
+    fn with_notation(self, notation: NotationRef<'a>) -> Chunk<'a> {
         Chunk {
             notation,
             indent: self.indent,
@@ -27,7 +27,7 @@ impl Chunk {
         }
     }
 
-    fn indented(self: &Chunk, indent: u32, notation: Notation) -> Chunk {
+    fn indented(self, indent: u32, notation: NotationRef<'a>) -> Chunk<'a> {
         Chunk {
             notation,
             indent: self.indent + indent,
@@ -35,7 +35,7 @@ impl Chunk {
         }
     }
 
-    fn flat(self: &Chunk, notation: Notation) -> Chunk {
+    fn flat(self, notation: NotationRef<'a>) -> Chunk<'a> {
         Chunk {
             notation,
             indent: self.indent,
@@ -44,8 +44,8 @@ impl Chunk {
     }
 }
 
-impl PrettyPrinter {
-    fn new(notation: Notation, width: u32) -> PrettyPrinter {
+impl<'a> PrettyPrinter<'a> {
+    fn new(notation: NotationRef<'a>, width: u32) -> PrettyPrinter<'a> {
         let chunk = Chunk {
             notation,
             indent: 0,
@@ -59,11 +59,11 @@ impl PrettyPrinter {
     }
 
     fn print(&mut self) -> String {
-        use NotationInner::*;
+        use Notation::*;
 
         let mut output = String::new();
         while let Some(chunk) = self.chunks.pop() {
-            match chunk.notation.0.as_ref() {
+            match chunk.notation {
                 Newline => {
                     output.push('\n');
                     for _ in 0..chunk.indent {
@@ -75,17 +75,18 @@ impl PrettyPrinter {
                     output.push_str(text);
                     self.col += width;
                 }
-                Flat(x) => self.chunks.push(chunk.flat(x.clone())),
-                Indent(i, x) => self.chunks.push(chunk.indented(*i, x.clone())),
-                Concat(x, y) => {
-                    self.chunks.push(chunk.with_notation(y.clone()));
-                    self.chunks.push(chunk.with_notation(x.clone()));
+                Flat(x) => self.chunks.push(chunk.flat(x)),
+                Indent(i, x) => self.chunks.push(chunk.indented(*i, x)),
+                Concat(seq) => {
+                    for notation in seq.iter().rev() {
+                        self.chunks.push(chunk.with_notation(notation));
+                    }
                 }
                 Choice(x, y) => {
-                    if chunk.flat || self.fits(chunk.with_notation(x.clone())) {
-                        self.chunks.push(chunk.with_notation(x.clone()));
+                    if chunk.flat || self.fits(chunk.with_notation(x)) {
+                        self.chunks.push(chunk.with_notation(x));
                     } else {
-                        self.chunks.push(chunk.with_notation(y.clone()));
+                        self.chunks.push(chunk.with_notation(y));
                     }
                 }
             }
@@ -93,8 +94,8 @@ impl PrettyPrinter {
         output
     }
 
-    fn fits(&self, chunk: Chunk) -> bool {
-        use NotationInner::*;
+    fn fits(&self, chunk: Chunk<'a>) -> bool {
+        use Notation::*;
 
         let mut remaining = self.width.saturating_sub(self.col);
         let mut stack = vec![chunk];
@@ -107,12 +108,12 @@ impl PrettyPrinter {
                     None => return true,
                     Some((chunk, more_chunks)) => {
                         chunks = more_chunks;
-                        chunk.clone()
+                        *chunk
                     }
                 },
             };
 
-            match chunk.notation.0.as_ref() {
+            match chunk.notation {
                 Newline => return true,
                 Text(_text, text_width) => {
                     if *text_width <= remaining {
@@ -121,19 +122,20 @@ impl PrettyPrinter {
                         return false;
                     }
                 }
-                Flat(x) => stack.push(chunk.flat(x.clone())),
-                Indent(i, x) => stack.push(chunk.indented(*i, x.clone())),
-                Concat(x, y) => {
-                    stack.push(chunk.with_notation(y.clone()));
-                    stack.push(chunk.with_notation(x.clone()));
+                Flat(x) => stack.push(chunk.flat(x)),
+                Indent(i, x) => stack.push(chunk.indented(*i, x)),
+                Concat(seq) => {
+                    for notation in seq.iter().rev() {
+                        stack.push(chunk.with_notation(notation));
+                    }
                 }
                 Choice(x, y) => {
                     if chunk.flat {
-                        stack.push(chunk.with_notation(x.clone()));
+                        stack.push(chunk.with_notation(x));
                     } else {
                         // Relies on the rule that for every choice `x | y`,
                         // the first line of `y` is no longer than the first line of `x`.
-                        stack.push(chunk.with_notation(y.clone()));
+                        stack.push(chunk.with_notation(y));
                     }
                 }
             }
