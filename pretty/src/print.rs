@@ -6,8 +6,12 @@ pub fn pretty_print(notation: &Notation, printing_width: u32) -> String {
 }
 
 struct PrettyPrinter<'a> {
+    /// Maximum line width that we'll try to stay within
     width: u32,
+    /// Current column position
     col: u32,
+    /// A stack of chunks to print. The _top_ of the stack is the _end_ of the vector, which
+    /// represents the _earliest_ part of the document to print.
     chunks: Vec<Chunk<'a>>,
 }
 
@@ -27,17 +31,17 @@ impl<'a> Chunk<'a> {
         }
     }
 
-    fn indented(self, indent: u32, notation: &'a Notation) -> Chunk<'a> {
+    fn indented(self, indent: u32) -> Chunk<'a> {
         Chunk {
-            notation,
+            notation: self.notation,
             indent: self.indent + indent,
             flat: self.flat,
         }
     }
 
-    fn flat(self, notation: &'a Notation) -> Chunk<'a> {
+    fn flat(self) -> Chunk<'a> {
         Chunk {
-            notation,
+            notation: self.notation,
             indent: self.indent,
             flat: true,
         }
@@ -75,8 +79,8 @@ impl<'a> PrettyPrinter<'a> {
                     output.push_str(text);
                     self.col += width;
                 }
-                Flat(x) => self.chunks.push(chunk.flat(x)),
-                Indent(i, x) => self.chunks.push(chunk.indented(*i, x)),
+                Flat(x) => self.chunks.push(chunk.with_notation(x).flat()),
+                Indent(i, x) => self.chunks.push(chunk.with_notation(x).indented(*i)),
                 Concat(x, y) => {
                     self.chunks.push(chunk.with_notation(y));
                     self.chunks.push(chunk.with_notation(x));
@@ -96,7 +100,11 @@ impl<'a> PrettyPrinter<'a> {
     fn fits(&self, chunk: Chunk<'a>) -> bool {
         use NotationInner::*;
 
-        let mut remaining = self.width.saturating_sub(self.col);
+        let mut remaining = if self.col <= self.width {
+            self.width - self.col
+        } else {
+            return false;
+        };
         let mut stack = vec![chunk];
         let mut chunks = &self.chunks as &[Chunk];
 
@@ -121,8 +129,8 @@ impl<'a> PrettyPrinter<'a> {
                         return false;
                     }
                 }
-                Flat(x) => stack.push(chunk.flat(x)),
-                Indent(i, x) => stack.push(chunk.indented(*i, x)),
+                Flat(x) => stack.push(chunk.with_notation(x).flat()),
+                Indent(i, x) => stack.push(chunk.with_notation(x).indented(*i)),
                 Concat(x, y) => {
                     stack.push(chunk.with_notation(y));
                     stack.push(chunk.with_notation(x));
@@ -132,7 +140,7 @@ impl<'a> PrettyPrinter<'a> {
                         stack.push(chunk.with_notation(x));
                     } else {
                         // Relies on the rule that for every choice `x | y`,
-                        // the first line of `y` is no longer than the first line of `x`.
+                        // the first line of `y` is at least as short as the first line of `x`.
                         stack.push(chunk.with_notation(y));
                     }
                 }

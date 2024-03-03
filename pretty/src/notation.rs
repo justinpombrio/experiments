@@ -46,7 +46,7 @@ impl BitAnd<Notation> for Notation {
 
     /// Display both notations. The first character of the right notation immediately
     /// follows the last character of the left notation.
-    fn bitand(self: Notation, other: Notation) -> Notation {
+    fn bitand(self, other: Notation) -> Notation {
         Notation(Rc::new(NotationInner::Concat(self, other)))
     }
 }
@@ -57,7 +57,7 @@ impl BitOr<Notation> for Notation {
     /// If inside a `flat`, _or_ the first line of the left notation fits within
     /// the required width, then display the left notation. Otherwise, display
     /// the right notation.
-    fn bitor(self: Notation, other: Notation) -> Notation {
+    fn bitor(self, other: Notation) -> Notation {
         Notation(Rc::new(NotationInner::Choice(self, other)))
     }
 }
