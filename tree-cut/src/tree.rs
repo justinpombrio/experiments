@@ -7,7 +7,7 @@ use std::fmt;
 
 pub type Weight = u32;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tree {
     pub size: u32,
     pub weight: Weight,
@@ -30,30 +30,47 @@ impl Tree {
         }
     }
 
+    /// Cut this tree off from its parent. Meaningless for the root node.
     pub fn cut(mut self) -> Self {
         self.is_cut = true;
         self
     }
 
+    /// Don't cut this tree off from its parent. Meaningless for the root node.
+    pub fn uncut(mut self) -> Self {
+        self.is_cut = false;
+        self
+    }
+
+    /// Total number of cuts in the tree, ignoring the root's potential cut.
     pub fn num_cuts(&self) -> u32 {
         let mut num_cuts = 0;
-        if self.is_cut {
-            num_cuts += 1;
-        }
         for child in &self.children {
             num_cuts += child.num_cuts();
+            if child.is_cut {
+                num_cuts += 1;
+            }
         }
         num_cuts
     }
 
-    pub fn all_cuts(&self) -> Vec<Tree> {
-        let mut options = vec![self.clone(), self.clone().cut()];
+    /// All possible partitions (sets of cuts) of this tree.
+    pub fn all_partitions(&self) -> Vec<Tree> {
+        self.all_partitions_rec(true)
+    }
+
+    fn all_partitions_rec(&self, at_root: bool) -> Vec<Tree> {
+        let mut options = if at_root {
+            vec![self.clone().uncut()]
+        } else {
+            vec![self.clone().uncut(), self.clone().cut()]
+        };
         for (i, child) in self.children.iter().enumerate() {
             let mut new_options = Vec::new();
-            for cut_child in child.all_cuts() {
+            for child_partition in child.all_partitions_rec(false) {
                 for option in &options {
                     let mut new_option = option.clone();
-                    new_option.children[i] = cut_child.clone();
+                    new_option.children[i] = child_partition.clone();
                     new_options.push(new_option);
                 }
             }
@@ -62,13 +79,42 @@ impl Tree {
         options
     }
 
-    /// Compute (max weight of any cuttree, remaining weight at root)
-    pub fn max_cuttree_weight(&self) -> (Weight, Weight) {
+    /// The minimum weight of any region.
+    pub fn min_region_weight(&self) -> Weight {
+        let (min, remaining) = self.min_region_weight_rec();
+        min.min(remaining)
+    }
+
+    // Compute (min weight of any region, remaining weight at root)
+    fn min_region_weight_rec(&self) -> (Weight, Weight) {
+        let mut min = Weight::MAX;
+        let mut remaining = self.weight;
+
+        for child in &self.children {
+            let (child_min, child_remaining) = child.min_region_weight_rec();
+            min = min.min(child_min);
+            remaining += child_remaining;
+        }
+        if self.is_cut {
+            min = min.min(remaining);
+            remaining = 0;
+        }
+        (min, remaining)
+    }
+
+    /// The maximum weight of any region.
+    pub fn max_region_weight(&self) -> Weight {
+        let (max, remaining) = self.max_region_weight_rec();
+        max.max(remaining)
+    }
+
+    // Compute (max weight of any region, remaining weight at root)
+    fn max_region_weight_rec(&self) -> (Weight, Weight) {
         let mut max = 0;
         let mut remaining = self.weight;
 
         for child in &self.children {
-            let (child_max, child_remaining) = child.max_cuttree_weight();
+            let (child_max, child_remaining) = child.max_region_weight_rec();
             max = max.max(child_max);
             remaining += child_remaining;
         }
@@ -81,30 +127,40 @@ impl Tree {
 }
 
 #[cfg(test)]
+fn leaf(weight: Weight) -> Tree {
+    Tree::new(weight, Vec::new())
+}
+
+#[cfg(test)]
+fn branch_1(weight: Weight, child: Tree) -> Tree {
+    Tree::new(weight, vec![child])
+}
+
+#[cfg(test)]
+fn branch_2(weight: Weight, child_1: Tree, child_2: Tree) -> Tree {
+    Tree::new(weight, vec![child_1, child_2])
+}
+
+#[cfg(test)]
+fn branch_3(weight: Weight, child_1: Tree, child_2: Tree, child_3: Tree) -> Tree {
+    Tree::new(weight, vec![child_1, child_2, child_3])
+}
+
+#[cfg(test)]
 fn testing_tree() -> Tree {
-    fn leaf(weight: Weight) -> Tree {
-        Tree::new(weight, Vec::new())
-    }
-    Tree::new(
+    branch_2(
         1,
-        vec![
-            Tree::new(2, vec![leaf(4), leaf(5).cut(), leaf(6)]),
-            Tree::new(3, vec![leaf(7)]).cut(),
-        ],
+        branch_3(2, leaf(4), leaf(5).cut(), leaf(6)),
+        branch_1(3, leaf(7)).cut(),
     )
 }
 
 #[cfg(test)]
 fn testing_tree_uncut() -> Tree {
-    fn leaf(weight: Weight) -> Tree {
-        Tree::new(weight, Vec::new())
-    }
-    Tree::new(
+    branch_2(
         1,
-        vec![
-            Tree::new(2, vec![leaf(4), leaf(5), leaf(6)]),
-            Tree::new(3, vec![leaf(7)]),
-        ],
+        branch_3(2, leaf(4), leaf(5), leaf(6)),
+        branch_1(3, leaf(7)),
     )
 }
 
@@ -114,13 +170,38 @@ fn test_tree_num_cuts() {
 }
 
 #[test]
-fn test_all_tree_cuts() {
-    assert_eq!(testing_tree_uncut().all_cuts().len(), 128);
+fn test_all_tree_partitions() {
+    assert_eq!(testing_tree_uncut().all_partitions().len(), 64);
 }
 
 #[test]
-fn test_max_cuttree_weight() {
-    assert_eq!(testing_tree().max_cuttree_weight(), (10, 13));
+fn test_min_region_weight() {
+    assert_eq!(testing_tree().min_region_weight_rec(), (5, 13));
+    assert_eq!(testing_tree().min_region_weight(), 5);
+}
+
+#[test]
+fn test_max_region_weight() {
+    assert_eq!(testing_tree().max_region_weight_rec(), (10, 13));
+    assert_eq!(testing_tree().max_region_weight(), 13);
+}
+
+#[test]
+fn test_regression() {
+    // TODO: move to oracle mod
+    use crate::oracle::oracle;
+
+    let tree = branch_2(
+        1,
+        leaf(1),
+        branch_1(1, branch_1(1, branch_1(1, leaf(1)).cut())).cut(),
+    );
+    assert_eq!(tree.max_region_weight(), 2);
+
+    let uncut_tree = branch_2(1, leaf(1), branch_1(1, branch_1(1, branch_1(1, leaf(1)))));
+    assert!(uncut_tree.all_partitions().contains(&tree));
+
+    assert_eq!(oracle(&tree, 2), (2, 2));
 }
 
 /*************************************
@@ -177,8 +258,20 @@ fn test_tree_display() {
  *         Random Trees              *
  *************************************/
 
+impl Tree {
+    pub fn all_up_to_size(size: u32) -> impl Iterator<Item = Tree> {
+        use crate::generator::generate_all_up_to_size;
+        generate_all_up_to_size(TreeGenerator, size)
+    }
+
+    pub fn all_of_size(size: u32) -> impl Iterator<Item = Tree> {
+        use crate::generator::generate_all_of_size;
+        generate_all_of_size(TreeGenerator, size)
+    }
+}
+
 #[derive(Clone, Copy)]
-pub struct TreeGenerator;
+struct TreeGenerator;
 
 impl Generator for TreeGenerator {
     type Value = Tree;
@@ -201,13 +294,11 @@ impl Generator for TreeGenerator {
 
 #[test]
 fn test_tree_generator() {
-    use crate::generator::generate_all_of_size;
-
-    let trees = generate_all_of_size(TreeGenerator, 5).collect::<Vec<_>>();
+    let trees = Tree::all_of_size(5);
     // for tree in &trees {
     //     println!("{}", tree);
     // }
-    assert_eq!(trees.len(), 51);
+    assert_eq!(trees.count(), 51);
 
     // use crate::generator::generate_random;
     // let trees = generate_random(TreeGenerator, 1000, [0; 32]);
