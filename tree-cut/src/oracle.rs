@@ -8,7 +8,6 @@ pub fn oracle(tree: &Tree, num_cuts: u32) -> (Weight, Weight) {
     let mut max_min_weight = 0;
     for partition in tree.all_partitions() {
         if partition.num_cuts() <= num_cuts {
-            //println!("{}->{}", partition, partition.max_region_weight());
             min_max_weight = min_max_weight.min(partition.max_region_weight());
         }
         if partition.num_cuts() >= num_cuts {

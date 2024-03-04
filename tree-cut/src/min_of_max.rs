@@ -1,3 +1,4 @@
+#[cfg(test)]
 use crate::oracle::oracle;
 use crate::tree::{Tree, Weight};
 
@@ -10,7 +11,7 @@ struct FewestCuts {
 impl Tree {
     pub fn min_max_weight(&mut self, max_cuts: u32) -> Weight {
         let mut lower_bound = 0;
-        let mut upper_bound = Weight::MAX;
+        let mut upper_bound = self.total_weight;
         while lower_bound < upper_bound {
             let mid = lower_bound + (upper_bound - lower_bound) / 2;
             let num_cuts = fewest_cuts(self, mid).map(|cuts| cuts.num_cuts);
@@ -57,15 +58,15 @@ fn fewest_cuts(tree: &mut Tree, max_weight: Weight) -> Option<FewestCuts> {
 
 #[test]
 fn test_min_max_weight() {
-    for mut tree in Tree::all_up_to_size(8) {
+    for mut tree in Tree::all_up_to_weight(8) {
         for max_cuts in 1..5 {
             let expected = oracle(&tree, max_cuts).0;
             let actual = tree.min_max_weight(max_cuts);
-            assert!(tree.num_cuts() <= max_cuts);
             if actual != expected {
                 println!("{}with {} cuts", tree, max_cuts);
             }
             assert_eq!(actual, expected);
+            assert!(tree.num_cuts() <= max_cuts);
         }
     }
 }

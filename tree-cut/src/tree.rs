@@ -20,7 +20,11 @@ pub struct Tree {
 impl Tree {
     pub fn new(weight: Weight, children: Vec<Tree>) -> Tree {
         let size = children.iter().map(|child| child.size).sum::<u32>() + 1;
-        let total_weight = children.iter().map(|child| child.weight).sum();
+        let total_weight = children
+            .iter()
+            .map(|child| child.total_weight)
+            .sum::<Weight>()
+            + weight;
         Tree {
             size,
             weight,
@@ -187,6 +191,11 @@ fn test_max_region_weight() {
 }
 
 #[test]
+fn test_total_weight() {
+    assert_eq!(testing_tree().total_weight, 28);
+}
+
+#[test]
 fn test_regression() {
     // TODO: move to oracle mod
     use crate::oracle::oracle;
@@ -259,14 +268,19 @@ fn test_tree_display() {
  *************************************/
 
 impl Tree {
-    pub fn all_up_to_size(size: u32) -> impl Iterator<Item = Tree> {
+    pub fn all_up_to_weight(size: u32) -> impl Iterator<Item = Tree> {
         use crate::generator::generate_all_up_to_size;
         generate_all_up_to_size(TreeGenerator, size)
     }
 
-    pub fn all_of_size(size: u32) -> impl Iterator<Item = Tree> {
+    pub fn all_of_weight(size: u32) -> impl Iterator<Item = Tree> {
         use crate::generator::generate_all_of_size;
         generate_all_of_size(TreeGenerator, size)
+    }
+
+    pub fn random_of_size(size: u32) -> impl Iterator<Item = Tree> {
+        use crate::generator::generate_random;
+        generate_random(BigTreeGenerator, size, [0; 32])
     }
 }
 
@@ -292,18 +306,52 @@ impl Generator for TreeGenerator {
     }
 }
 
+#[derive(Clone, Copy)]
+struct BigTreeGenerator;
+
+impl Generator for BigTreeGenerator {
+    type Value = Tree;
+
+    fn generate<P: Picker>(&self, mut size: u32, picker: &mut P) -> Tree {
+        assert_ne!(size, 0);
+        let weight = picker.pick_int(100);
+        size -= 1;
+
+        if size == 0 {
+            return Tree::new(weight, Vec::new());
+        }
+
+        let max_num_children = picker.pick_int(4.min(size)) + 1;
+        let mut indices = Vec::new();
+        if size > 1 {
+            for _ in 0..max_num_children - 1 {
+                indices.push(picker.pick_int(size - 1) + 1);
+            }
+        }
+        indices.sort();
+
+        let mut children = Vec::new();
+        let mut i = 0;
+        let mut total_children_size = 0;
+        for index in indices {
+            if index - i > 0 {
+                children.push(BigTreeGenerator.generate(index - i, picker));
+                total_children_size += index - i;
+            }
+            i = index;
+        }
+        if size - i > 0 {
+            children.push(BigTreeGenerator.generate(size - i, picker));
+            total_children_size += size - i;
+        }
+        assert_eq!(total_children_size, size);
+
+        Tree::new(weight, children)
+    }
+}
+
 #[test]
 fn test_tree_generator() {
-    let trees = Tree::all_of_size(5);
-    // for tree in &trees {
-    //     println!("{}", tree);
-    // }
+    let trees = Tree::all_of_weight(5);
     assert_eq!(trees.count(), 51);
-
-    // use crate::generator::generate_random;
-    // let trees = generate_random(TreeGenerator, 1000, [0; 32]);
-    // for tree in trees.take(100) {
-    //     println!("{}", tree);
-    // }
-    // assert!(false);
 }
