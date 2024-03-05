@@ -1,5 +1,3 @@
-#[cfg(test)]
-use crate::oracle::oracle;
 use crate::tree::{Tree, Weight};
 
 #[derive(Debug, Clone)]
@@ -58,8 +56,10 @@ fn fewest_cuts(tree: &mut Tree, max_weight: Weight) -> Option<FewestCuts> {
 
 #[test]
 fn test_min_max_weight() {
-    for mut tree in Tree::all_up_to_weight(8) {
-        for max_cuts in 1..5 {
+    use crate::oracle::oracle;
+
+    for mut tree in Tree::all_up_to_weight(9) {
+        for max_cuts in 1..4 {
             let expected = oracle(&tree, max_cuts).0;
             let actual = tree.min_max_weight(max_cuts);
             if actual != expected {
