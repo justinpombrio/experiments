@@ -23,7 +23,7 @@ fn main() {
     println!("Total weight: {}", tree.total_weight);
     println!(
         "Naive lower bound on max weight of any region: {}",
-        tree.total_weight / (NUM_CUTS + 1)
+        tree.total_weight as u64 / (NUM_CUTS as u64 + 1)
     );
     println!("Max weight of any region: {}", max_weight);
 }

@@ -5,7 +5,7 @@ use std::fmt;
  *             Trees                 *
  *************************************/
 
-pub type Weight = u32;
+pub type Weight = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tree {
@@ -299,10 +299,10 @@ impl Generator for TreeGenerator {
         let mut children = vec![];
         while size > 0 {
             let child_weight = picker.pick_int(size) + 1;
-            size -= child_weight;
+            size -= child_weight as u32;
             children.push(TreeGenerator.generate(child_weight, picker));
         }
-        Tree::new(weight, children)
+        Tree::new(weight as Weight, children)
     }
 }
 
@@ -318,7 +318,7 @@ impl Generator for BigTreeGenerator {
         size -= 1;
 
         if size == 0 {
-            return Tree::new(weight, Vec::new());
+            return Tree::new(weight as Weight, Vec::new());
         }
 
         let max_num_children = picker.pick_int(4.min(size)) + 1;
@@ -346,7 +346,7 @@ impl Generator for BigTreeGenerator {
         }
         assert_eq!(total_children_size, size);
 
-        Tree::new(weight, children)
+        Tree::new(weight as Weight, children)
     }
 }
 
