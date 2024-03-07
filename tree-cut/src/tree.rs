@@ -263,9 +263,9 @@ impl Tree {
         generate_all_of_size(TreeGenerator, size)
     }
 
-    pub fn random_of_size(size: u32) -> impl Iterator<Item = Tree> {
+    pub fn random_of_size(size: u32, branching: u32, seed: u8) -> impl Iterator<Item = Tree> {
         use crate::generator::generate_random;
-        generate_random(BigTreeGenerator, size, [0; 32])
+        generate_random(BigTreeGenerator { branching }, size, [seed; 32])
     }
 }
 
@@ -292,7 +292,9 @@ impl Generator for TreeGenerator {
 }
 
 #[derive(Clone, Copy)]
-struct BigTreeGenerator;
+struct BigTreeGenerator {
+    branching: u32,
+}
 
 impl Generator for BigTreeGenerator {
     type Value = Tree;
@@ -306,7 +308,7 @@ impl Generator for BigTreeGenerator {
             return Tree::new(weight as Weight, Vec::new());
         }
 
-        let max_num_children = picker.pick_int(4.min(size)) + 1;
+        let max_num_children = picker.pick_int(self.branching.min(size)) + 1;
         let mut indices = Vec::new();
         if size > 1 {
             for _ in 0..max_num_children - 1 {
@@ -320,13 +322,13 @@ impl Generator for BigTreeGenerator {
         let mut total_children_size = 0;
         for index in indices {
             if index - i > 0 {
-                children.push(BigTreeGenerator.generate(index - i, picker));
+                children.push(self.generate(index - i, picker));
                 total_children_size += index - i;
             }
             i = index;
         }
         if size - i > 0 {
-            children.push(BigTreeGenerator.generate(size - i, picker));
+            children.push(self.generate(size - i, picker));
             total_children_size += size - i;
         }
         assert_eq!(total_children_size, size);

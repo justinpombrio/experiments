@@ -174,3 +174,29 @@ The implementation is very fast and extensively tested.
   up to 6 cuts.
 - `src/main.rs` will find the optimal set of 10,000 cuts for a tree with 1,000,000
   nodes, to ensure that the implementation runs quickly.
+
+## Usage
+
+Install Rust with:
+
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+Follow the instructions at the end for how to add `cargo` to the current
+terminal path.
+
+Build with:
+
+    bash build.sh
+
+(It's just shorthand for the following):
+
+    cargo build --release
+    cp target/release/tree-cut tree-cut
+
+Run with:
+
+    ./tree-cut
+
+To see options:
+
+    ./tree-cut --help
