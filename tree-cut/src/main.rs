@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 mod generator;
+mod max_of_min;
 mod min_of_max;
 mod tree;
 

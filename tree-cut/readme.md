@@ -169,5 +169,8 @@ The implementation is very fast and extensively tested.
   with the oracle for every tree with positive-integer-weighted vertices of
   total weight up to 12 and every number of cuts up to 6. (The test case as
   committed does a smaller check so that it runs more quickly.)
+- `src/max_of_min.rs` is the implementation of the reverse algorithm. It's more
+  complicated, at 85 LOC. It has also been tested for trees up to weight 12 with
+  up to 6 cuts.
 - `src/main.rs` will find the optimal set of 10,000 cuts for a tree with 1,000,000
   nodes, to ensure that the implementation runs quickly.

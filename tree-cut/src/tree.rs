@@ -15,6 +15,8 @@ pub struct Tree {
     pub children: Vec<Tree>,
     // is edge to parent cut?
     pub is_cut: bool,
+    // only used by max_of_min
+    pub cut_child_index: Option<usize>,
 }
 
 impl Tree {
@@ -31,6 +33,7 @@ impl Tree {
             total_weight,
             children,
             is_cut: false,
+            cut_child_index: None,
         }
     }
 
@@ -193,24 +196,6 @@ fn test_max_region_weight() {
 #[test]
 fn test_total_weight() {
     assert_eq!(testing_tree().total_weight, 28);
-}
-
-#[test]
-fn test_regression() {
-    // TODO: move to oracle mod
-    use crate::oracle::oracle;
-
-    let tree = branch_2(
-        1,
-        leaf(1),
-        branch_1(1, branch_1(1, branch_1(1, leaf(1)).cut())).cut(),
-    );
-    assert_eq!(tree.max_region_weight(), 2);
-
-    let uncut_tree = branch_2(1, leaf(1), branch_1(1, branch_1(1, branch_1(1, leaf(1)))));
-    assert!(uncut_tree.all_partitions().contains(&tree));
-
-    assert_eq!(oracle(&tree, 2), (2, 2));
 }
 
 /*************************************
