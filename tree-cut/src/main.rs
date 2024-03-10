@@ -58,7 +58,7 @@ struct CommandLineArgs {
 fn main() {
     let args = CommandLineArgs::parse();
 
-    let seed = args.seed.unwrap_or_else(|| rand::random());
+    let seed = args.seed.unwrap_or_else(rand::random);
     let mut tree = Tree::random_of_size(args.size, args.branching, seed)
         .next()
         .unwrap();
@@ -92,7 +92,7 @@ fn main() {
     println!("Total weight: {}", tree.total_weight);
     println!(
         "Average weight per region: {}",
-        tree.total_weight as u64 / (args.cuts as u64 + 1)
+        tree.total_weight / (args.cuts as u64 + 1)
     );
     match args.mode {
         Mode::Minimax => println!("Max weight of any region: {}", result),

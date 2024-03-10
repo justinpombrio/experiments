@@ -284,7 +284,7 @@ impl Generator for TreeGenerator {
         let mut children = vec![];
         while size > 0 {
             let child_weight = picker.pick_int(size) + 1;
-            size -= child_weight as u32;
+            size -= child_weight;
             children.push(TreeGenerator.generate(child_weight, picker));
         }
         Tree::new(weight as Weight, children)
