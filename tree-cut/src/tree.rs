@@ -15,8 +15,6 @@ pub struct Tree {
     pub children: Vec<Tree>,
     // is edge to parent cut?
     pub is_cut: bool,
-    // only used by max_of_min
-    pub cut_child_index: Option<usize>,
 }
 
 impl Tree {
@@ -33,7 +31,6 @@ impl Tree {
             total_weight,
             children,
             is_cut: false,
-            cut_child_index: None,
         }
     }
 

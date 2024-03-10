@@ -1,3 +1,7 @@
+//! Maximize the minimum size of cut subtrees in linear time, using the algorithm
+//! from page 14 of:
+//! "Max-Min Tree Partitioning" by Perl and Schach in The Weizmann Institute of Science, 1981.
+
 use crate::tree::{Tree, Weight};
 
 #[derive(Debug, Clone)]
@@ -25,62 +29,33 @@ impl Tree {
 }
 
 fn most_cuts(tree: &mut Tree, min_weight: Weight) -> Option<u32> {
-    let result = most_cuts_rec(tree, min_weight);
-    if tree.is_cut {
-        tree.is_cut = false;
-        Some(result.num_cuts - 1)
+    if tree.total_weight < min_weight {
+        None
     } else {
-        if delete_a_cut(tree) {
-            Some(result.num_cuts - 1)
-        } else {
-            None
-        }
+        let partition = most_cuts_rec(tree, min_weight, tree.total_weight);
+        Some(partition.num_cuts - 1)
     }
 }
 
-fn most_cuts_rec(tree: &mut Tree, min_weight: Weight) -> MostCuts {
-    let mut child_partitions = Vec::new();
-    for child in &mut tree.children {
-        child_partitions.push(most_cuts_rec(child, min_weight));
-    }
-
+fn most_cuts_rec(tree: &mut Tree, min_weight: Weight, mut uncut_weight: Weight) -> MostCuts {
     let mut weight = tree.weight;
     let mut num_cuts = 0;
-    for partition in child_partitions {
+    for child in &mut tree.children {
+        let partition = most_cuts_rec(child, min_weight, uncut_weight);
         num_cuts += partition.num_cuts;
         weight += partition.remaining_weight;
+        uncut_weight -= child.total_weight - partition.remaining_weight;
     }
 
-    tree.cut_child_index = None;
-    tree.is_cut = false;
-    if weight >= min_weight {
+    if weight >= min_weight && uncut_weight >= min_weight {
         tree.is_cut = true;
         num_cuts += 1;
         weight = 0;
-    } else {
-        for (i, child) in tree.children.iter_mut().enumerate() {
-            if child.is_cut || child.cut_child_index.is_some() {
-                tree.cut_child_index = Some(i);
-                break;
-            }
-        }
     }
 
     MostCuts {
         num_cuts,
         remaining_weight: weight,
-    }
-}
-
-/// Delete any cut that's connected to the root. Returns true if successful.
-fn delete_a_cut(tree: &mut Tree) -> bool {
-    if tree.is_cut {
-        tree.is_cut = false;
-        true
-    } else if let Some(i) = tree.cut_child_index {
-        delete_a_cut(&mut tree.children[i])
-    } else {
-        false
     }
 }
 
