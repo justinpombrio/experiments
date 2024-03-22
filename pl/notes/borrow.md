@@ -57,7 +57,8 @@ statement invokes a callback[...]
         yield &self.name
     }
 
-    borrow &name = person.name():
+    borrow &name = person.name() {
         print("Hello {}", name);
+    }
 
     // Can't do anything with opt_name
