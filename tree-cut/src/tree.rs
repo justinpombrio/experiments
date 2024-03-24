@@ -64,69 +64,57 @@ impl Tree {
     }
 
     fn all_partitions_rec(&self, at_root: bool) -> Vec<Tree> {
-        let mut options = if at_root {
+        let mut partitions = if at_root {
             vec![self.clone().uncut()]
         } else {
             vec![self.clone().uncut(), self.clone().cut()]
         };
         for (i, child) in self.children.iter().enumerate() {
-            let mut new_options = Vec::new();
+            let mut new_partitions = Vec::new();
             for child_partition in child.all_partitions_rec(false) {
-                for option in &options {
+                for option in &partitions {
                     let mut new_option = option.clone();
                     new_option.children[i] = child_partition.clone();
-                    new_options.push(new_option);
+                    new_partitions.push(new_option);
                 }
             }
-            options = new_options;
+            partitions = new_partitions;
         }
-        options
+        partitions
+    }
+
+    /// Invoke `callback` on the weight of every region in this tree.
+    pub fn with_region_weights(&self, callback: &mut impl FnMut(Weight)) {
+        fn recur(tree: &Tree, callback: &mut impl FnMut(Weight)) -> Weight {
+            let mut weight = tree.weight;
+            for child in &tree.children {
+                weight += recur(child, callback);
+            }
+            if tree.is_cut {
+                callback(weight);
+                0
+            } else {
+                weight
+            }
+        }
+        let weight = recur(self, callback);
+        if !self.is_cut {
+            callback(weight);
+        }
     }
 
     /// The minimum weight of any region.
     pub fn min_region_weight(&self) -> Weight {
-        let (min, remaining) = self.min_region_weight_rec();
-        min.min(remaining)
-    }
-
-    // Compute (min weight of any region, remaining weight at root)
-    fn min_region_weight_rec(&self) -> (Weight, Weight) {
         let mut min = Weight::MAX;
-        let mut remaining = self.weight;
-
-        for child in &self.children {
-            let (child_min, child_remaining) = child.min_region_weight_rec();
-            min = min.min(child_min);
-            remaining += child_remaining;
-        }
-        if self.is_cut {
-            min = min.min(remaining);
-            remaining = 0;
-        }
-        (min, remaining)
+        self.with_region_weights(&mut |w| min = min.min(w));
+        min
     }
 
     /// The maximum weight of any region.
     pub fn max_region_weight(&self) -> Weight {
-        let (max, remaining) = self.max_region_weight_rec();
-        max.max(remaining)
-    }
-
-    // Compute (max weight of any region, remaining weight at root)
-    fn max_region_weight_rec(&self) -> (Weight, Weight) {
         let mut max = 0;
-        let mut remaining = self.weight;
-
-        for child in &self.children {
-            let (child_max, child_remaining) = child.max_region_weight_rec();
-            max = max.max(child_max);
-            remaining += child_remaining;
-        }
-        if self.is_cut {
-            max = max.max(remaining);
-            remaining = 0;
-        }
-        (max, remaining)
+        self.with_region_weights(&mut |w| max = max.max(w));
+        max
     }
 }
 
@@ -179,14 +167,18 @@ fn test_all_tree_partitions() {
 }
 
 #[test]
-fn test_min_region_weight() {
-    assert_eq!(testing_tree().min_region_weight_rec(), (5, 13));
-    assert_eq!(testing_tree().min_region_weight(), 5);
-}
+fn test_region_weights() {
+    let mut weights = Vec::new();
+    testing_tree().with_region_weights(&mut |w| weights.push(w));
+    assert_eq!(weights, vec![5, 10, 13]);
 
-#[test]
-fn test_max_region_weight() {
-    assert_eq!(testing_tree().max_region_weight_rec(), (10, 13));
+    let mut weights = Vec::new();
+    testing_tree()
+        .cut()
+        .with_region_weights(&mut |w| weights.push(w));
+    assert_eq!(weights, vec![5, 10, 13]);
+
+    assert_eq!(testing_tree().min_region_weight(), 5);
     assert_eq!(testing_tree().max_region_weight(), 13);
 }
 
