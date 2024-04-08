@@ -7,7 +7,17 @@
         | t → t
         | $t
 
-          $$t === t
+    Γ ::= . | Γ,x:t
+
+`$Γ` filters out all runtime variables from Γ:
+
+    $(Γ,x:$t) = ($Γ),x:$t
+    $(Γ,x:t)  = $Γ
+    $ .       = .
+
+Some types are equivalent to others:
+
+          $$t === $t
     $(t0, t1) === ($t0, $t1)
 
 **Expressions**
@@ -54,7 +64,7 @@
                Γ ⊢ x : t                            Γ ⊢ $x : $t
                                                                                
                Γ,x:t ⊢ e: t'                        $Γ,x:t ⊢ e: t'
-      TLambda ──────────────────────       Lambda' ──────────────────────────
+      TLambda ──────────────────────      TLambda' ──────────────────────────
                Γ ⊢ (λx:t.e) : t → t'                Γ ⊢ $(λx:t.e) : $(t → t')
                                                                                
                Γ ⊢ e_f : t → t'                     Γ ⊢ $e_f : $(t → t')
