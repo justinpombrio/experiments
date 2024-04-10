@@ -141,3 +141,13 @@ Some types are equivalent to others:
              R',x=v_arg ⊢ r' ↓ v
      RApply ────────────────────────
              R ⊢ r_f r_arg ↓ v
+
+**Examples**
+
+    let exp = $λ n:num. λ pow:$num.
+        if $(pow == 0)
+        then 1
+        else n * exp(n, $(pow - 1))
+    let x = $3
+    exp(5, $exp(2, x))
+
