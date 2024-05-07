@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 //! ## Reference
 //!
 //! Here's a quick reference table of the types of all the parser combinators.
@@ -15,13 +13,17 @@
 //! ~~ mapping ~~
 //! P.constant(V)        V
 //! P.fail(msg)          !
-//! P.cut()              P
+//! P.cut(Q)             (P, Q)
 //! P.map_err(f)         f(P)
 //!
 //! P.substr(f)          f(&str)
 //! P.map(f)             f(P)
 //! P.span(f)            f(Span)
 //! P.map_span(f)        f(Span, P)
+//!
+//! (P, Q)               (P, Q)
+//! (P, Q, R)            (P, Q, R)
+//! ...                  ...
 //!
 //! ~~ Error Handling ~~
 //! P.resolve()          eliminate Result
@@ -41,6 +43,7 @@
 //! ~~ other ~~
 //! (P1, ..., Pn)
 //!   Makes a parser of output type (P1, ..., Pn)
+//!   Backtracks! Use P1.cut((P2, ..., Pn)) to not backtrack if P1 succeeds.
 //! alt(name, (P1, ..., Pn))
 //!   Try each parser in turn, using the first that succeeds.
 //!   Requires that they all have the same output type.
@@ -136,11 +139,15 @@ pub trait Parser<T> {
         }
     }
 
-    fn cut(self) -> impl Parser<T>
+    fn cut<T2>(self, other: impl Parser<T2>) -> impl Parser<(T, T2)>
     where
         Self: Sized,
     {
-        move |cursor: &mut Cursor, _required: bool| self.parse(cursor, true)
+        move |cursor: &mut Cursor, required: bool| {
+            let res_1 = self.parse(cursor, required)?;
+            let res_2 = other.parse(cursor, true)?;
+            Ok((res_1, res_2))
+        }
     }
 
     fn map_err(self, func: impl Fn(String) -> String) -> impl Parser<T>
@@ -149,7 +156,7 @@ pub trait Parser<T> {
     {
         move |cursor: &mut Cursor, required: bool| {
             self.parse(cursor, required)
-                .map_err(|opt| opt.map(|mut err| err.map(&func)))
+                .map_err(|opt| opt.map(|err| err.map(&func)))
         }
     }
 
@@ -172,7 +179,7 @@ pub trait Parser<T> {
             match result.into_result() {
                 Ok(succ) => Ok(succ),
                 Err(err) if required => Err(Some(cursor.error_from(err.to_string(), start))),
-                Err(err) => Err(None),
+                Err(_) => Err(None),
             }
         }
     }
@@ -273,11 +280,11 @@ where
  * Lexemes *
  *=========*/
 
-fn p_nothing() -> impl Parser<()> {
+pub fn nothing() -> impl Parser<()> {
     move |_cursor: &mut Cursor, _required: bool| Ok(())
 }
 
-fn p_string(expected: &str) -> impl Parser<()> {
+pub fn string(expected: &str) -> impl Parser<()> {
     let delta_pos = Pos::delta(expected);
     let expected = expected.to_owned();
     move |cursor: &mut Cursor, required: bool| {
@@ -291,7 +298,7 @@ fn p_string(expected: &str) -> impl Parser<()> {
     }
 }
 
-fn p_regex(label: &str, regex_str: &str) -> Result<impl Parser<()>, RegexError> {
+pub fn regex(label: &str, regex_str: &str) -> Result<impl Parser<()>, RegexError> {
     let regex = new_regex(regex_str)?;
     let label = label.to_owned();
     Ok(move |cursor: &mut Cursor, required: bool| {
