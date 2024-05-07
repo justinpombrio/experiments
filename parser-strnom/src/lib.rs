@@ -1,97 +1,103 @@
-#![allow(dead_code)]
+#![allow(unused)]
+
+//! ## Reference
+//!
+//! Here's a quick reference table of the types of all the parser combinators.
+//!
+//! ```text
+//! COMBINATOR           OUTPUT-TYPE    NOTES
+//!
+//! ~~ lexemes ~~
+//! p_nothing()          ()
+//! p_string()           ()
+//! p_regex()            ()
+//!
+//! ~~ mapping ~~
+//! P.constant(V)        V
+//! P.fail(msg)          !
+//! P.cut()              P
+//! P.map_err(f)         f(P)
+//!
+//! P.substr(f)          f(&str)
+//! P.map(f)             f(P)
+//! P.span(f)            f(Span)
+//! P.map_span(f)        f(Span, P)
+//!
+//! ~~ Error Handling ~~
+//! P.resolve()          eliminate Result
+//!
+//! ~~ Sharing ~~
+//! P.refn()             P
+//!
+//! ~~ repetition ~~
+//! P.opt()              Option<P>
+//! P.many0()            Vec<P>
+//! P.many1()            Vec<P>
+//! P.fold_many0(V, f)   V              f: Fn(V, P) -> V
+//! P.fold_many1(Q, f)   P              f: Fn(P, Q) -> P
+//! P.many_sep0(Q)       Vec<P>
+//! P.many_sep1(Q)       Vec<P>
+//!
+//! ~~ other ~~
+//! (P1, ..., Pn)
+//!   Makes a parser of output type (P1, ..., Pn)
+//! alt(name, (P1, ..., Pn))
+//!   Try each parser in turn, using the first that succeeds.
+//!   Requires that they all have the same output type.
+//! alt_longest(name, (P1, ..., Pn))
+//!   Try each parser in turn, using the longest successful match,
+//!   with ties won by the earlier parser.
+//!   Requires that they all have the same output type.
+//! P.resolve()
+//!   Converts Parser<Result<T, E>> into Parser<E> by shifting the error
+//!   into the parse result.
+//!
+//! ~~ recursion ~~
+//! For recursion, use the impl of Parser for functions:
+//!     impl<T, F> Parser<T> for F
+//!     where F: Fn(&mut Cursor, bool) -> Result<T, Option<ParseError>>,
+//! ```
+
+mod cursor;
+mod parse_error;
+mod pos;
+
+pub use cursor::Cursor;
+pub use parse_error::ParseError;
+pub use pos::{Pos, Span};
 
 use regex::{Error as RegexError, Regex};
-use std::ops::Add;
 
-pub struct ParseError {
-    message: String,
-    pos: Pos,
-}
-
-/*=====*
- * Pos *
- *=====*/
-
-pub type Offset = usize;
-pub type Line = u32;
-pub type Col = u32;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Pos {
-    offset: Offset,
-    line: Line,
-    col: Col,
-}
-
-impl Pos {
-    fn delta(s: &str) -> Pos {
-        let mut line = 0;
-        let mut col = 0;
-        for ch in s.chars() {
-            if ch == '\n' {
-                line += 1;
-                col = 0;
+pub fn parse<T>(filename: &str, source: &str, parser: impl Parser<T>) -> Result<T, ParseError> {
+    let mut cursor = Cursor {
+        filename: filename.to_owned(),
+        source,
+        pos: Pos::new(),
+    };
+    match parser.parse(&mut cursor, true) {
+        Ok(succ) => {
+            if cursor.is_at_end() {
+                Ok(succ)
             } else {
-                col += 1;
+                Err(cursor.error("expected end of file".to_owned()))
             }
         }
-        Pos {
-            offset: s.len(),
-            line,
-            col,
+        Err(Some(err)) => Err(err),
+        Err(None) => {
+            Err(cursor
+                .error("Invalid parser returned no error even though required=true".to_owned()))
         }
     }
 }
 
-impl Add<Pos> for Pos {
-    type Output = Pos;
-
-    fn add(self: Pos, other: Pos) -> Pos {
-        Pos {
-            offset: self.offset + other.offset,
-            line: self.line + other.line,
-            col: if other.line == 0 {
-                other.col
-            } else {
-                self.col + other.col
-            },
-        }
-    }
+/// Workaround for the fact that Rust doesn't yet have type equality constraints.
+pub trait IsResult<T, E> {
+    fn into_result(self) -> Result<T, E>;
 }
 
-/*========*
- * Cursor *
- *========*/
-
-pub struct Cursor<'a> {
-    source: &'a str,
-    pos: Pos,
-}
-
-impl<'a> Cursor<'a> {
-    fn str(&self) -> &str {
-        &self.source[self.pos.offset..]
-    }
-
-    #[must_use]
-    fn consume_str(&mut self, prefix: &str, delta: Pos) -> bool {
-        if self.str().starts_with(prefix) {
-            self.pos = self.pos + delta;
-            true
-        } else {
-            false
-        }
-    }
-
-    #[must_use]
-    fn consume_regex(&mut self, regex: &Regex) -> bool {
-        if let Some(re_match) = regex.find(self.str()) {
-            let delta = Pos::delta(re_match.as_str());
-            self.pos = self.pos + delta;
-            true
-        } else {
-            false
-        }
+impl<T, E> IsResult<T, E> for Result<T, E> {
+    fn into_result(self) -> Result<T, E> {
+        self
     }
 }
 
@@ -103,47 +109,49 @@ pub trait Parser<T> {
     #[doc(hidden)]
     fn parse(&self, cursor: &mut Cursor, required: bool) -> Result<T, Option<ParseError>>;
 
-    /*==============*
-     * Constructors *
-     *==============*/
+    /*=========*
+     * Mapping *
+     *=========*/
 
-    fn string(expected: &str) -> impl Parser<()> {
-        let delta_pos = Pos::delta(expected);
-        let expected = expected.to_owned();
-        move |cursor: &mut Cursor, required: bool| {
-            if cursor.consume_str(&expected, delta_pos) {
-                Ok(())
-            } else if required {
-                Err(Some(ParseError {
-                    message: format!("expected {expected}"),
-                    pos: cursor.pos,
-                }))
-            } else {
-                Err(None)
-            }
+    fn constant(self, val: T) -> impl Parser<T>
+    where
+        Self: Sized,
+        T: Clone,
+    {
+        move |cursor: &mut Cursor, required: bool| match self.parse(cursor, required) {
+            Ok(_) => Ok(val.clone()),
+            Err(err) => Err(err),
         }
     }
 
-    fn regex(label: &str, regex_str: &str) -> Result<impl Parser<()>, RegexError> {
-        let regex = new_regex(regex_str)?;
-        let label = label.to_owned();
-        Ok(move |cursor: &mut Cursor, required: bool| {
-            if cursor.consume_regex(&regex) {
-                Ok(())
-            } else if required {
-                Err(Some(ParseError {
-                    message: format!("expected {label}"),
-                    pos: cursor.pos,
-                }))
-            } else {
-                Err(None)
-            }
-        })
+    fn fail(self, message: &str) -> impl Parser<T>
+    where
+        Self: Sized,
+    {
+        let message = message.to_owned();
+        move |cursor: &mut Cursor, required: bool| {
+            let start = cursor.pos;
+            self.parse(cursor, required)?;
+            Err(Some(cursor.error_from(message.clone(), start)))
+        }
     }
 
-    /*=========*
-     * Methods *
-     *=========*/
+    fn cut(self) -> impl Parser<T>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, _required: bool| self.parse(cursor, true)
+    }
+
+    fn map_err(self, func: impl Fn(String) -> String) -> impl Parser<T>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, required: bool| {
+            self.parse(cursor, required)
+                .map_err(|opt| opt.map(|mut err| err.map(&func)))
+        }
+    }
 
     fn map<T2>(self, func: impl Fn(T) -> T2) -> impl Parser<T2>
     where
@@ -152,55 +160,59 @@ pub trait Parser<T> {
         move |cursor: &mut Cursor, required: bool| self.parse(cursor, required).map(&func)
     }
 
-    fn flat_map<P, T2>(self, func: impl Fn(T) -> P) -> impl Parser<T2>
+    fn resolve<T2, E>(self) -> impl Parser<T2>
     where
-        P: Parser<T2>,
+        T: IsResult<T2, E>,
+        E: std::error::Error,
         Self: Sized,
     {
         move |cursor: &mut Cursor, required: bool| {
-            let out = self.parse(cursor, required)?;
-            let parser = func(out);
-            parser.parse(cursor, required)
-        }
-    }
-
-    fn and_then<T2>(self, parser: impl Parser<T2>) -> impl Parser<T2>
-    where
-        Self: Sized,
-    {
-        move |cursor: &mut Cursor, required: bool| {
-            self.parse(cursor, required)?;
-            parser.parse(cursor, required)
-        }
-    }
-
-    fn and<T2>(self, parser: impl Parser<T2>) -> impl Parser<(T, T2)>
-    where
-        Self: Sized,
-    {
-        move |cursor: &mut Cursor, required: bool| {
-            let out_1 = self.parse(cursor, required)?;
-            let out_2 = parser.parse(cursor, required)?;
-            Ok((out_1, out_2))
-        }
-    }
-
-    fn or(self, parser: impl Parser<T>) -> impl Parser<T>
-    where
-        Self: Sized,
-    {
-        move |cursor: &mut Cursor, required: bool| {
-            let original_pos = cursor.pos;
-            match self.parse(cursor, false) {
+            let start = cursor.pos;
+            let result = self.parse(cursor, required)?;
+            match result.into_result() {
                 Ok(succ) => Ok(succ),
-                Err(Some(err)) => Err(Some(err)),
-                Err(None) => {
-                    cursor.pos = original_pos;
-                    parser.parse(cursor, required)
-                }
+                Err(err) if required => Err(Some(cursor.error_from(err.to_string(), start))),
+                Err(err) => Err(None),
             }
         }
     }
+
+    fn substr<T2>(self, func: impl Fn(&str) -> T2) -> impl Parser<T2>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, required: bool| {
+            let start = cursor.pos;
+            self.parse(cursor, required)?;
+            Ok(func(cursor.substr_from(start)))
+        }
+    }
+
+    fn span<T2>(self, func: impl Fn(Span) -> T2) -> impl Parser<T2>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, required: bool| {
+            let start = cursor.pos;
+            self.parse(cursor, required)?;
+            Ok(func(cursor.span_from(start)))
+        }
+    }
+
+    fn map_span<T2>(self, func: impl Fn(T, Span) -> T2) -> impl Parser<T2>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, required: bool| {
+            let start = cursor.pos;
+            let val = self.parse(cursor, required)?;
+            Ok(func(val, cursor.span_from(start)))
+        }
+    }
+
+    /*=========*
+     * Sharing *
+     *=========*/
 
     fn refn<'a>(&'a self) -> impl Parser<T> + Copy + 'a
     where
@@ -228,14 +240,18 @@ pub trait Parser<T> {
         PRefn(self)
     }
 
-    fn into<T2>(self) -> impl Parser<T2>
+    /*============*
+     * Repetition *
+     *============*/
+
+    fn opt(self) -> impl Parser<Option<T>>
     where
-        T2: From<T>,
         Self: Sized,
     {
-        move |cursor: &mut Cursor, required: bool| {
-            let out = self.parse(cursor, required)?;
-            Ok(out.into())
+        move |cursor: &mut Cursor, _required: bool| match self.parse(cursor, false) {
+            Ok(succ) => Ok(Some(succ)),
+            Err(None) => Ok(None),
+            Err(err) => Err(err),
         }
     }
 }
@@ -253,16 +269,57 @@ where
     }
 }
 
+/*=========*
+ * Lexemes *
+ *=========*/
+
+fn p_nothing() -> impl Parser<()> {
+    move |_cursor: &mut Cursor, _required: bool| Ok(())
+}
+
+fn p_string(expected: &str) -> impl Parser<()> {
+    let delta_pos = Pos::delta(expected);
+    let expected = expected.to_owned();
+    move |cursor: &mut Cursor, required: bool| {
+        if cursor.consume_str(&expected, delta_pos) {
+            Ok(())
+        } else if required {
+            Err(Some(cursor.error(format!("expected {expected}"))))
+        } else {
+            Err(None)
+        }
+    }
+}
+
+fn p_regex(label: &str, regex_str: &str) -> Result<impl Parser<()>, RegexError> {
+    let regex = new_regex(regex_str)?;
+    let label = label.to_owned();
+    Ok(move |cursor: &mut Cursor, required: bool| {
+        if cursor.consume_regex(&regex) {
+            Ok(())
+        } else if required {
+            Err(Some(cursor.error(format!("expected {label}"))))
+        } else {
+            Err(None)
+        }
+    })
+}
+
 /*========*
  * Choice *
  *========*/
 
-fn alt<T>(label: &str, options: impl AltTuple<T>) -> impl Parser<T> {
-    options.make_parser(label.to_owned())
+pub fn alt<T>(label: &str, options: impl AltTuple<T>) -> impl Parser<T> {
+    options.make_alt(label.to_owned())
 }
 
-trait AltTuple<T> {
-    fn make_parser(self, label: String) -> impl Parser<T>;
+pub fn alt_longest<T>(label: &str, options: impl AltTuple<T>) -> impl Parser<T> {
+    options.make_alt_longest(label.to_owned())
+}
+
+pub trait AltTuple<T> {
+    fn make_alt(self, label: String) -> impl Parser<T>;
+    fn make_alt_longest(self, label: String) -> impl Parser<T>;
 }
 
 macro_rules! define_alt {
@@ -271,21 +328,49 @@ macro_rules! define_alt {
 
         impl<$type, $( $parser ),*> AltTuple<$type> for $struct<$( $parser ),*>
         where $( $parser : Parser<$type> ),* {
-            fn make_parser(self, label: String) -> impl Parser<T> {
+            fn make_alt(self, label: String) -> impl Parser<T> {
                 move |cursor: &mut Cursor, required: bool| {
-                    let original_pos = cursor.pos;
+                    let start = cursor.pos;
                     $(
                         match self.$idx.parse(cursor, false) {
                             Ok(succ) => return Ok(succ),
                             Err(Some(err)) => return Err(Some(err)),
-                            Err(None) => cursor.pos = original_pos,
+                            Err(None) => cursor.pos = start,
                         }
                     )*
                     if required {
-                        Err(Some(ParseError {
-                            message: format!("expected {label}"),
-                            pos: cursor.pos,
-                        }))
+                        Err(Some(cursor.error(format!("expected {label}"))))
+                    } else {
+                        Err(None)
+                    }
+                }
+            }
+
+            fn make_alt_longest(self, label: String) -> impl Parser<T> {
+                move |cursor: &mut Cursor, required: bool| {
+                    let start = cursor.pos;
+                    let mut best = None;
+                    $(
+                        match self.$idx.parse(cursor, false) {
+                            Ok(succ) => {
+                                let len = cursor.pos.offset - start.offset;
+                                if let Some((_, best_len)) = &best {
+                                    if len > *best_len {
+                                        best = Some((succ, len));
+                                    }
+                                } else {
+                                    best = Some((succ, len));
+                                }
+                                cursor.pos = start;
+                            }
+                            Err(Some(err)) => return Err(Some(err)),
+                            Err(None) => cursor.pos = start,
+                        }
+                    )*
+                    if let Some((succ, _)) = best {
+                        Ok(succ)
+                    } else if required {
+                        Err(Some(cursor.error(format!("expected {label}"))))
                     } else {
                         Err(None)
                     }
