@@ -116,10 +116,10 @@ pub trait Parser<T> {
      * Mapping *
      *=========*/
 
-    fn constant(self, val: T) -> impl Parser<T>
+    fn constant<T2>(self, val: T2) -> impl Parser<T2>
     where
         Self: Sized,
-        T: Clone,
+        T2: Clone,
     {
         move |cursor: &mut Cursor, required: bool| match self.parse(cursor, required) {
             Ok(_) => Ok(val.clone()),
@@ -331,9 +331,7 @@ pub trait AltTuple<T> {
 
 macro_rules! define_alt {
     ($struct:ident, $type:ident, $( ($idx:tt, $parser:ident) ),*) => {
-        struct $struct<$( $parser ),*>($( $parser ),*);
-
-        impl<$type, $( $parser ),*> AltTuple<$type> for $struct<$( $parser ),*>
+        impl<$type, $( $parser ),*> AltTuple<$type> for ($( $parser ),*)
         where $( $parser : Parser<$type> ),* {
             fn make_alt(self, label: String) -> impl Parser<T> {
                 move |cursor: &mut Cursor, required: bool| {
@@ -361,12 +359,12 @@ macro_rules! define_alt {
                         match self.$idx.parse(cursor, false) {
                             Ok(succ) => {
                                 let len = cursor.pos.offset - start.offset;
-                                if let Some((_, best_len)) = &best {
+                                if let Some((_, best_len, _)) = &best {
                                     if len > *best_len {
-                                        best = Some((succ, len));
+                                        best = Some((succ, len, cursor.pos));
                                     }
                                 } else {
-                                    best = Some((succ, len));
+                                    best = Some((succ, len, cursor.pos));
                                 }
                                 cursor.pos = start;
                             }
@@ -374,7 +372,8 @@ macro_rules! define_alt {
                             Err(None) => cursor.pos = start,
                         }
                     )*
-                    if let Some((succ, _)) = best {
+                    if let Some((succ, _, end_pos)) = best {
+                        cursor.pos = end_pos;
                         Ok(succ)
                     } else if required {
                         Err(Some(cursor.error(format!("expected {label}"))))

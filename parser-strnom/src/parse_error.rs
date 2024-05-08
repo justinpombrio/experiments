@@ -1,7 +1,7 @@
 use crate::pos::Pos;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ParseError {
     filename: String,
     message: String,
