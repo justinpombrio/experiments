@@ -9,16 +9,18 @@ const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
 ///
 /// - Start with the string `start`.
 /// - Do N times: Replace each capital letter in the string with its replacement listed in `rules`.
-/// - Follow the instructions described by the lowercase letters and +/- now in the string.
+/// - Delete all remaining capital letters.
+/// - Follow the instructions described by the remaining characters, as described below.
 ///
-/// The meanings of the lowercase letters are:
+/// The meanings of the non-capital characters are:
 ///
 ///     - -- turn left by `self.angle`
 ///     + -- turn left by `self.angle`
 ///     f -- move forward by 1.0
 ///     z -- magically jump to the next point in the z-order curve
 ///
-/// If `implicit_f` is true, treat all capital letters in the _final_ string as if they were `f`.
+/// If `implicit_f` is true, instead of deleting the final remaining capital letters, replace them
+/// by `f`.
 #[derive(Clone, Copy)]
 pub struct LindenmayerSystem {
     pub start: &'static str,

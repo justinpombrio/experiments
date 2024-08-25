@@ -27,6 +27,7 @@ type ColorScale = fn(f64) -> [f64; 3];
 const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("bw", hsv_bw),
     ("bw2", hsv_bw2),
+    ("bw3", hsv_bw3),
     ("1", hsv_1),
     ("2", hsv_2),
     ("3", hsv_3),
@@ -49,6 +50,13 @@ fn hsv_bw2(f: f64) -> [f64; 3] {
     let hue = 0.0;
     let sat = 0.0;
     let val = linear_cycle(f, (0.375, 1.375), (0.25, 0.95));
+    [hue, sat, val]
+}
+
+fn hsv_bw3(f: f64) -> [f64; 3] {
+    let hue = 0.0;
+    let sat = 0.0;
+    let val = linear_cycle(f, (0.0, 1.0), (0.25, 0.95));
     [hue, sat, val]
 }
 
@@ -146,6 +154,15 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
         "hilbert",
         LindenmayerSystem {
             start: "A",
+            rules: &[('A', "+Bf-AfA-fB+"), ('B', "-Af+BfB+fA-")],
+            angle: 90.0,
+            implicit_f: false,
+        },
+    ),
+    (
+        "moore",
+        LindenmayerSystem {
+            start: "-BfB+f+BfB",
             rules: &[('A', "+Bf-AfA-fB+"), ('B', "-Af+BfB+fA-")],
             angle: 90.0,
             implicit_f: false,
