@@ -1,0 +1,8 @@
+[package]
+name = "comptime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+parser-ll1 = { git = "https://github.com/justinpombrio/parser-ll1" }
+thiserror = "1.0.*"

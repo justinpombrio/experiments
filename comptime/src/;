@@ -1,0 +1,125 @@
+//! Aim: Like Zig, but with type checked comptime.
+//!
+//! Means: first order everything. First order references (like Hylo), first order comptime (like
+//! Zig), first order functions.
+
+use parser_ll1::{choice, CompiledParser, Grammar, GrammarError, Parser, Recursive};
+use std::fmt;
+use std::str::FromStr;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum RtError {
+    #[error("{0}")]
+    TypeCheckingBug(String),
+}
+
+#[derive(Clone, Debug)]
+pub enum Value {
+    Unit,
+    Num(i32),
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Unit => write!(f, "()"),
+            Value::Num(n) => write!(f, "{}", n),
+        }
+    }
+}
+
+impl Value {
+    fn typename(&self) -> &'static str {
+        match self {
+            Value::Unit => "Unit",
+            Value::Num(_) => "Number",
+        }
+    }
+
+    fn unwrap_num(self, context: &'static str) -> Result<i32, RtError> {
+        if let Value::Num(n) = self {
+            Ok(n)
+        } else {
+            Err(RtError::TypeCheckingBug(format!(
+                "Bug in the type checker! At runtime during {}, expected {} but found {}.",
+                "Number",
+                self.typename(),
+                context
+            )))
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Expr {
+    Num(i32),
+    Add(Vec<Expr>),
+}
+
+fn make_expr_parser() -> Result<impl CompiledParser<Expr>, GrammarError> {
+    let mut g = Grammar::with_whitespace("[ \t\r\n]+")?;
+
+    let expr_p = Recursive::new("expression");
+
+    let num_p = g
+        .regex("number", "[1-9][0-9]*")?
+        .try_span(|s| i32::from_str(s.substr))
+        .map(Expr::Num);
+
+    let add_p = num_p
+        .clone()
+        .many_sep1(g.string("+")?)
+        .map(|nums| Expr::Add(nums));
+
+    let expr_p = expr_p.define("expression", add_p);
+    //let expr_p = expr_p.define(choice("expression", (add_p)));
+
+    g.compile_parser(expr_p)
+}
+
+fn eval_expr(expr: &Expr) -> Result<Value, RtError> {
+    match expr {
+        Expr::Num(n) => Ok(Value::Num(*n)),
+        Expr::Add(exprs) => {
+            let mut sum = 0;
+            for expr in exprs {
+                let n = eval_expr(expr)?.unwrap_num("addition")?;
+                sum += n;
+            }
+            Ok(Value::Num(sum))
+        }
+    }
+}
+
+fn main() {
+    use std::io;
+    use std::io::{Read, Write};
+
+    let parser = match make_expr_parser() {
+        Ok(parser) => parser,
+        Err(err) => panic!("{}", err),
+    };
+
+    let mut input = String::new();
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+
+        if let Err(err) = io::stdin().read_to_string(&mut input) {
+            panic!("{}", err);
+        }
+        if input.is_empty() {
+            break;
+        }
+        match parser.parse("stdin", &input) {
+            Err(err) => println!("{}", err),
+            Ok(expr) => match eval_expr(&expr) {
+                Err(err) => println!("{}", err),
+                Ok(value) => println!("{}", value),
+            },
+        }
+    }
+
+    println!("Have a nice day!")
+}
