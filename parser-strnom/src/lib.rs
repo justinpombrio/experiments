@@ -104,6 +104,20 @@ impl<T, E> IsResult<T, E> for Result<T, E> {
     }
 }
 
+pub struct Refn<'a, P>(&'a P);
+
+macro_rules! repeat {
+    ($var:ident = $parse:expr => $on_success:block) => {
+        loop {
+            match $parse {
+                Ok($var) => $on_success,
+                Err(None) => break,
+                Err(Some(err)) => return Err(Some(err)),
+            }
+        }
+    };
+}
+
 /*==============*
  * Parser Trait *
  *==============*/
@@ -123,6 +137,16 @@ pub trait Parser<T> {
     {
         move |cursor: &mut Cursor, required: bool| match self.parse(cursor, required) {
             Ok(_) => Ok(val.clone()),
+            Err(err) => Err(err),
+        }
+    }
+
+    fn make_constant<T2>(self, make_val: impl Fn() -> T2) -> impl Parser<T2>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, required: bool| match self.parse(cursor, required) {
+            Ok(_) => Ok(make_val()),
             Err(err) => Err(err),
         }
     }
@@ -225,17 +249,15 @@ pub trait Parser<T> {
     where
         Self: Sized,
     {
-        struct PRefn<'a, P>(&'a P);
-
-        impl<'a, P> Clone for PRefn<'a, P> {
-            fn clone(&self) -> PRefn<'a, P> {
-                PRefn(self.0)
+        impl<'a, P> Clone for Refn<'a, P> {
+            fn clone(&self) -> Refn<'a, P> {
+                Refn(self.0)
             }
         }
 
-        impl<'a, P> Copy for PRefn<'a, P> {}
+        impl<'a, P> Copy for Refn<'a, P> {}
 
-        impl<'a, T, P> Parser<T> for PRefn<'a, P>
+        impl<'a, T, P> Parser<T> for Refn<'a, P>
         where
             P: Parser<T>,
         {
@@ -244,7 +266,7 @@ pub trait Parser<T> {
             }
         }
 
-        PRefn(self)
+        Refn(self)
     }
 
     /*============*
@@ -259,6 +281,76 @@ pub trait Parser<T> {
             Ok(succ) => Ok(Some(succ)),
             Err(None) => Ok(None),
             Err(err) => Err(err),
+        }
+    }
+
+    fn many0(self) -> impl Parser<Vec<T>>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, _required: bool| {
+            let mut succs = Vec::new();
+            repeat!(succ = self.parse(cursor, false) => {
+                succs.push(succ);
+            });
+            Ok(succs)
+        }
+    }
+
+    fn many1(self) -> impl Parser<Vec<T>>
+    where
+        Self: Sized + 'static,
+    {
+        move |cursor: &mut Cursor, required: bool| {
+            let first_succ = self.parse(cursor, required)?;
+            let mut succs = vec![first_succ];
+            repeat!(succ = self.parse(cursor, false) => {
+                succs.push(succ);
+            });
+            Ok(succs)
+        }
+    }
+
+    fn fold<T2>(self, parser: impl Parser<T2>, combine: impl Fn(T, T2) -> T) -> impl Parser<T>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, required: bool| {
+            let mut result = self.parse(cursor, required)?;
+            repeat!(succ = parser.parse(cursor, false) => {
+                result = combine(result, succ);
+            });
+            Ok(result)
+        }
+    }
+
+    fn many_sep0<T2>(self, sep: impl Parser<T2>) -> impl Parser<Vec<T>>
+    where
+        Self: Sized,
+    {
+        move |cursor: &mut Cursor, _required: bool| {
+            let first_succ = self.parse(cursor, false)?;
+            let mut succs = vec![first_succ];
+            let elem_parser = sep.refn().cut(self.refn()).map(|(_, x)| x);
+            repeat!(succ = elem_parser.parse(cursor, false) => {
+                succs.push(succ);
+            });
+            Ok(succs)
+        }
+    }
+
+    fn many_sep1<T2>(self, sep: impl Parser<T2>) -> impl Parser<Vec<T>>
+    where
+        Self: Sized + Clone,
+    {
+        let elem_parser = sep.cut(self.clone()).map(|(_, x)| x);
+        move |cursor: &mut Cursor, required: bool| {
+            let first_succ = self.parse(cursor, required)?;
+            let mut succs = vec![first_succ];
+            repeat!(succ = elem_parser.parse(cursor, false) => {
+                succs.push(succ);
+            });
+            Ok(succs)
         }
     }
 }

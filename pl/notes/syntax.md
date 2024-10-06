@@ -13,6 +13,8 @@
 while let Some(x) = iter.next() { ... }
 
 if let Some(x) = x_opt and x > 0 { ... }
+// real-life example:
+if let KeyCode::Char(ch) = self.code and self.modifiers.shift { ... }
 
 let Some(x) = opt_x else { return None; }
 ```

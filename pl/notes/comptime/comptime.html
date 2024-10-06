@@ -1,0 +1,118 @@
+<h2 id="comptime">Comptime</h2>
+<p><strong>Types</strong></p>
+<pre><code>t ::= num
+    | (t, t)
+    | t → t
+    | $t
+
+      $$t === t
+$(t0, t1) === ($t0, $t1)</code></pre>
+<p><strong>Expressions</strong></p>
+<pre><code>e ::= &lt;num&gt;
+    | (e, e) | e.0 | e.1
+    | λx:t.e | e e | x
+    | $e
+
+E ::= . | E,x=r</code></pre>
+<p><strong>Runtime Expressions</strong></p>
+<pre><code>r ::= &lt;num&gt;
+    | (r, r) | r.0 | r.1
+    | λx:t.r | r r | x
+    | [E, $λx:t.e]     -- comptime closure
+
+R ::= . | R,x=v</code></pre>
+<p><strong>Values</strong></p>
+<pre><code>v ::= &lt;num&gt;
+    | (v, v)
+    | [R, λx:t.r]      -- runtime closure</code></pre>
+<p><strong>Type Checking</strong></p>
+<pre><code>     TNum ────────────────               TNum&#39; ──────────────────
+           Γ ⊢ &lt;num&gt; : num                      Γ ⊢ $&lt;num&gt; : $num
+                                                                           
+           Γ ⊢ e0 : t0                          Γ ⊢ $e0 : $t0
+           Γ ⊢ e1 : t1                          Γ ⊢ $e1 : $t1
+    TPair ────────────────────────      TPair&#39; ──────────────────────────
+           Γ ⊢ (e0, e1) : (t0, t1)              Γ ⊢ $(e0, e1) : $(t0, t1)
+
+           Γ ⊢ e : (t0, t1)                     Γ ⊢ $e : $(t0, t1)
+    TProj ─────────────────             TProj&#39; ───────────────────
+           Γ ⊢ e.0 : t0                         Γ ⊢ $e.0 : $t0
+           Γ ⊢ e.1 : t1                         Γ ⊢ $e.1 : $t1    
+                                                                           
+           x:t ∈ Γ                              x:$t ∈ Γ
+     TVar ──────────                     TVar&#39; ────────────
+           Γ ⊢ x : t                            Γ ⊢ $x : $t
+                                                                           
+           Γ,x:t ⊢ e: t&#39;                        $Γ,x:t ⊢ e: t&#39;
+  TLambda ──────────────────────       Lambda&#39; ──────────────────────────
+           Γ ⊢ (λx:t.e) : t → t&#39;                Γ ⊢ $(λx:t.e) : $(t → t&#39;)
+                                                                           
+           Γ ⊢ e_f : t → t&#39;                     Γ ⊢ $e_f : $(t → t&#39;)
+           Γ ⊢ e_arg : t                        Γ ⊢ $e_arg : $t
+   TApply ───────────────────          Tapply&#39; ───────────────────────
+           Γ ⊢ e_f e_arg : t&#39;                   Γ ⊢ $(e_f e_arg) : $t&#39;
+
+           Γ ⊢ $e : t
+ TFlatten ────────────
+           Γ ⊢ $$e : t
+
+           Γ ⊢ e : $t
+TConstant ───────────
+           Γ ⊢ e : t</code></pre>
+<p><strong>Compilation</strong></p>
+<pre><code>     CNum ──────────────────             CNum&#39; ───────────────────
+           E ⊢ &lt;num&gt; ↓ &lt;num&gt;                    E ⊢ $&lt;num&gt; ↓ &lt;num&gt;
+                                               
+           E ⊢ e0 ↓ r0                          E ⊢ $e0 ↓ r0
+           E ⊢ e1 ↓ r1                          E ⊢ $e1 ↓ r1
+    CPair ────────────────────────      CPair&#39; ─────────────────────────
+           E ⊢ (e0, e1) ↓ (r0, r1)              E ⊢ $(e0, e1) ↓ (r0, r1)
+                                    
+           E ⊢ e ↓ (r0, r1)                     E ⊢ $e ↓ (r0, r1)
+    CProj ─────────────────             CProj&#39; ──────────────────
+           E ⊢ e.0 ↓ r0                         E ⊢ $e.0 ↓ r0
+           E ⊢ e.1 ↓ r1                         E ⊢ $e.1 ↓ r1
+                                    
+           x=r ∈ E                              x=r ∈ E
+     CVar ──────────                      CVar ───────────
+           E ⊢ x ↓ r                            E ⊢ $x ↓ r
+                                    
+           E,x=x ⊢ e ↓ r
+  CLambda ────────────────────         CLambda ─────────────────────────────
+           E ⊢ λx:t.e ↓ λx:t.r                  E ⊢ $(λx:t.e) ↓ [E, $λx:t.e]
+                                    
+                                                E ⊢ $e_f ↓ [E&#39;, $λx:t.e]
+           E ⊢ e_f ↓ r_f                        E ⊢ $e_arg ↓ r_arg
+           E ⊢ e_arg ↓ r_arg                    E&#39;,x=r_arg ⊢ e ↓ r
+   CApply ──────────────────────────    CApply ─────────────────────────
+           E ⊢ e_f e_arg ↓ r_f r_arg            E ⊢ $(e_f e_arg) ↓ r
+                                    
+           E ⊢ $e ↓ r
+ CFlatten ────────────
+           E ⊢ $$e ↓ r</code></pre>
+<p><strong>Evaluation</strong></p>
+<pre><code>    RNum ──────────────────
+          R ⊢ &lt;num&gt; ↓ &lt;num&gt;
+         
+         R ⊢ r0 ↓ v0
+         R ⊢ r1 ↓ v1
+  RPair ────────────────────────
+         R ⊢ (r0, r1) ↓ (v0, v1)
+
+         R ⊢ r ↓ (v0, v1)
+  RProj ─────────────────
+         R ⊢ r.0 ↓ v0
+         R ⊢ r.1 ↓ v1
+
+         x=v ∈ R
+   RVar ──────────
+         R ⊢ x ↓ v
+
+RLambda ─────────────────────────
+         R ⊢ λx:t.r ↓ [R, λx:t.r]
+
+         R ⊢ r_f ↓ [R&#39;, λx:t.r&#39;]
+         R ⊢ r_arg ↓ v_arg
+         R&#39;,x=v_arg ⊢ r&#39; ↓ v
+ RApply ────────────────────────
+         R ⊢ r_f r_arg ↓ v</code></pre>

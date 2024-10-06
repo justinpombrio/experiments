@@ -25,6 +25,7 @@ Some types are equivalent to others:
     e ::= <num>
         | (e, e) | e.0 | e.1
         | λx:t.e | e e | x
+        | let x=e in e
         | $e
     
     E ::= . | E,x=r
@@ -34,6 +35,7 @@ Some types are equivalent to others:
     r ::= <num>
         | (r, r) | r.0 | r.1
         | λx:t.r | r r | x
+        | let x=r in r
         | [E, $λx:t.e]     -- comptime closure
     
     R ::= . | R,x=v
@@ -62,6 +64,11 @@ Some types are equivalent to others:
                x:t ∈ Γ                              x:$t ∈ Γ
          TVar ──────────                     TVar' ────────────
                Γ ⊢ x : t                            Γ ⊢ $x : $t
+
+               Γ ⊢ e : t                            Γ ⊢ $e : $t
+               Γ,x:t ⊢ e' : t'                      Γ,x:$t ⊢ e' : t'
+         TLet ────────────────────────       TLet' ──────────────────────────
+               Γ ⊢ let x=e in e' : t'               Γ ⊢ let x=$e in e' : t'
                                                                                
                Γ,x:t ⊢ e: t'                        $Γ,x:t ⊢ e: t'
       TLambda ──────────────────────      TLambda' ──────────────────────────
@@ -69,7 +76,7 @@ Some types are equivalent to others:
                                                                                
                Γ ⊢ e_f : t → t'                     Γ ⊢ $e_f : $(t → t')
                Γ ⊢ e_arg : t                        Γ ⊢ $e_arg : $t
-       TApply ───────────────────          Tapply' ───────────────────────
+       TApply ───────────────────          TApply' ───────────────────────
                Γ ⊢ e_f e_arg : t'                   Γ ⊢ $(e_f e_arg) : $t'
 
                Γ ⊢ $e : t
@@ -109,7 +116,13 @@ Some types are equivalent to others:
                E ⊢ e_arg ↓ r_arg                    E',x=r_arg ⊢ e ↓ r
        CApply ──────────────────────────   CApply' ─────────────────────────
                E ⊢ e_f e_arg ↓ r_f r_arg            E ⊢ $(e_f e_arg) ↓ r
-                                        
+
+               E ⊢ $e_f ↓ [E', $λx:t.e]
+               E ⊢ e_arg ↓ r_arg
+               E',x=r_arg ⊢ e ↓ r
+      CApply* ─────────────────────────
+               E ⊢ $e_f e_arg ↓ r
+
                E ⊢ $e ↓ r
      CFlatten ────────────
                E ⊢ $$e ↓ r
@@ -144,10 +157,28 @@ Some types are equivalent to others:
 
 **Examples**
 
+    let add_inc = $λ pair:($num, num). ($(pair.0 + 1), pair.1 + $pair.0)
+    λ n:num.
+        let i = $1
+        let (i, n) = ($add_inc)(i, n)
+        let (i, n) = ($add_inc)(i, n)
+        n
+
+    ==compile==>
+
+    let add_inc = λ pair:((), num). ((), pair.1 + $pair.0)
+
+
+
     let exp = $λ n:num. λ pow:$num.
         if $(pow == 0)
         then 1
         else n * exp(n, $(pow - 1))
-    let x = $3
-    exp(5, $exp(2, x))
+    let three = $3
+    let 5_to_8 = exp(5, $exp(2, three))
+    let n_to_8 = λ n:num. exp(n, $(exp, 2, three))
 
+    ==compile==>
+
+    let 5_to_8 = 5 * 5 * 5 * 5 * 5 * 5 * 5 * 5
+    let x_to_8 = λ x:num. x * x * x * x * x * x * x * x
