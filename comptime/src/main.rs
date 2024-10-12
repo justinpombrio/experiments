@@ -3,14 +3,14 @@
 //! Means: first order everything. First order references (like Hylo), first order comptime (like
 //! Zig), first order functions.
 
-mod expr;
+mod ast;
+mod env;
 mod interp;
 mod parser;
 mod rt_error;
-mod value;
 
-use interp::interp_expr;
-use parser::make_expr_parser;
+use interp::run;
+use parser::make_prog_parser;
 use parser_ll1::CompiledParser;
 use std::io;
 
@@ -28,7 +28,7 @@ fn prompt(buffer: &mut String) -> Result<&str, io::Error> {
 }
 
 fn main() {
-    let parser = match make_expr_parser() {
+    let parser = match make_prog_parser() {
         Ok(parser) => parser,
         Err(err) => panic!("{}", err),
     };
@@ -42,10 +42,13 @@ fn main() {
 
         match parser.parse("stdin", input) {
             Err(err) => println!("{}", err),
-            Ok(expr) => match interp_expr(&expr) {
-                Err(err) => println!("{}", err),
-                Ok(value) => println!("{}", value),
-            },
+            Ok(prog) => {
+                println!("{:?}", prog);
+                match run(prog) {
+                    Err(err) => println!("{}", err),
+                    Ok(value) => println!("{}", value),
+                }
+            }
         }
     }
 
