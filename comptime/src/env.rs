@@ -1,8 +1,8 @@
-use crate::ast::{Value, Var};
+use crate::ast::{Id, Value};
 use crate::rt_error::RtError;
 
 pub struct Env {
-    entries: Vec<(Var, Option<Value>)>,
+    entries: Vec<(Id, Option<Value>)>,
 }
 
 impl Env {
@@ -12,22 +12,22 @@ impl Env {
         }
     }
 
-    pub fn push(&mut self, var: Var, val: Value) {
-        self.entries.push((var, Some(val)));
+    pub fn push(&mut self, id: Id, val: Value) {
+        self.entries.push((id, Some(val)));
     }
 
     pub fn pop(&mut self) {
         self.entries.pop();
     }
 
-    pub fn take(&mut self, var: &str) -> Result<Value, RtError> {
+    pub fn take(&mut self, id: &str) -> Result<Value, RtError> {
         for (x, val) in self.entries.iter_mut().rev() {
-            if x == var {
+            if x == id {
                 if let Some(val) = val.take() {
                     return Ok(val);
                 }
             }
         }
-        Err(RtError::err_var(var.to_owned()))
+        Err(RtError::err_id(id.to_owned()))
     }
 }

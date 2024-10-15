@@ -6,13 +6,16 @@
 mod ast;
 mod env;
 mod interp;
-mod parser;
+mod parse;
 mod rt_error;
+mod type_check;
+mod type_error;
 
 use interp::run;
-use parser::make_prog_parser;
+use parse::make_prog_parser;
 use parser_ll1::CompiledParser;
 use std::io;
+use type_check::type_check;
 
 fn prompt(buffer: &mut String) -> Result<&str, io::Error> {
     use std::io::Write;
@@ -40,15 +43,22 @@ fn main() {
             break;
         }
 
-        match parser.parse("stdin", input) {
-            Err(err) => println!("{}", err),
-            Ok(prog) => {
-                println!("{:?}", prog);
-                match run(prog) {
-                    Err(err) => println!("{}", err),
-                    Ok(value) => println!("{}", value),
-                }
+        let prog = match parser.parse("stdin", input) {
+            Ok(prog) => prog,
+            Err(err) => {
+                println!("{}", err);
+                continue;
             }
+        };
+
+        if let Err(type_err) = type_check(&prog) {
+            println!("{}", type_err);
+            continue;
+        }
+
+        match run(prog) {
+            Err(err) => println!("{}", err),
+            Ok(value) => println!("{}", value),
         }
     }
 

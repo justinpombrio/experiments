@@ -1,4 +1,4 @@
-use crate::ast::{Value, Var};
+use crate::ast::{Id, Value};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -11,12 +11,12 @@ pub enum RtError {
     },
     #[error("Bug in TC! Wrong number of arguments to function {func}. Expected {expected}, found {found}.")]
     WrongNumArgs {
-        func: Var,
+        func: Id,
         expected: usize,
         found: usize,
     },
-    #[error("Bug in SC! Var '{var}' not found.")]
-    ScopeBug { var: Var },
+    #[error("Bug in TC! Var '{id}' not found.")]
+    ScopeBug { id: Id },
 }
 
 impl RtError {
@@ -28,8 +28,8 @@ impl RtError {
         }
     }
 
-    pub fn err_var(var: Var) -> RtError {
-        RtError::ScopeBug { var }
+    pub fn err_id(id: Id) -> RtError {
+        RtError::ScopeBug { id }
     }
 }
 

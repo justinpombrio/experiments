@@ -1,15 +1,15 @@
-use crate::ast::{Expr, Func, Prog, Value, Var};
+use crate::ast::{Expr, Func, Id, Prog, Value};
 use crate::env::Env;
 use crate::rt_error::RtError;
 use std::collections::HashMap;
 
 struct Interpreter<'a> {
-    funcs: &'a HashMap<Var, Func>,
+    funcs: &'a HashMap<Id, Func>,
     env: Env,
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn new(funcs: &'a HashMap<Var, Func>) -> Interpreter<'a> {
+    pub fn new(funcs: &'a HashMap<Id, Func>) -> Interpreter<'a> {
         Interpreter {
             funcs,
             env: Env::new(),
@@ -35,13 +35,13 @@ impl<'a> Interpreter<'a> {
             Ok(result)
         } else {
             Err(RtError::ScopeBug {
-                var: func_name.to_owned(),
+                id: func_name.to_owned(),
             })
         }
     }
 
-    fn var(&mut self, var: &str) -> Result<Value, RtError> {
-        self.env.take(var)
+    fn id(&mut self, id: &str) -> Result<Value, RtError> {
+        self.env.take(id)
     }
 
     fn eval_expr(&mut self, expr: &Expr) -> Result<Value, RtError> {
@@ -53,7 +53,7 @@ impl<'a> Interpreter<'a> {
                 let y = self.eval_expr(y)?.unwrap_int("addition")?;
                 Ok(Value::Int(x + y))
             }
-            Expr::Id(var) => self.var(var),
+            Expr::Id(id) => self.id(id),
             Expr::Call(func_name, exprs) => {
                 let mut args = Vec::new();
                 for expr in exprs {

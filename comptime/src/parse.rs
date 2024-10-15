@@ -1,10 +1,10 @@
-use crate::ast::{Expr, Func, Prog, Type, Var};
+use crate::ast::{Expr, Func, FuncType, Id, Prog, Type};
 use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive};
 use std::str::FromStr;
 
 // fn add1(n: Int)->Int { n + 1 } fn main()->Int { call add1(2) }
 
-fn var_parser(g: &mut Grammar) -> Result<impl Parser<Var> + Clone, GrammarError> {
+fn id_parser(g: &mut Grammar) -> Result<impl Parser<Id> + Clone, GrammarError> {
     Ok(g.regex("variable", "[a-zA-Z_][a-zA-Z0-9]*")?
         .span(|span| span.substr.to_owned()))
 }
@@ -24,7 +24,7 @@ where
 }
 
 fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Expr> + Clone, GrammarError> {
-    let var_p = var_parser(g)?;
+    let id_p = id_parser(g)?;
     let expr_p = Recursive::new("expression");
 
     let unit_p = g.string("()")?.constant(Expr::Unit);
@@ -32,19 +32,19 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Expr> + Clone, GrammarErro
         .regex("int", "[1-9][0-9]*")?
         .try_span(|s| i32::from_str(s.substr))
         .map(Expr::Int);
-    let id_p = var_p.clone().map(|v| Expr::Id(v));
+    let id_expr_p = id_p.clone().map(Expr::Id);
     let paren_p = tuple(
         "parenthetical expression",
         (g.string("(")?, expr_p.refn(), g.string(")")?),
     )
     .map(|(_, expr, _)| expr);
 
-    // var(expr, ...)
+    // Id(Expr, ...)
     let args_p = parenthesized_list(g, "function arguments", expr_p.refn())?;
-    let call_p = tuple("function call", (g.string("call")?, var_p, args_p))
+    let call_p = tuple("function call", (g.string("call")?, id_p, args_p))
         .map(|(_, func, args)| Expr::Call(func, args));
 
-    let atom_p = choice("expression", (unit_p, int_p, id_p, paren_p, call_p));
+    let atom_p = choice("expression", (unit_p, int_p, id_expr_p, paren_p, call_p));
 
     let add_p = atom_p.clone().fold_many1(
         tuple("addition expression", (g.string("+")?, atom_p)),
@@ -65,23 +65,25 @@ fn type_parser(g: &mut Grammar) -> Result<impl Parser<Type> + Clone, GrammarErro
         "function type",
         (g.string("fn")?, params_p, g.string("->")?, type_p.refn()),
     )
-    .map(|(_, params, _, returns)| Type::Func {
-        params,
-        returns: Box::new(returns),
+    .map(|(_, params, _, returns)| {
+        Type::Func(FuncType {
+            params,
+            returns: Box::new(returns),
+        })
     });
 
     Ok(type_p.define(choice("type", (unit_p, int_p, func_p))))
 }
 
 fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarError> {
-    let var_p = var_parser(g)?;
+    let id_p = id_parser(g)?;
     let expr_p = expr_parser(g)?;
     let type_p = type_parser(g)?;
 
-    // fn Var(Var: Type, ...) -> Type { expr }
+    // fn Id(Id: Type, ...) -> Type { Expr }
     let param_p = tuple(
         "function parameter",
-        (var_p.clone(), g.string(":")?, type_p.clone()),
+        (id_p.clone(), g.string(":")?, type_p.clone()),
     )
     .map(|(param, _, ty)| (param, ty));
     let params_p = parenthesized_list(g, "function parameters", param_p)?;
@@ -89,7 +91,7 @@ fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarErro
         "function",
         (
             g.string("fn")?,
-            var_p,
+            id_p,
             params_p,
             g.string("->")?,
             type_p,

@@ -1,6 +1,6 @@
 use std::fmt;
 
-pub type Var = String;
+pub type Id = String;
 
 #[derive(Clone, Debug)]
 pub enum Value {
@@ -12,9 +12,9 @@ pub enum Value {
 pub enum Expr {
     Unit,
     Int(i32),
+    Id(Id),
     Add(Box<Expr>, Box<Expr>),
-    Id(Var),
-    Call(Var, Vec<Expr>),
+    Call(Id, Vec<Expr>),
 }
 
 #[derive(Clone, Debug)]
@@ -22,20 +22,23 @@ pub struct Prog {
     pub funcs: Vec<Func>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Unit,
     Int,
-    Func {
-        params: Vec<Type>,
-        returns: Box<Type>,
-    },
+    Func(FuncType),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FuncType {
+    pub params: Vec<Type>,
+    pub returns: Box<Type>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Func {
-    pub name: Var,
-    pub params: Vec<(Var, Type)>,
+    pub name: Id,
+    pub params: Vec<(Id, Type)>,
     pub returns: Type,
     pub body: Expr,
 }
@@ -55,5 +58,29 @@ impl Value {
             Value::Unit => "Unit",
             Value::Int(_) => "Int",
         }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Unit => write!(f, "()"),
+            Type::Int => write!(f, "Int"),
+            Type::Func(func_type) => write!(f, "{}", func_type),
+        }
+    }
+}
+
+impl fmt::Display for FuncType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "fn(")?;
+        if let Some(first_ty) = self.params.first() {
+            write!(f, "{}", first_ty)?;
+        }
+        for ty in self.params.iter().skip(1) {
+            write!(f, ", {}", ty)?;
+        }
+        write!(f, ") -> ")?;
+        write!(f, "{}", self.returns)
     }
 }
