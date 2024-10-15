@@ -4,12 +4,16 @@ use crate::rt_error::RtError;
 use std::collections::HashMap;
 
 struct Interpreter<'a> {
-    funcs: &'a HashMap<Id, Func>,
+    funcs: HashMap<Id, &'a Func>,
     env: Env,
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn new(funcs: &'a HashMap<Id, Func>) -> Interpreter<'a> {
+    pub fn new(prog: &'a Prog) -> Interpreter<'a> {
+        let mut funcs = HashMap::new();
+        for func in &prog.funcs {
+            funcs.insert(func.name.clone(), func);
+        }
         Interpreter {
             funcs,
             env: Env::new(),
@@ -17,7 +21,7 @@ impl<'a> Interpreter<'a> {
     }
 
     fn call(&mut self, func_name: &str, args: Vec<Value>) -> Result<Value, RtError> {
-        if let Some(func) = self.funcs.get(func_name) {
+        if let Some(func) = self.funcs.get(func_name).copied() {
             if args.len() != func.params.len() {
                 return Err(RtError::WrongNumArgs {
                     func: func.name.to_owned(),
@@ -65,11 +69,7 @@ impl<'a> Interpreter<'a> {
     }
 }
 
-pub fn run(prog: Prog) -> Result<Value, RtError> {
-    let mut funcs = HashMap::new();
-    for func in prog.funcs {
-        funcs.insert(func.name.clone(), func);
-    }
-    let mut interp = Interpreter::new(&funcs);
+pub fn run(prog: &Prog) -> Result<Value, RtError> {
+    let mut interp = Interpreter::new(prog);
     interp.call("main", Vec::new())
 }

@@ -56,7 +56,7 @@ fn main() {
             continue;
         }
 
-        match run(prog) {
+        match run(&prog) {
             Err(err) => println!("{}", err),
             Ok(value) => println!("{}", value),
         }

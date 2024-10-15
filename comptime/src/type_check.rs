@@ -22,10 +22,10 @@ impl TypeEnv {
         self.0.pop();
     }
 
-    fn lookup(&self, id: &str) -> Option<&Type> {
+    fn lookup(&self, id: &str) -> Option<Type> {
         for (x, ty) in &self.0 {
             if x == id {
-                return Some(ty);
+                return Some(ty.clone());
             }
         }
         None
@@ -70,7 +70,7 @@ impl<'a> TypeChecker<'a> {
         }
 
         self.loc = func.name.to_owned();
-        self.expect_expr(&func.body, &func.returns)?;
+        self.expect_expr(&func.body, func.returns.clone())?;
         self.loc = "[unknown]".to_owned(); // should never be visible
 
         for _ in &func.params {
@@ -94,9 +94,9 @@ impl<'a> TypeChecker<'a> {
         self.prog.funcs.iter().find(|f| f.name == id)
     }
 
-    fn expect_expr(&mut self, expr: &Expr, expected_ty: &Type) -> Result<(), TypeError> {
+    fn expect_expr(&mut self, expr: &Expr, expected_ty: Type) -> Result<(), TypeError> {
         let actual_ty = self.check_expr(expr)?;
-        self.expect(&actual_ty, expected_ty)
+        self.expect(actual_ty, expected_ty)
     }
 
     fn check_expr(&mut self, expr: &Expr) -> Result<Type, TypeError> {
@@ -105,8 +105,8 @@ impl<'a> TypeChecker<'a> {
             Expr::Int(_) => Ok(Type::Int),
             Expr::Id(id) => self.check_id(id),
             Expr::Add(x, y) => {
-                self.expect_expr(x, &Type::Int)?;
-                self.expect_expr(y, &Type::Int)?;
+                self.expect_expr(x, Type::Int)?;
+                self.expect_expr(y, Type::Int)?;
                 Ok(Type::Int)
             }
             Expr::Call(id, args) => {
@@ -140,7 +140,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn expect(&self, actual_ty: &Type, expected_ty: &Type) -> Result<(), TypeError> {
+    fn expect(&self, actual_ty: Type, expected_ty: Type) -> Result<(), TypeError> {
         if actual_ty == expected_ty {
             Ok(())
         } else {
