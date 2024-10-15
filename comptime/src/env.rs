@@ -1,5 +1,5 @@
 use crate::ast::{Id, Value};
-use crate::rt_error::RtError;
+use crate::runtime_error::RuntimeError;
 
 pub struct Env {
     entries: Vec<(Id, Option<Value>)>,
@@ -20,7 +20,7 @@ impl Env {
         self.entries.pop();
     }
 
-    pub fn take(&mut self, id: &str) -> Result<Value, RtError> {
+    pub fn take(&mut self, id: &str) -> Result<Value, RuntimeError> {
         for (x, val) in self.entries.iter_mut().rev() {
             if x == id {
                 if let Some(val) = val.take() {
@@ -28,6 +28,6 @@ impl Env {
                 }
             }
         }
-        Err(RtError::err_id(id.to_owned()))
+        Err(RuntimeError::err_id(id.to_owned()))
     }
 }

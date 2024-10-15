@@ -1,6 +1,6 @@
 use crate::ast::{Expr, Func, Id, Prog, Value};
 use crate::env::Env;
-use crate::rt_error::RtError;
+use crate::runtime_error::RuntimeError;
 use std::collections::HashMap;
 
 struct Interpreter<'a> {
@@ -20,13 +20,13 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn call(&mut self, func_name: &str, args: Vec<Value>) -> Result<Value, RtError> {
+    fn call(&mut self, func_name: &str, args: Vec<Value>) -> Result<Value, RuntimeError> {
         if let Some(func) = self.funcs.get(func_name).copied() {
             if args.len() != func.params.len() {
-                return Err(RtError::WrongNumArgs {
+                return Err(RuntimeError::WrongNumArgs {
                     func: func.name.to_owned(),
                     expected: func.params.len(),
-                    found: args.len(),
+                    actual: args.len(),
                 });
             }
             for (i, arg) in args.into_iter().enumerate() {
@@ -38,17 +38,17 @@ impl<'a> Interpreter<'a> {
             }
             Ok(result)
         } else {
-            Err(RtError::ScopeBug {
+            Err(RuntimeError::ScopeBug {
                 id: func_name.to_owned(),
             })
         }
     }
 
-    fn id(&mut self, id: &str) -> Result<Value, RtError> {
+    fn id(&mut self, id: &str) -> Result<Value, RuntimeError> {
         self.env.take(id)
     }
 
-    fn eval_expr(&mut self, expr: &Expr) -> Result<Value, RtError> {
+    fn eval_expr(&mut self, expr: &Expr) -> Result<Value, RuntimeError> {
         match expr {
             Expr::Unit => Ok(Value::Unit),
             Expr::Int(n) => Ok(Value::Int(*n)),
@@ -69,7 +69,7 @@ impl<'a> Interpreter<'a> {
     }
 }
 
-pub fn run(prog: &Prog) -> Result<Value, RtError> {
+pub fn run(prog: &Prog) -> Result<Value, RuntimeError> {
     let mut interp = Interpreter::new(prog);
     interp.call("main", Vec::new())
 }

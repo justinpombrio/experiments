@@ -7,13 +7,15 @@ mod ast;
 mod env;
 mod interp;
 mod parse;
-mod rt_error;
+mod pretty_error;
+mod runtime_error;
 mod type_check;
 mod type_error;
 
 use interp::run;
 use parse::make_prog_parser;
 use parser_ll1::CompiledParser;
+use pretty_error::display_error;
 use std::io;
 use type_check::type_check;
 
@@ -38,12 +40,12 @@ fn main() {
 
     let mut input_buffer = String::new();
     loop {
-        let input = prompt(&mut input_buffer).unwrap();
-        if input.is_empty() {
+        let source = prompt(&mut input_buffer).unwrap();
+        if source.is_empty() {
             break;
         }
 
-        let prog = match parser.parse("stdin", input) {
+        let prog = match parser.parse("stdin", source) {
             Ok(prog) => prog,
             Err(err) => {
                 println!("{}", err);
@@ -52,12 +54,12 @@ fn main() {
         };
 
         if let Err(type_err) = type_check(&prog) {
-            println!("{}", type_err);
+            println!("{}", display_error(type_err, source));
             continue;
         }
 
         match run(&prog) {
-            Err(err) => println!("{}", err),
+            Err(runtime_err) => println!("{}", display_error(runtime_err, source)),
             Ok(value) => println!("{}", value),
         }
     }
