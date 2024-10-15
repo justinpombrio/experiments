@@ -1,10 +1,19 @@
-use crate::ast::{Expr, Func, FuncType, Id, Located, Prog, Type};
+use crate::ast::{Expr, Func, FuncType, Id, Located, Pos, Prog, Type};
 use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive, Span};
 use std::str::FromStr;
 
 fn located<T>(span: Span, inner: T) -> Located<T> {
     Located {
-        loc: (span.start, span.end),
+        loc: (
+            Pos {
+                line: span.start.line,
+                col: span.start.utf8_col,
+            },
+            Pos {
+                line: span.end.line,
+                col: span.end.utf8_col,
+            },
+        ),
         inner,
     }
 }
@@ -117,7 +126,7 @@ fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarErro
         located(
             span,
             Func {
-                name: name.inner,
+                name,
                 params,
                 returns,
                 body,

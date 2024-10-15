@@ -5,29 +5,27 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum RuntimeError {
     #[error("Bug in TC! Expected {expected} but found {actual}.")]
-    TypeCheckingBug {
+    TypeMismatch {
         expected: Type,
-        actual: &'static str,
+        actual: Type,
         loc: Loc,
     },
-    #[error("Bug in TC! Wrong number of arguments to function {func_name}. Expected {expected}, found {actual}.")]
+    #[error("Bug in TC! Wrong number of arguments to function {}. Expected {expected}, found {actual}.", defsite.inner)]
     WrongNumArgs {
-        func_name: Id,
+        callsite: Located<Id>,
+        defsite: Located<Id>,
         expected: usize,
         actual: usize,
-        loc: Loc,
     },
-    #[error("Bug in TC! Var '{id}' not found.")]
-    ScopeBug { id: Id, loc: Loc },
+    #[error("Bug in TC! Var '{}' not found.", .0.inner)]
+    UnboundId(Located<Id>),
 }
 
-impl RuntimeError {
-    pub fn err_tc(expected: Type, actual: &Value, expr: &Located<Expr>) -> RuntimeError {
-        RuntimeError::TypeCheckingBug {
-            expected,
-            actual: actual.type_name(),
-            loc: expr.loc,
-        }
+fn type_mismatch(expected: Type, actual: Type, expr: &Located<Expr>) -> RuntimeError {
+    RuntimeError::TypeMismatch {
+        expected,
+        actual,
+        loc: expr.loc,
     }
 }
 
@@ -36,7 +34,7 @@ impl Value {
         if let Value::Int(n) = self {
             Ok(n)
         } else {
-            Err(RuntimeError::err_tc(Type::Int, &self, expr))
+            Err(type_mismatch(Type::Int, self.type_of(), expr))
         }
     }
 }
@@ -46,7 +44,7 @@ impl PrettyError for RuntimeError {
         use RuntimeError::*;
 
         match self {
-            TypeCheckingBug { .. } | WrongNumArgs { .. } | ScopeBug { .. } => "bug in type checker",
+            TypeMismatch { .. } | WrongNumArgs { .. } | UnboundId(_) => "bug in type checker",
         }
     }
 
@@ -54,9 +52,9 @@ impl PrettyError for RuntimeError {
         use RuntimeError::*;
 
         match self {
-            TypeCheckingBug { loc, .. } => Some(*loc),
-            WrongNumArgs { loc, .. } => Some(*loc),
-            ScopeBug { loc, .. } => Some(*loc),
+            TypeMismatch { loc, .. } => Some(*loc),
+            WrongNumArgs { callsite, .. } => Some(callsite.loc),
+            UnboundId(id) => Some(id.loc),
         }
     }
 
@@ -64,11 +62,11 @@ impl PrettyError for RuntimeError {
         use RuntimeError::*;
 
         match self {
-            TypeCheckingBug {
+            TypeMismatch {
                 expected, actual, ..
             } => format!("expected '{expected}', found '{actual}'"),
             WrongNumArgs { expected, .. } => format!("expected {expected} args"),
-            ScopeBug { id, .. } => format!("var {id} not found"),
+            UnboundId(id) => format!("var {} not found", id.inner),
         }
     }
 

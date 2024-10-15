@@ -39,9 +39,9 @@ fn display_error_impl(
             None => panic!("bug: invalid line number: {}", start.line),
         };
         let num_carets = if start.line == end.line {
-            (end.utf8_col - start.utf8_col).max(1) as usize
+            (end.col - start.col).max(1) as usize
         } else {
-            line_contents.chars().count() - start.utf8_col as usize
+            line_contents.chars().count() - start.col as usize
         };
 
         writeln!(
@@ -50,7 +50,7 @@ fn display_error_impl(
             "",
             "-->".blue().bold(),
             start.line + 1,
-            start.utf8_col + 1,
+            start.col + 1,
             indent = margin_width,
         )?;
         writeln!(
@@ -75,7 +75,7 @@ fn display_error_impl(
             "",
             &"^".repeat(num_carets).red().bold(),
             error.short_message().red().bold(),
-            start = start.utf8_col as usize,
+            start = start.col as usize,
             indent = margin_width + 1
         )?;
         write!(

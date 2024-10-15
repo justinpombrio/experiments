@@ -30,9 +30,6 @@ impl Env {
                 }
             }
         }
-        Err(RuntimeError::ScopeBug {
-            id: id_loc.inner.clone(),
-            loc: id_loc.loc,
-        })
+        Err(RuntimeError::UnboundId(id_loc.clone()))
     }
 }

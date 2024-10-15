@@ -1,23 +1,27 @@
-use parser_ll1::Position;
 use std::fmt;
 
-pub type Loc = (Position, Position);
+#[derive(Debug, Clone, Copy)]
+pub struct Pos {
+    pub line: u32,
+    pub col: u32,
+}
+pub type Loc = (Pos, Pos);
 
 pub type Id = String;
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Unit,
     Int(i32),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct Located<T> {
     pub loc: Loc,
     pub inner: T,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Unit,
     Int(i32),
@@ -26,43 +30,42 @@ pub enum Expr {
     Call(Located<Id>, Vec<Located<Expr>>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct Prog {
     pub funcs: Vec<Located<Func>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     Unit,
     Int,
     Func(FuncType),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FuncType {
     pub params: Vec<Type>,
     pub returns: Box<Type>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct Func {
-    pub name: Id,
+    pub name: Located<Id>,
     pub params: Vec<(Id, Type)>,
     pub returns: Type,
     pub body: Located<Expr>,
 }
 
 pub fn end_loc(source: &str) -> Loc {
-    let offset = source.len();
     let line = source.lines().count() - 1;
-    let last_line = source.lines().last();
-    let col = last_line.map(|l| l.len()).unwrap_or(0);
-    let utf8_col = last_line.map(|l| l.chars().count()).unwrap_or(0);
-    let pos = Position {
-        offset,
+    let col = source
+        .lines()
+        .last()
+        .map(|l| l.chars().count())
+        .unwrap_or(0);
+    let pos = Pos {
         line: line as u32,
         col: col as u32,
-        utf8_col: utf8_col as u32,
     };
     (pos, pos)
 }
@@ -77,10 +80,10 @@ impl fmt::Display for Value {
 }
 
 impl Value {
-    pub fn type_name(&self) -> &'static str {
+    pub fn type_of(&self) -> Type {
         match self {
-            Value::Unit => "Unit",
-            Value::Int(_) => "Int",
+            Value::Unit => Type::Unit,
+            Value::Int(_) => Type::Int,
         }
     }
 }

@@ -12,7 +12,7 @@ impl<'a> Interpreter<'a> {
     pub fn new(prog: &'a Prog) -> Interpreter<'a> {
         let mut funcs = HashMap::new();
         for func in &prog.funcs {
-            funcs.insert(func.inner.name.clone(), func);
+            funcs.insert(func.inner.name.inner.clone(), func);
         }
         Interpreter {
             funcs,
@@ -26,10 +26,10 @@ impl<'a> Interpreter<'a> {
 
             if args.len() != func.params.len() {
                 return Err(RuntimeError::WrongNumArgs {
-                    func_name: func.name.clone(),
+                    callsite: func_id.clone(),
+                    defsite: func.name.clone(),
                     expected: func.params.len(),
                     actual: args.len(),
-                    loc: func_loc.loc,
                 });
             }
             for (i, arg) in args.into_iter().enumerate() {
@@ -41,10 +41,7 @@ impl<'a> Interpreter<'a> {
             }
             Ok(result)
         } else {
-            Err(RuntimeError::ScopeBug {
-                id: func_id.inner.to_owned(),
-                loc: func_id.loc,
-            })
+            Err(RuntimeError::UnboundId(func_id.clone()))
         }
     }
 

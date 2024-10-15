@@ -83,15 +83,12 @@ impl<'a> TypeChecker<'a> {
         let id = &id_loc.inner;
         match self.env.lookup(id) {
             Some(ty) => Ok(ty.to_owned()),
-            None => Err(TypeError::UnboundId {
-                id: id.to_owned(),
-                loc: id_loc.loc,
-            }),
+            None => Err(TypeError::UnboundId(id_loc.clone())),
         }
     }
 
     fn lookup_func(&mut self, id: &str) -> Option<&'a Located<Func>> {
-        self.prog.funcs.iter().find(|f| f.inner.name == id)
+        self.prog.funcs.iter().find(|f| f.inner.name.inner == id)
     }
 
     fn check_expr(&mut self, expr_loc: &Located<Expr>) -> Result<Type, TypeError> {
@@ -108,26 +105,23 @@ impl<'a> TypeChecker<'a> {
             }
             Expr::Call(id_loc, args) => {
                 let id = &id_loc.inner;
-                let func_loc = self.lookup_func(id).ok_or_else(|| TypeError::UnboundFunc {
-                    id: id.to_owned(),
-                    loc: id_loc.loc,
-                })?;
+                let func_loc = self
+                    .lookup_func(id)
+                    .ok_or_else(|| TypeError::UnboundFunc(id_loc.clone()))?;
                 let func = &func_loc.inner;
                 if args.len() != func.params.len() {
                     return Err(TypeError::WrongNumArgs {
-                        func: func.name.clone(),
+                        callsite: id_loc.clone(),
+                        defsite: func.name.clone(),
                         expected: func.params.len(),
                         actual: args.len(),
-                        loc: id_loc.loc,
                     });
                 }
-                for (i, (arg, param)) in args.iter().zip(func.params.iter()).enumerate() {
+                for (arg, param) in args.iter().zip(func.params.iter()) {
                     let actual_ty = self.check_expr(arg)?;
                     let expected_ty = &param.1;
                     if &actual_ty != expected_ty {
-                        return Err(TypeError::BadArg {
-                            func: func.name.clone(),
-                            arg_index: i,
+                        return Err(TypeError::TypeMismatch {
                             expected: expected_ty.clone(),
                             actual: actual_ty,
                             loc: id_loc.loc,
