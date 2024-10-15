@@ -1,46 +1,42 @@
-use crate::ast::{Id, Value};
+use crate::ast::{Expr, Id, Loc, Located, Type, Value};
 use crate::pretty_error::PrettyError;
-use parser_ll1::Position;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RuntimeError {
-    #[error("Bug in TC! Expected {expected} but found {actual} during {operation}.")]
+    #[error("Bug in TC! Expected {expected} but found {actual}.")]
     TypeCheckingBug {
-        expected: &'static str,
+        expected: Type,
         actual: &'static str,
-        operation: &'static str,
+        loc: Loc,
     },
-    #[error("Bug in TC! Wrong number of arguments to function {func}. Expected {expected}, found {actual}.")]
+    #[error("Bug in TC! Wrong number of arguments to function {func_name}. Expected {expected}, found {actual}.")]
     WrongNumArgs {
-        func: Id,
+        func_name: Id,
         expected: usize,
         actual: usize,
+        loc: Loc,
     },
     #[error("Bug in TC! Var '{id}' not found.")]
-    ScopeBug { id: Id },
+    ScopeBug { id: Id, loc: Loc },
 }
 
 impl RuntimeError {
-    pub fn err_tc(expected: &'static str, actual: &Value, operation: &'static str) -> RuntimeError {
+    pub fn err_tc(expected: Type, actual: &Value, expr: &Located<Expr>) -> RuntimeError {
         RuntimeError::TypeCheckingBug {
             expected,
             actual: actual.type_name(),
-            operation,
+            loc: expr.loc,
         }
-    }
-
-    pub fn err_id(id: Id) -> RuntimeError {
-        RuntimeError::ScopeBug { id }
     }
 }
 
 impl Value {
-    pub fn unwrap_int(self, context: &'static str) -> Result<i32, RuntimeError> {
+    pub fn unwrap_int(self, expr: &Located<Expr>) -> Result<i32, RuntimeError> {
         if let Value::Int(n) = self {
             Ok(n)
         } else {
-            Err(RuntimeError::err_tc("Int", &self, context))
+            Err(RuntimeError::err_tc(Type::Int, &self, expr))
         }
     }
 }
@@ -54,8 +50,14 @@ impl PrettyError for RuntimeError {
         }
     }
 
-    fn src_loc(&self) -> Option<(Position, Position)> {
-        None
+    fn loc(&self) -> Option<Loc> {
+        use RuntimeError::*;
+
+        match self {
+            TypeCheckingBug { loc, .. } => Some(*loc),
+            WrongNumArgs { loc, .. } => Some(*loc),
+            ScopeBug { loc, .. } => Some(*loc),
+        }
     }
 
     fn short_message(&self) -> String {
@@ -66,7 +68,7 @@ impl PrettyError for RuntimeError {
                 expected, actual, ..
             } => format!("expected '{expected}', found '{actual}'"),
             WrongNumArgs { expected, .. } => format!("expected {expected} args"),
-            ScopeBug { id } => format!("var {id} not found"),
+            ScopeBug { id, .. } => format!("var {id} not found"),
         }
     }
 

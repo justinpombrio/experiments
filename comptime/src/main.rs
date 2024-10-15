@@ -58,7 +58,7 @@ fn main() {
             continue;
         }
 
-        match run(&prog) {
+        match run(source, &prog) {
             Err(runtime_err) => println!("{}", display_error(runtime_err, source)),
             Ok(value) => println!("{}", value),
         }

@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Func, Id, Prog, Type};
+use crate::ast::{Expr, Func, Id, Located, Prog, Type};
 use crate::type_error::TypeError;
 
 pub fn type_check(prog: &Prog) -> Result<(), TypeError> {
@@ -34,7 +34,6 @@ impl TypeEnv {
 
 struct TypeChecker<'a> {
     prog: &'a Prog,
-    loc: String, // hacky, just stores the current function name
     env: TypeEnv,
 }
 
@@ -42,15 +41,16 @@ impl<'a> TypeChecker<'a> {
     fn new(prog: &Prog) -> TypeChecker {
         TypeChecker {
             prog,
-            loc: "[unknown]".to_owned(), // should never be visible
             env: TypeEnv::new(),
         }
     }
 
     fn check_all(&mut self) -> Result<(), TypeError> {
-        let main = self
+        let main_loc = self
             .lookup_func("main")
             .ok_or_else(|| TypeError::MissingMain)?;
+        let main = &main_loc.inner;
+
         if main.returns != Type::Unit {
             return Err(TypeError::MainDoesNotReturnUnit);
         }
@@ -65,15 +65,13 @@ impl<'a> TypeChecker<'a> {
         Ok(())
     }
 
-    fn check_func(&mut self, func: &Func) -> Result<(), TypeError> {
+    fn check_func(&mut self, func_loc: &Located<Func>) -> Result<(), TypeError> {
+        let func = &func_loc.inner;
+
         for (id, ty) in &func.params {
             self.env.push(id.clone(), ty.clone());
         }
-
-        self.loc = func.name.to_owned();
         self.expect_expr(&func.body, func.returns.clone())?;
-        self.loc = "[unknown]".to_owned(); // should never be visible
-
         for _ in &func.params {
             self.env.pop();
         }
@@ -81,26 +79,24 @@ impl<'a> TypeChecker<'a> {
         Ok(())
     }
 
-    fn check_id(&mut self, id: &str) -> Result<Type, TypeError> {
+    fn check_id(&mut self, id_loc: &Located<Id>) -> Result<Type, TypeError> {
+        let id = &id_loc.inner;
         match self.env.lookup(id) {
             Some(ty) => Ok(ty.to_owned()),
             None => Err(TypeError::UnboundId {
                 id: id.to_owned(),
-                loc: self.loc.clone(),
+                loc: id_loc.loc,
             }),
         }
     }
 
-    fn lookup_func(&mut self, id: &str) -> Option<&'a Func> {
-        self.prog.funcs.iter().find(|f| f.name == id)
+    fn lookup_func(&mut self, id: &str) -> Option<&'a Located<Func>> {
+        self.prog.funcs.iter().find(|f| f.inner.name == id)
     }
 
-    fn expect_expr(&mut self, expr: &Expr, expected_ty: Type) -> Result<(), TypeError> {
-        let actual_ty = self.check_expr(expr)?;
-        self.expect(actual_ty, expected_ty)
-    }
+    fn check_expr(&mut self, expr_loc: &Located<Expr>) -> Result<Type, TypeError> {
+        let expr = &expr_loc.inner;
 
-    fn check_expr(&mut self, expr: &Expr) -> Result<Type, TypeError> {
         match expr {
             Expr::Unit => Ok(Type::Unit),
             Expr::Int(_) => Ok(Type::Int),
@@ -110,17 +106,19 @@ impl<'a> TypeChecker<'a> {
                 self.expect_expr(y, Type::Int)?;
                 Ok(Type::Int)
             }
-            Expr::Call(id, args) => {
-                let func = self.lookup_func(id).ok_or_else(|| TypeError::UnboundFunc {
+            Expr::Call(id_loc, args) => {
+                let id = &id_loc.inner;
+                let func_loc = self.lookup_func(id).ok_or_else(|| TypeError::UnboundFunc {
                     id: id.to_owned(),
-                    loc: self.loc.clone(),
+                    loc: id_loc.loc,
                 })?;
+                let func = &func_loc.inner;
                 if args.len() != func.params.len() {
                     return Err(TypeError::WrongNumArgs {
                         func: func.name.clone(),
                         expected: func.params.len(),
                         actual: args.len(),
-                        loc: self.loc.clone(),
+                        loc: id_loc.loc,
                     });
                 }
                 for (i, (arg, param)) in args.iter().zip(func.params.iter()).enumerate() {
@@ -132,7 +130,7 @@ impl<'a> TypeChecker<'a> {
                             arg_index: i,
                             expected: expected_ty.clone(),
                             actual: actual_ty,
-                            loc: self.loc.clone(),
+                            loc: id_loc.loc,
                         });
                     }
                 }
@@ -141,14 +139,19 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn expect(&self, actual_ty: Type, expected_ty: Type) -> Result<(), TypeError> {
+    fn expect_expr(
+        &mut self,
+        expr_loc: &Located<Expr>,
+        expected_ty: Type,
+    ) -> Result<(), TypeError> {
+        let actual_ty = self.check_expr(expr_loc)?;
         if actual_ty == expected_ty {
             Ok(())
         } else {
             Err(TypeError::TypeMismatch {
                 expected: expected_ty.to_owned(),
                 actual: actual_ty.to_owned(),
-                loc: self.loc.to_owned(),
+                loc: expr_loc.loc,
             })
         }
     }

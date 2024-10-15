@@ -1,21 +1,20 @@
-use crate::ast::{Id, Type};
+use crate::ast::{Id, Loc, Type};
 use crate::pretty_error::PrettyError;
-use parser_ll1::Position;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum TypeError {
-    #[error("Variable {id} not found, in {loc}")]
-    UnboundId { id: Id, loc: String },
+    #[error("Variable {id} not found")]
+    UnboundId { id: Id, loc: Loc },
 
-    #[error("Function {id} not found, in call in {loc}")]
-    UnboundFunc { id: Id, loc: String },
+    #[error("Function {id} not found")]
+    UnboundFunc { id: Id, loc: Loc },
 
-    #[error("Expected type {expected} but found {actual}, in {loc}")]
+    #[error("Expected type {expected} but found {actual}")]
     TypeMismatch {
         expected: Type,
         actual: Type,
-        loc: String,
+        loc: Loc,
     },
 
     #[error("Wrong number of arguments passed to {func}. Expected {expected} args, but received {actual}.")]
@@ -23,16 +22,16 @@ pub enum TypeError {
         func: Id,
         expected: usize,
         actual: usize,
-        loc: String,
+        loc: Loc,
     },
 
-    #[error("Expected type {expected} but received {actual}, for arg number {arg_index} in call to {func}, in {loc}")]
+    #[error("Expected type {expected} but received {actual}, for arg number {arg_index} in call to {func}")]
     BadArg {
         func: Id,
         arg_index: usize,
         expected: Type,
         actual: Type,
-        loc: String,
+        loc: Loc,
     },
 
     #[error("Missing main() function.")]
@@ -50,8 +49,17 @@ impl PrettyError for TypeError {
         "type error"
     }
 
-    fn src_loc(&self) -> Option<(Position, Position)> {
-        None
+    fn loc(&self) -> Option<Loc> {
+        use TypeError::*;
+
+        match self {
+            UnboundId { loc, .. }
+            | UnboundFunc { loc, .. }
+            | TypeMismatch { loc, .. }
+            | WrongNumArgs { loc, .. }
+            | BadArg { loc, .. } => Some(*loc),
+            MissingMain | MainDoesNotReturnUnit | MainTakesArgs => None,
+        }
     }
 
     fn short_message(&self) -> String {

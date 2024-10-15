@@ -1,4 +1,7 @@
+use parser_ll1::Position;
 use std::fmt;
+
+pub type Loc = (Position, Position);
 
 pub type Id = String;
 
@@ -9,17 +12,23 @@ pub enum Value {
 }
 
 #[derive(Clone, Debug)]
+pub struct Located<T> {
+    pub loc: Loc,
+    pub inner: T,
+}
+
+#[derive(Clone, Debug)]
 pub enum Expr {
     Unit,
     Int(i32),
-    Id(Id),
-    Add(Box<Expr>, Box<Expr>),
-    Call(Id, Vec<Expr>),
+    Id(Located<Id>),
+    Add(Box<Located<Expr>>, Box<Located<Expr>>),
+    Call(Located<Id>, Vec<Located<Expr>>),
 }
 
 #[derive(Clone, Debug)]
 pub struct Prog {
-    pub funcs: Vec<Func>,
+    pub funcs: Vec<Located<Func>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,7 +49,22 @@ pub struct Func {
     pub name: Id,
     pub params: Vec<(Id, Type)>,
     pub returns: Type,
-    pub body: Expr,
+    pub body: Located<Expr>,
+}
+
+pub fn end_loc(source: &str) -> Loc {
+    let offset = source.len();
+    let line = source.lines().count() - 1;
+    let last_line = source.lines().last();
+    let col = last_line.map(|l| l.len()).unwrap_or(0);
+    let utf8_col = last_line.map(|l| l.chars().count()).unwrap_or(0);
+    let pos = Position {
+        offset,
+        line: line as u32,
+        col: col as u32,
+        utf8_col: utf8_col as u32,
+    };
+    (pos, pos)
 }
 
 impl fmt::Display for Value {

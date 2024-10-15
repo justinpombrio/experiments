@@ -1,11 +1,11 @@
+use crate::ast::Loc;
 use colored::Colorize;
-use parser_ll1::Position;
 use std::fmt;
 use std::fmt::Write;
 
 pub trait PrettyError {
     fn kind(&self) -> &'static str;
-    fn src_loc(&self) -> Option<(Position, Position)>;
+    fn loc(&self) -> Option<Loc>;
     fn short_message(&self) -> String;
     fn long_message(&self) -> String;
 }
@@ -31,7 +31,7 @@ fn display_error_impl(
         error.long_message().bold()
     )?;
 
-    if let Some((start, end)) = error.src_loc() {
+    if let Some((start, end)) = error.loc() {
         let line_num = format!("{}", start.line + 1);
         let margin_width = line_num.len();
         let line_contents = match source.lines().nth(start.line as usize) {
@@ -46,7 +46,7 @@ fn display_error_impl(
 
         writeln!(
             &mut buffer,
-            "{:indent$}stdin {}:{}:{}",
+            "{:indent$}{} stdin:{}:{}",
             "",
             "-->".blue().bold(),
             start.line + 1,
@@ -69,8 +69,10 @@ fn display_error_impl(
         )?;
         writeln!(
             &mut buffer,
-            "{:indent$}{:start$} {}",
+            "{:indent$}{}{:start$}{} {}",
+            "",
             "|".blue().bold(),
+            "",
             &"^".repeat(num_carets).red().bold(),
             error.short_message().red().bold(),
             start = start.utf8_col as usize,
@@ -78,7 +80,8 @@ fn display_error_impl(
         )?;
         write!(
             &mut buffer,
-            "{:indent$}",
+            "{:indent$}{}",
+            "",
             "|".blue().bold(),
             indent = margin_width + 1
         )?;
