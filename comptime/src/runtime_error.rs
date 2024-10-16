@@ -1,5 +1,5 @@
 use crate::ast::{Expr, Id, Loc, Located, Type, Value};
-use crate::pretty_error::PrettyError;
+use crate::show_error::ShowError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -39,7 +39,7 @@ impl Value {
     }
 }
 
-impl PrettyError for RuntimeError {
+impl ShowError for RuntimeError {
     fn kind(&self) -> &'static str {
         use RuntimeError::*;
 

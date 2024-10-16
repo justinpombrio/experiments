@@ -3,26 +3,22 @@ use colored::Colorize;
 use std::fmt;
 use std::fmt::Write;
 
-pub trait PrettyError {
+pub trait ShowError {
     fn kind(&self) -> &'static str;
     fn loc(&self) -> Option<Loc>;
     fn short_message(&self) -> String;
     fn long_message(&self) -> String;
 }
 
-pub fn display_error(error: impl PrettyError, source: &str) -> String {
+pub fn show_error(error: impl ShowError, source: &str) -> String {
     let mut buffer = String::new();
-    match display_error_impl(&mut buffer, error, source) {
+    match show_error_impl(&mut buffer, error, source) {
         Ok(()) => buffer,
         Err(fmt_err) => format!("Failed to display error message: {fmt_err}"),
     }
 }
 
-fn display_error_impl(
-    mut buffer: impl Write,
-    error: impl PrettyError,
-    source: &str,
-) -> fmt::Result {
+fn show_error_impl(mut buffer: impl Write, error: impl ShowError, source: &str) -> fmt::Result {
     writeln!(
         &mut buffer,
         "{}{} {}",

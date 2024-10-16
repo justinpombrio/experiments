@@ -1,5 +1,5 @@
 use crate::ast::{Id, Loc, Located, Type};
-use crate::pretty_error::PrettyError;
+use crate::show_error::ShowError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -35,7 +35,7 @@ pub enum TypeError {
     MainTakesArgs,
 }
 
-impl PrettyError for TypeError {
+impl ShowError for TypeError {
     fn kind(&self) -> &'static str {
         "type error"
     }
