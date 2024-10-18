@@ -9,3 +9,4 @@ ppp = { package = "partial-pretty-printer", git = "https://github.com/justinpomb
 thiserror = "1.0.*"
 colored = "2.1"
 termcolor = "1.4.*"
+clap = { version = "4.5.*", features = ["derive"] }

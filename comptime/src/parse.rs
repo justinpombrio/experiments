@@ -19,7 +19,7 @@ fn located<T>(span: Span, inner: T) -> Located<T> {
 }
 
 fn id_parser(g: &mut Grammar) -> Result<impl Parser<Located<Id>> + Clone, GrammarError> {
-    Ok(g.regex("variable", "[a-zA-Z_][a-zA-Z0-9]*")?
+    Ok(g.regex("variable", "[a-zA-Z_][a-zA-Z0-9_]*")?
         .span(|s| located(s, s.substr.to_owned())))
 }
 

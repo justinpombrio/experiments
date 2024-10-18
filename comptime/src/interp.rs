@@ -72,7 +72,7 @@ impl<'a> Interpreter<'a> {
     }
 }
 
-pub fn run(source: &str, prog: &Prog) -> Result<Value, RuntimeError> {
+pub fn run_prog(source: &str, prog: &Prog) -> Result<Value, RuntimeError> {
     let mut interp = Interpreter::new(prog);
     let main_call_id = Located {
         loc: end_loc(source),
