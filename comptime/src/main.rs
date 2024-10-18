@@ -7,6 +7,7 @@ mod ast;
 mod env;
 mod interp;
 mod parse;
+mod pretty_print;
 mod runtime_error;
 mod show_error;
 mod type_check;
@@ -15,6 +16,7 @@ mod type_error;
 use interp::run;
 use parse::make_prog_parser;
 use parser_ll1::CompiledParser;
+use pretty_print::pretty_print;
 use show_error::show_error;
 use std::io;
 use type_check::type_check;
@@ -52,6 +54,8 @@ fn main() {
                 continue;
             }
         };
+
+        println!("{}", pretty_print(&prog, 80));
 
         if let Err(type_err) = type_check(&prog) {
             println!("{}", show_error(type_err, source));

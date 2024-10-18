@@ -5,5 +5,7 @@ edition = "2021"
 
 [dependencies]
 parser-ll1 = { git = "https://github.com/justinpombrio/parser-ll1" }
+ppp = { package = "partial-pretty-printer", git = "https://github.com/justinpombrio/partial-pretty-printer" }
 thiserror = "1.0.*"
 colored = "2.1"
+termcolor = "1.4.*"

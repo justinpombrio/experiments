@@ -22,17 +22,31 @@ pub struct Located<T> {
 }
 
 #[derive(Debug, Clone)]
+pub struct Prog {
+    pub funcs: Vec<Located<Func>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Func {
+    pub name: Located<Id>,
+    pub params: Vec<Param>,
+    pub returns: Type,
+    pub body: Located<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Param {
+    pub id: Id,
+    pub ty: Type,
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Unit,
     Int(i32),
     Id(Located<Id>),
-    Add(Box<Located<Expr>>, Box<Located<Expr>>),
+    Sum(Vec<Located<Expr>>),
     Call(Located<Id>, Vec<Located<Expr>>),
-}
-
-#[derive(Debug, Clone)]
-pub struct Prog {
-    pub funcs: Vec<Located<Func>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,14 +60,6 @@ pub enum Type {
 pub struct FuncType {
     pub params: Vec<Type>,
     pub returns: Box<Type>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Func {
-    pub name: Located<Id>,
-    pub params: Vec<(Id, Type)>,
-    pub returns: Type,
-    pub body: Located<Expr>,
 }
 
 pub fn end_loc(source: &str) -> Loc {

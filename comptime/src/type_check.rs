@@ -68,8 +68,8 @@ impl<'a> TypeChecker<'a> {
     fn check_func(&mut self, func_loc: &Located<Func>) -> Result<(), TypeError> {
         let func = &func_loc.inner;
 
-        for (id, ty) in &func.params {
-            self.env.push(id.clone(), ty.clone());
+        for param in &func.params {
+            self.env.push(param.id.clone(), param.ty.clone());
         }
         self.expect_expr(&func.body, func.returns.clone())?;
         for _ in &func.params {
@@ -98,9 +98,10 @@ impl<'a> TypeChecker<'a> {
             Expr::Unit => Ok(Type::Unit),
             Expr::Int(_) => Ok(Type::Int),
             Expr::Id(id) => self.check_id(id),
-            Expr::Add(x, y) => {
-                self.expect_expr(x, Type::Int)?;
-                self.expect_expr(y, Type::Int)?;
+            Expr::Sum(exprs) => {
+                for expr in exprs {
+                    self.expect_expr(expr, Type::Int)?;
+                }
                 Ok(Type::Int)
             }
             Expr::Call(id_loc, args) => {
@@ -119,7 +120,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 for (arg, param) in args.iter().zip(func.params.iter()) {
                     let actual_ty = self.check_expr(arg)?;
-                    let expected_ty = &param.1;
+                    let expected_ty = &param.ty;
                     if &actual_ty != expected_ty {
                         return Err(TypeError::TypeMismatch {
                             expected: expected_ty.clone(),

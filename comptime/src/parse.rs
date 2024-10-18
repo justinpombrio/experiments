@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Func, FuncType, Id, Located, Pos, Prog, Type};
+use crate::ast::{Expr, Func, FuncType, Id, Located, Param, Pos, Prog, Type};
 use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive, Span};
 use std::str::FromStr;
 
@@ -64,13 +64,16 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
 
     let atom_p = choice("expression", (unit_p, int_p, id_expr_p, paren_p, call_p));
 
-    let add_p = atom_p.clone().fold_many1(
-        tuple("addition expression", (g.string("+")?, atom_p)),
-        |x, (_, y)| Located {
-            loc: (x.loc.0, y.loc.1),
-            inner: Expr::Add(Box::new(x), Box::new(y)),
-        },
-    );
+    let add_p = atom_p.clone().many_sep1(g.string("+")?).map(|terms| {
+        if terms.len() == 1 {
+            terms.into_iter().next().unwrap()
+        } else {
+            Located {
+                loc: (terms[0].loc.0, terms[terms.len() - 1].loc.1),
+                inner: Expr::Sum(terms),
+            }
+        }
+    });
 
     Ok(expr_p.define(add_p))
 }
@@ -107,7 +110,10 @@ fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarErro
         "function parameter",
         (id_p.clone(), g.string(":")?, type_p.clone()),
     )
-    .map(|(param, _, ty)| (param.inner, ty));
+    .map(|(param, _, ty)| Param {
+        id: param.inner,
+        ty,
+    });
     let params_p = parenthesized_list(g, "function parameters", param_p)?;
     let func_p = tuple(
         "function",

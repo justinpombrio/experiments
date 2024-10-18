@@ -33,7 +33,7 @@ impl<'a> Interpreter<'a> {
                 });
             }
             for (i, arg) in args.into_iter().enumerate() {
-                self.env.push(func.params[i].0.clone(), arg);
+                self.env.push(func.params[i].id.clone(), arg);
             }
             let result = self.eval_expr(&func.body)?;
             for _ in 0..func.params.len() {
@@ -53,10 +53,12 @@ impl<'a> Interpreter<'a> {
         match &expr.inner {
             Expr::Unit => Ok(Value::Unit),
             Expr::Int(n) => Ok(Value::Int(*n)),
-            Expr::Add(x, y) => {
-                let x = self.eval_expr(x)?.unwrap_int(x)?;
-                let y = self.eval_expr(y)?.unwrap_int(y)?;
-                Ok(Value::Int(x + y))
+            Expr::Sum(exprs) => {
+                let mut sum = 0;
+                for expr in exprs {
+                    sum += self.eval_expr(expr)?.unwrap_int(expr)?;
+                }
+                Ok(Value::Int(sum))
             }
             Expr::Id(id) => self.id(id),
             Expr::Call(func_id, exprs) => {
