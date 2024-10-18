@@ -3,26 +3,10 @@
 //! Means: first order everything. First order references (like Hylo), first order comptime (like
 //! Zig), first order functions.
 
-mod ast;
-mod env;
-mod interp;
-mod parse;
-mod pretty_print;
-mod runtime_error;
-mod show_error;
-mod type_check;
-mod type_error;
-
-use ast::Prog;
-use interp::run_prog;
-use parse::make_prog_parser;
-use parser_ll1::CompiledParser;
-use pretty_print::pretty_print;
-use show_error::show_error;
+use comptime::{show_error, FmtResult, Language, RunResult};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use type_check::type_check;
 
 /// Experimental Programming Language
 #[derive(clap::Parser, Debug)]
@@ -30,6 +14,9 @@ use type_check::type_check;
 struct CommandLineArgs {
     /// The source file to run. If not provided, start a REPL.
     path: Option<PathBuf>,
+    /// Whether to pretty print the source file instead of running it.
+    #[arg(short, long)]
+    pretty: bool,
 }
 
 fn prompt(buffer: &mut String) -> Result<&str, io::Error> {
@@ -45,52 +32,51 @@ fn prompt(buffer: &mut String) -> Result<&str, io::Error> {
     Ok(buffer.trim())
 }
 
-fn run(parser: &impl CompiledParser<Prog>, source: &str) {
-    let prog = match parser.parse("stdin", source) {
-        Ok(prog) => prog,
-        Err(err) => {
-            println!("{}", err);
-            return;
-        }
-    };
+fn run(language: &mut Language, source: &str) {
+    use RunResult::{ParseError, RuntimeError, Success, TypeError};
 
-    println!("{}", pretty_print(&prog, 80, true));
-
-    if let Err(type_err) = type_check(&prog) {
-        println!("{}", show_error(type_err, source));
-        return;
-    }
-
-    match run_prog(&prog) {
-        Err(runtime_err) => println!("{}", show_error(runtime_err, source)),
-        Ok(value) => println!("{}", value),
+    match language.run(source) {
+        ParseError(err) => println!("{}", err),
+        TypeError(_, err) => println!("{}", show_error(err, source)),
+        RuntimeError(_, err) => println!("{}", show_error(err, source)),
+        Success(_, value) => println!("{}", value),
     }
 }
 
-fn repl(parser: &impl CompiledParser<Prog>) {
+fn fmt(language: &mut Language, source: &str) {
+    use FmtResult::{ParseError, Success};
+
+    match language.fmt(source, 80) {
+        ParseError(err) => println!("{}", err),
+        Success(string) => println!("{}", string),
+    }
+}
+
+fn repl(language: &mut Language) {
     let mut input_buffer = String::new();
     loop {
         let source = prompt(&mut input_buffer).unwrap();
         if source.is_empty() {
             break;
         }
-        run(parser, source);
+        run(language, source);
     }
     println!("Goodbye!");
 }
 
 fn main() {
-    let parser = match make_prog_parser() {
-        Ok(parser) => parser,
-        Err(err) => panic!("{}", err),
-    };
+    let mut lang = Language::new();
 
     let args = <CommandLineArgs as clap::Parser>::parse();
 
     if let Some(path) = args.path {
         let source = fs::read_to_string(path).unwrap();
-        run(&parser, &source);
+        if args.pretty {
+            fmt(&mut lang, &source);
+        } else {
+            run(&mut lang, &source);
+        }
     } else {
-        repl(&parser);
+        repl(&mut lang);
     }
 }

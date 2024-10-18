@@ -3,6 +3,29 @@ use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, R
 use std::str::FromStr;
 use thiserror::Error;
 
+pub fn make_prog_parser() -> Result<impl CompiledParser<Prog>, GrammarError> {
+    let mut g = Grammar::with_whitespace("[ \t\r\n]+")?;
+    let prog_p = prog_parser(&mut g)?;
+    g.compile_parser(prog_p)
+}
+
+#[cfg(test)]
+pub fn test_case_parser(g: &mut Grammar) -> Result<impl Parser<(Prog, String)>, GrammarError> {
+    let prog_p = prog_parser(g)?;
+
+    Ok(tuple(
+        "test case",
+        (
+            g.string("======")?,
+            prog_p,
+            g.string("=====>")?,
+            g.regex("expected", "([^=]|=[^=]|==[^=])*")?
+                .span(|span| span.substr.to_owned()),
+        ),
+    )
+    .map(|(_, prog, _, expected)| (prog, expected)))
+}
+
 fn located<T>(span: Span, inner: T) -> Located<T> {
     Located {
         loc: (
@@ -160,10 +183,4 @@ fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarErro
         .and(expr_p)
         .map(|(funcs, main)| Prog { funcs, main });
     Ok(prog_p)
-}
-
-pub fn make_prog_parser() -> Result<impl CompiledParser<Prog>, GrammarError> {
-    let mut g = Grammar::with_whitespace("[ \t\r\n]+")?;
-    let prog_p = prog_parser(&mut g)?;
-    g.compile_parser(prog_p)
 }

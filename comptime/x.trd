@@ -3,7 +3,7 @@ fn add_1(n: Int) -> Int {
 }
 
 fn add(x: Int, y: Int) -> Int {
-    x + y
+    x + ()
 }
 
 add_1(2)
