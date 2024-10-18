@@ -4,7 +4,7 @@ use crate::ast::{Expr, Func, FuncType, Id, Located, Param, Prog, Type};
 use ppp::doc_examples::tree::{Tree, TreeCondition, TreeNotation, TreeStyleLabel};
 use ppp::doc_examples::BasicStyle;
 use ppp::notation_constructors::{
-    child, count, empty, flat, fold, left, lit, nl, right, style, text, Count, Fold,
+    child, count, empty, flat, fold, indent, left, lit, nl, right, style, text, Count, Fold,
 };
 use ppp::{Line, Notation};
 use std::fmt;
@@ -12,15 +12,18 @@ use std::sync::LazyLock;
 
 // green, magenta, blue, yellow
 const CONSTANT_STYLE: &str = "magenta";
-const KEYWORD_STYLE: &str = "yellow";
-// const NUMBER_STYLE: &str = "blue";
-// const COMMENT_STYLE: &str = "yellow";
+const KEYWORD_STYLE: &str = "bold_blue";
+const SYNTAX_STYLE: &str = "yellow";
+const TYPE_STYLE: &str = "green";
 
-pub fn pretty_print(prog: &Prog, width: u16) -> String {
+pub fn pretty_print(prog: &Prog, width: u16, indent: bool) -> String {
     use ppp::FocusTarget;
 
     let mut lines = Vec::new();
-    let tree = prog.show();
+    let mut tree = prog.show();
+    if indent {
+        tree = indented_code(tree);
+    }
     let (_prev_lines, focused_line, next_lines) =
         ppp::pretty_print(&tree, width, &[], FocusTarget::Start, None).unwrap();
     lines.push(Line::from(focused_line));
@@ -30,7 +33,25 @@ pub fn pretty_print(prog: &Prog, width: u16) -> String {
     lines_to_string(lines).unwrap()
 }
 
-fn comma_sep() -> Notation<TreeStyleLabel, TreeCondition> {
+type MyNotation = Notation<TreeStyleLabel, TreeCondition>;
+
+fn kw(notation: MyNotation) -> MyNotation {
+    style(KEYWORD_STYLE, notation)
+}
+
+fn syn(notation: MyNotation) -> MyNotation {
+    style(SYNTAX_STYLE, notation)
+}
+
+fn ty(notation: MyNotation) -> MyNotation {
+    style(TYPE_STYLE, notation)
+}
+
+fn cst(notation: MyNotation) -> MyNotation {
+    style(CONSTANT_STYLE, notation)
+}
+
+fn comma_sep() -> MyNotation {
     let single_seq = fold(Fold {
         first: flat(child(0)),
         join: left() + lit(", ") + flat(right()),
@@ -46,7 +67,7 @@ fn comma_sep() -> Notation<TreeStyleLabel, TreeCondition> {
     })
 }
 
-fn infix_sep(sep: &'static str) -> Notation<TreeStyleLabel, TreeCondition> {
+fn infix_sep(sep: &'static str) -> MyNotation {
     let single_seq = fold(Fold {
         first: flat(child(0)),
         join: left() + lit(" ") + lit(sep) + lit(" ") + flat(right()),
@@ -63,57 +84,55 @@ fn infix_sep(sep: &'static str) -> Notation<TreeStyleLabel, TreeCondition> {
 }
 
 static TYPE_UNIT_NOTATION: LazyLock<TreeNotation> =
-    LazyLock::new(|| style(CONSTANT_STYLE, lit("()")).validate().unwrap());
+    LazyLock::new(|| ty(lit("()")).validate().unwrap());
 
 static TYPE_INT_NOTATION: LazyLock<TreeNotation> =
-    LazyLock::new(|| style(CONSTANT_STYLE, lit("Int")).validate().unwrap());
+    LazyLock::new(|| ty(lit("Int")).validate().unwrap());
+
+static TYPE_PARAMS_NOTATION: LazyLock<TreeNotation> =
+    LazyLock::new(|| comma_sep().validate().unwrap());
 
 static TYPE_FUNC_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
-    let prefix = style(KEYWORD_STYLE, lit("fn")) + lit("(");
+    let prefix = lit("fn(");
     let suffix = lit(") -> ") + child(1);
 
     let single = prefix.clone() + child(0) + suffix.clone();
     let multi = prefix + (4 >> child(0)) + nl() + suffix;
     let options = single | multi;
 
-    options.validate().unwrap()
+    ty(options).validate().unwrap()
 });
 
-static TYPE_PARAMS_NOTATION: LazyLock<TreeNotation> =
-    LazyLock::new(|| comma_sep().validate().unwrap());
-
 static EXPR_UNIT_NOTATION: LazyLock<TreeNotation> =
-    LazyLock::new(|| style(CONSTANT_STYLE, lit("()")).validate().unwrap());
+    LazyLock::new(|| cst(lit("()")).validate().unwrap());
 
 static EXPR_INT_NOTATION: LazyLock<TreeNotation> =
-    LazyLock::new(|| style(CONSTANT_STYLE, text()).validate().unwrap());
+    LazyLock::new(|| cst(text()).validate().unwrap());
 
 static ID_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| text().validate().unwrap());
 
 static EXPR_SUM_NOTATION: LazyLock<TreeNotation> =
     LazyLock::new(|| infix_sep("+").validate().unwrap());
 
-static FUNC_NAME_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| text().validate().unwrap());
-
 static EXPR_ARGS_NOTATION: LazyLock<TreeNotation> =
     LazyLock::new(|| comma_sep().validate().unwrap());
 
 static EXPR_CALL_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
-    let single = text() + lit("(") + flat(child(0)) + lit(")");
-    let multi = text() + lit("(") + (4 >> child(0)) + nl() + lit(")");
+    let single = child(0) + lit("(") + flat(child(1)) + lit(")");
+    let multi = child(0) + lit("(") + (4 >> child(1)) + nl() + lit(")");
     let options = single | multi;
 
     options.validate().unwrap()
 });
 
 static PARAM_NOTATION: LazyLock<TreeNotation> =
-    LazyLock::new(|| (child(0) + lit(": ") + child(1)).validate().unwrap());
+    LazyLock::new(|| (child(0) + syn(lit(": ")) + child(1)).validate().unwrap());
 
 static PARAMS_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| comma_sep().validate().unwrap());
 
 static FUNC_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
-    let prefix = style(KEYWORD_STYLE, lit("fn")) + lit(" ") + child(0) + lit("(");
-    let suffix = lit(") -> ") + child(2) + lit(" {") + (4 >> child(3)) ^ lit("}");
+    let prefix = kw(lit("fn")) + lit(" ") + child(0) + syn(lit("("));
+    let suffix = syn(lit(") -> ")) + child(2) + syn(lit(" {")) + (4 >> child(3)) ^ syn(lit("}"));
 
     let single = prefix.clone() + child(1) + suffix.clone();
     let multi = prefix + (4 >> child(1)) + nl() + suffix;
@@ -122,13 +141,22 @@ static FUNC_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
     options.validate().unwrap()
 });
 
-static PROG_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
+static FUNCS_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
     fold(Fold {
         first: child(0),
         join: left() ^ empty() ^ right(),
     })
     .validate()
     .unwrap()
+});
+
+static PROG_NOTATION: LazyLock<TreeNotation> =
+    LazyLock::new(|| (child(0) ^ empty() ^ child(1)).validate().unwrap());
+
+static INDENTED_CODE_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
+    indent("│ ", Some(SYNTAX_STYLE), empty() ^ child(0))
+        .validate()
+        .unwrap()
 });
 
 trait Show {
@@ -207,10 +235,7 @@ impl Show for Expr {
             Sum(terms) => branch_seq(&EXPR_SUM_NOTATION, terms),
             Call(func, args) => branch(
                 &EXPR_CALL_NOTATION,
-                [
-                    leaf_text(&FUNC_NAME_NOTATION, func.inner.clone()),
-                    branch_seq(&EXPR_ARGS_NOTATION, args),
-                ],
+                [func.show(), branch_seq(&EXPR_ARGS_NOTATION, args)],
             ),
         }
     }
@@ -238,8 +263,19 @@ impl Show for Func {
 
 impl Show for Prog {
     fn show(&self) -> Tree<BasicStyle> {
-        branch_seq(&PROG_NOTATION, &self.funcs)
+        if self.funcs.is_empty() {
+            self.main.show()
+        } else {
+            branch(
+                &PROG_NOTATION,
+                [branch_seq(&FUNCS_NOTATION, &self.funcs), self.main.show()],
+            )
+        }
     }
+}
+
+fn indented_code(tree: Tree<BasicStyle>) -> Tree<BasicStyle> {
+    branch(&INDENTED_CODE_NOTATION, [tree])
 }
 
 fn lines_to_string<'a>(lines: Vec<Line<'a, &'a Tree<BasicStyle>>>) -> Result<String, fmt::Error> {
@@ -252,16 +288,29 @@ fn lines_to_string<'a>(lines: Vec<Line<'a, &'a Tree<BasicStyle>>>) -> Result<Str
     for line in lines {
         for segment in line.segments {
             let str = segment.str;
-            match segment.style.color {
-                White => write!(w, "{}", str.white())?,
-                Black => write!(w, "{}", str.black())?,
-                Red => write!(w, "{}", str.red())?,
-                Green => write!(w, "{}", str.green())?,
-                Yellow => write!(w, "{}", str.yellow())?,
-                Blue => write!(w, "{}", str.blue())?,
-                Magenta => write!(w, "{}", str.magenta())?,
-                Cyan => write!(w, "{}", str.cyan())?,
-            };
+            if segment.style.bold {
+                match segment.style.color {
+                    White => write!(w, "{}", str.white().bold())?,
+                    Black => write!(w, "{}", str.black().bold())?,
+                    Red => write!(w, "{}", str.red().bold())?,
+                    Green => write!(w, "{}", str.green().bold())?,
+                    Yellow => write!(w, "{}", str.yellow().bold())?,
+                    Blue => write!(w, "{}", str.blue().bold())?,
+                    Magenta => write!(w, "{}", str.magenta().bold())?,
+                    Cyan => write!(w, "{}", str.cyan().bold())?,
+                }
+            } else {
+                match segment.style.color {
+                    White => write!(w, "{}", str.white())?,
+                    Black => write!(w, "{}", str.black())?,
+                    Red => write!(w, "{}", str.red())?,
+                    Green => write!(w, "{}", str.green())?,
+                    Yellow => write!(w, "{}", str.yellow())?,
+                    Blue => write!(w, "{}", str.blue())?,
+                    Magenta => write!(w, "{}", str.magenta())?,
+                    Cyan => write!(w, "{}", str.cyan())?,
+                }
+            }
         }
         writeln!(w)?;
     }

@@ -54,14 +54,14 @@ fn run(parser: &impl CompiledParser<Prog>, source: &str) {
         }
     };
 
-    println!("{}", pretty_print(&prog, 80));
+    println!("{}", pretty_print(&prog, 80, true));
 
     if let Err(type_err) = type_check(&prog) {
         println!("{}", show_error(type_err, source));
         return;
     }
 
-    match run_prog(source, &prog) {
+    match run_prog(&prog) {
         Err(runtime_err) => println!("{}", show_error(runtime_err, source)),
         Ok(value) => println!("{}", value),
     }

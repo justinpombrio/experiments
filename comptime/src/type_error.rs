@@ -24,15 +24,6 @@ pub enum TypeError {
         expected: usize,
         actual: usize,
     },
-
-    #[error("Missing main() function.")]
-    MissingMain,
-
-    #[error("The main() function's return type must be ().")]
-    MainDoesNotReturnUnit,
-
-    #[error("The main() function must not take any arguments.")]
-    MainTakesArgs,
 }
 
 impl ShowError for TypeError {
@@ -47,7 +38,6 @@ impl ShowError for TypeError {
             UnboundId(id) | UnboundFunc(id) => Some(id.loc),
             WrongNumArgs { callsite, .. } => Some(callsite.loc),
             TypeMismatch { loc, .. } => Some(*loc),
-            MissingMain | MainDoesNotReturnUnit | MainTakesArgs => None,
         }
     }
 
@@ -59,9 +49,6 @@ impl ShowError for TypeError {
             UnboundFunc { .. } => "function not found".to_owned(),
             TypeMismatch { expected, .. } => format!("expected {expected}"),
             WrongNumArgs { expected, .. } => format!("expected {expected} arguments"),
-            MissingMain => "main() not found".to_owned(),
-            MainDoesNotReturnUnit => "expected type ()".to_owned(),
-            MainTakesArgs => "main() takes no arguments".to_owned(),
         }
     }
 

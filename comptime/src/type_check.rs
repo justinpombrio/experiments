@@ -46,22 +46,10 @@ impl<'a> TypeChecker<'a> {
     }
 
     fn check_all(&mut self) -> Result<(), TypeError> {
-        let main_loc = self
-            .lookup_func("main")
-            .ok_or_else(|| TypeError::MissingMain)?;
-        let main = &main_loc.inner;
-
-        if main.returns != Type::Unit {
-            return Err(TypeError::MainDoesNotReturnUnit);
-        }
-        if !main.params.is_empty() {
-            return Err(TypeError::MainTakesArgs);
-        }
-
         for func in &self.prog.funcs {
             self.check_func(func)?;
         }
-
+        self.check_expr(&self.prog.main)?;
         Ok(())
     }
 

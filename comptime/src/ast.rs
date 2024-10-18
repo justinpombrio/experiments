@@ -24,6 +24,7 @@ pub struct Located<T> {
 #[derive(Debug, Clone)]
 pub struct Prog {
     pub funcs: Vec<Located<Func>>,
+    pub main: Located<Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -60,20 +61,6 @@ pub enum Type {
 pub struct FuncType {
     pub params: Vec<Type>,
     pub returns: Box<Type>,
-}
-
-pub fn end_loc(source: &str) -> Loc {
-    let line = source.lines().count() - 1;
-    let col = source
-        .lines()
-        .last()
-        .map(|l| l.chars().count())
-        .unwrap_or(0);
-    let pos = Pos {
-        line: line as u32,
-        col: col as u32,
-    };
-    (pos, pos)
 }
 
 impl fmt::Display for Value {

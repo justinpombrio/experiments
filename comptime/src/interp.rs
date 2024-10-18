@@ -1,4 +1,4 @@
-use crate::ast::{end_loc, Expr, Func, Id, Located, Prog, Value};
+use crate::ast::{Expr, Func, Id, Located, Prog, Value};
 use crate::env::Env;
 use crate::runtime_error::RuntimeError;
 use std::collections::HashMap;
@@ -72,11 +72,7 @@ impl<'a> Interpreter<'a> {
     }
 }
 
-pub fn run_prog(source: &str, prog: &Prog) -> Result<Value, RuntimeError> {
+pub fn run_prog(prog: &Prog) -> Result<Value, RuntimeError> {
     let mut interp = Interpreter::new(prog);
-    let main_call_id = Located {
-        loc: end_loc(source),
-        inner: "main".to_owned(),
-    };
-    interp.call(&main_call_id, Vec::new())
+    interp.eval_expr(&prog.main)
 }

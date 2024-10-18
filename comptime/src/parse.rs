@@ -1,6 +1,7 @@
 use crate::ast::{Expr, Func, FuncType, Id, Located, Param, Pos, Prog, Type};
 use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive, Span};
 use std::str::FromStr;
+use thiserror::Error;
 
 fn located<T>(span: Span, inner: T) -> Located<T> {
     Located {
@@ -37,6 +38,12 @@ where
     Ok(choice(name, (none_p, some_p)))
 }
 
+#[derive(Error, Debug)]
+enum ExprParseError {
+    #[error("Function name must be an identifier.")]
+    FuncIsNotId,
+}
+
 fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, GrammarError> {
     let id_p = id_parser(g)?;
     let expr_p = Recursive::<Located<Expr>>::new("expression");
@@ -56,15 +63,23 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
         (g.string("(")?, expr_p.refn(), g.string(")")?),
     )
     .map(|(_, expr, _)| expr);
+    let atom_p = choice("expression", (unit_p, int_p, id_expr_p, paren_p));
 
     // Id(Expr, ...)
     let args_p = parenthesized_list(g, "function arguments", expr_p.refn())?;
-    let call_p = tuple("function call", (g.string("call")?, id_p, args_p))
-        .map_span(|span, (_, func, args)| located(span, Expr::Call(func, args)));
+    let call_p = atom_p.and(args_p.opt()).try_map_span(|span, (atom, args)| {
+        if let Some(args) = args {
+            if let Expr::Id(id) = atom.inner {
+                Ok(located(span, Expr::Call(id, args)))
+            } else {
+                Err(ExprParseError::FuncIsNotId)
+            }
+        } else {
+            Ok(atom)
+        }
+    });
 
-    let atom_p = choice("expression", (unit_p, int_p, id_expr_p, paren_p, call_p));
-
-    let add_p = atom_p.clone().many_sep1(g.string("+")?).map(|terms| {
+    let add_p = call_p.many_sep1(g.string("+")?).map(|terms| {
         if terms.len() == 1 {
             terms.into_iter().next().unwrap()
         } else {
@@ -124,7 +139,7 @@ fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarErro
             g.string("->")?,
             type_p,
             g.string("{")?,
-            expr_p,
+            expr_p.clone(),
             g.string("}")?,
         ),
     )
@@ -140,7 +155,10 @@ fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarErro
         )
     });
 
-    let prog_p = func_p.many0().map(|funcs| Prog { funcs });
+    let prog_p = func_p
+        .many0()
+        .and(expr_p)
+        .map(|(funcs, main)| Prog { funcs, main });
     Ok(prog_p)
 }
 
