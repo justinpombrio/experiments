@@ -4,7 +4,7 @@ use crate::ast::{Expr, Func, FuncType, Id, Located, Param, Prog, Type};
 use ppp::doc_examples::tree::{Tree, TreeCondition, TreeNotation, TreeStyleLabel};
 use ppp::doc_examples::BasicStyle;
 use ppp::notation_constructors::{
-    child, count, empty, flat, fold, indent, left, lit, nl, right, style, text, Count, Fold,
+    child, count, empty, flat, fold, left, lit, nl, right, style, text, Count, Fold,
 };
 use ppp::{Line, Notation};
 use std::fmt;
@@ -153,11 +153,8 @@ static FUNCS_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
 static PROG_NOTATION: LazyLock<TreeNotation> =
     LazyLock::new(|| (child(0) ^ empty() ^ child(1)).validate().unwrap());
 
-static INDENTED_CODE_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
-    indent("│ ", Some(SYNTAX_STYLE), empty() ^ child(0))
-        .validate()
-        .unwrap()
-});
+static INDENTED_CODE_NOTATION: LazyLock<TreeNotation> =
+    LazyLock::new(|| (4 >> child(0)).validate().unwrap());
 
 trait Show {
     fn show(&self) -> Tree<BasicStyle>;

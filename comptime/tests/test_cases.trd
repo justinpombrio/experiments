@@ -1,0 +1,16 @@
+TEST
+    1 + 2
+EXPECT
+    3
+TEST
+    fn add_1(n: Int) -> Int {
+        add(n, 1)
+    }
+
+    fn add(x: Int, y: Int) -> Int {
+        x + y
+    }
+
+    add_1(2)
+EXPECT
+    3

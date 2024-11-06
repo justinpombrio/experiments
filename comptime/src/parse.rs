@@ -9,23 +9,6 @@ pub fn make_prog_parser() -> Result<impl CompiledParser<Prog>, GrammarError> {
     g.compile_parser(prog_p)
 }
 
-#[cfg(test)]
-pub fn test_case_parser(g: &mut Grammar) -> Result<impl Parser<(Prog, String)>, GrammarError> {
-    let prog_p = prog_parser(g)?;
-
-    Ok(tuple(
-        "test case",
-        (
-            g.string("======")?,
-            prog_p,
-            g.string("=====>")?,
-            g.regex("expected", "([^=]|=[^=]|==[^=])*")?
-                .span(|span| span.substr.to_owned()),
-        ),
-    )
-    .map(|(_, prog, _, expected)| (prog, expected)))
-}
-
 fn located<T>(span: Span, inner: T) -> Located<T> {
     Located {
         loc: (

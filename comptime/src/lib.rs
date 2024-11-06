@@ -1,10 +1,11 @@
 mod ast;
-mod env;
+mod heap;
 mod interp;
 mod parse;
 mod pretty_print;
 mod runtime_error;
 mod show_error;
+mod stack;
 mod type_check;
 mod type_error;
 
@@ -20,6 +21,7 @@ pub use parser_ll1::ParseError;
 pub use pretty_print::pretty_print;
 pub use runtime_error::RuntimeError;
 pub use show_error::show_error;
+pub use show_error::ShowError;
 pub use type_error::TypeError;
 
 pub struct Language {
