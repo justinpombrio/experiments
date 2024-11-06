@@ -9,6 +9,7 @@
 - They interact with other syntax. E.g. it would be nice to have
   `if let Some(x) = x and x > 0`.
 
+Rusty syntax (my original idea):
 ```
 while let Some(x) = iter.next() { ... }
 
@@ -18,6 +19,11 @@ if let KeyCode::Char(ch) = self.code and self.modifiers.shift { ... }
 
 let Some(x) = opt_x else { return None; }
 ```
+
+A more powerful version is The Ultimate Conditional Syntax:
+https://dl.acm.org/doi/pdf/10.1145/3689746
+
+See `conditional.md`.
 
 ## Strings
 
