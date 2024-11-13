@@ -23,7 +23,8 @@ fn read_words(filename: &str) -> Vec<Word> {
 
 impl GameState {
     fn new() -> GameState {
-        let possible_solutions = read_words("possible_solutions.txt");
+        // There's a file called possible_solutions.txt, but Wordle seems to have moved beyond it!
+        let possible_solutions = read_words("allowed_guesses.txt");
         let allowed_guesses = read_words("allowed_guesses.txt");
         GameState {
             guesses: vec![],
