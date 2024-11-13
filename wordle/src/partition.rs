@@ -12,14 +12,14 @@ impl Partition {
     }
 
     pub fn insert(&mut self, word: Word, coloring: Coloring) {
-        self.0.entry(coloring).or_insert(Vec::new()).push(word);
+        self.0.entry(coloring).or_default().push(word);
     }
 
     /// Size of the largest subset. Smaller is better.
     #[allow(unused)]
     pub fn worst_case_score(&self) -> usize {
         let mut score = 0;
-        for (_, wordset) in &self.0 {
+        for wordset in self.0.values() {
             score = score.max(wordset.len());
         }
         score
@@ -27,11 +27,11 @@ impl Partition {
 
     /// Entropy of the subsets. More is better.
     pub fn entropy(&self) -> f64 {
-        let total: f64 = self.0.iter().map(|(_, wordset)| wordset.len() as f64).sum();
+        let total: f64 = self.0.values().map(|wordset| wordset.len() as f64).sum();
 
         self.0
-            .iter()
-            .map(|(_, wordset)| wordset.len() as f64 / total)
+            .values()
+            .map(|wordset| wordset.len() as f64 / total)
             .map(|frac: f64| -frac * frac.log2())
             .sum()
     }
@@ -63,8 +63,8 @@ fn test_partition() {
     partition.insert(Word::from_str("44444"), Coloring([W, G, W, W, W]));
     assert_eq!(partition.worst_case_score(), 2);
     let expected_entropy = {
-        let frac1 = 1.0 / 3.0 as f64;
-        let frac2 = 2.0 / 3.0 as f64;
+        let frac1: f64 = 1.0 / 3.0;
+        let frac2: f64 = 2.0 / 3.0;
         -frac1 * frac1.log2() - frac2 * frac2.log2()
     };
     assert_eq!(partition.entropy(), expected_entropy);
@@ -72,8 +72,8 @@ fn test_partition() {
     partition.insert(Word::from_str("33333"), Coloring([W, W, W, W, W]));
     assert_eq!(partition.worst_case_score(), 3);
     let expected_entropy = {
-        let frac1 = 1.0 / 4.0 as f64;
-        let frac2 = 3.0 / 4.0 as f64;
+        let frac1: f64 = 1.0 / 4.0;
+        let frac2: f64 = 3.0 / 4.0;
         -frac1 * frac1.log2() - frac2 * frac2.log2()
     };
     assert_eq!(partition.entropy(), expected_entropy);
@@ -86,9 +86,9 @@ fn test_partition() {
     partition.insert(Word::from_str("99999"), Coloring([W, W, W, W, W]));
     assert_eq!(partition.worst_case_score(), 6);
     let expected_entropy = {
-        let frac1 = 0.6 as f64;
-        let frac2 = 0.2 as f64;
-        let frac3 = 0.2 as f64;
+        let frac1: f64 = 0.6;
+        let frac2: f64 = 0.2;
+        let frac3: f64 = 0.2;
         -frac1 * frac1.log2() - frac2 * frac2.log2() - frac3 * frac3.log2()
     };
     assert_eq!(partition.entropy(), expected_entropy);

@@ -93,12 +93,12 @@ fn read_input() -> String {
     std::io::stdin().read_line(&mut input).unwrap();
     let input = input.trim();
 
-    if input == "" || input == "q" || input == "Q" || input == "quit" || input == "Quit" {
+    if input.is_empty() || input == "q" || input == "Q" || input == "quit" || input == "Quit" {
         println!("Have a nice day.");
         std::process::exit(0);
     }
 
-    input.to_string()
+    input.to_owned()
 }
 
 fn main() {

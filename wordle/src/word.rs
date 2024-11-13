@@ -16,15 +16,9 @@ impl Word {
     pub fn from_str(s: &str) -> Word {
         let bytes = s.as_bytes();
         assert_eq!(s.len(), SIZE);
-        let mut word = [' ' as u8; SIZE];
-        for i in 0..SIZE {
-            word[i] = bytes[i];
-        }
+        let mut word = [b' '; SIZE];
+        word.copy_from_slice(bytes);
         Word(word)
-    }
-
-    pub fn to_string(self) -> String {
-        String::from_utf8_lossy(&self.0).to_string()
     }
 
     pub fn to_terminal_colored_string(self, coloring: Coloring) -> String {
@@ -95,7 +89,7 @@ pub fn color(guess: Word, solution: Word) -> Coloring {
             let mut solution_count = 0;
             for j in 0..SIZE {
                 if guess[j] == solution[j] {
-                    ()
+                    continue;
                 } else if j < i && guess[j] == letter {
                     guess_count += 1;
                 } else if solution[j] == letter {
