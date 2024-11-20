@@ -1,11 +1,11 @@
-use crate::ast::{Expr, Func, Id, Located, Prog, Value};
-use crate::env::Env;
+use crate::ast::{Expr, Func, Id, Located, Prog};
+use crate::memory::{Memory, Value};
 use crate::runtime_error::RuntimeError;
 use std::collections::HashMap;
 
 struct Interpreter<'a> {
     funcs: HashMap<Id, &'a Located<Func>>,
-    env: Env,
+    memory: Memory,
 }
 
 impl<'a> Interpreter<'a> {
@@ -16,7 +16,7 @@ impl<'a> Interpreter<'a> {
         }
         Interpreter {
             funcs,
-            env: Env::new(),
+            memory: Memory::new(),
         }
     }
 
@@ -32,13 +32,16 @@ impl<'a> Interpreter<'a> {
                     actual: args.len(),
                 });
             }
-            for (i, arg) in args.into_iter().enumerate() {
-                self.env.push(func.params[i].id.clone(), arg);
-            }
+            let params = func.params.iter().map(|param| param.id.clone());
+            let args = args.into_iter();
+            self.memory.push_stack_frame(params.zip(args));
             let result = self.eval_expr(&func.body)?;
-            for _ in 0..func.params.len() {
-                self.env.pop();
-            }
+            self.memory
+                .pop_stack_frame()
+                .map_err(|error| RuntimeError::MemoryError {
+                    error,
+                    loc: func_id.loc,
+                })?;
             Ok(result)
         } else {
             Err(RuntimeError::UnboundId(func_id.clone()))
@@ -46,7 +49,9 @@ impl<'a> Interpreter<'a> {
     }
 
     fn id(&mut self, id: &Located<Id>) -> Result<Value, RuntimeError> {
-        self.env.take(id)
+        self.memory
+            .lookup_stack(&id.inner)
+            .ok_or_else(|| RuntimeError::UnboundId(id.clone()))
     }
 
     fn eval_expr(&mut self, expr: &Located<Expr>) -> Result<Value, RuntimeError> {

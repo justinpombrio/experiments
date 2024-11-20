@@ -10,12 +10,6 @@ pub type Loc = (Pos, Pos);
 pub type Id = String;
 
 #[derive(Debug, Clone)]
-pub enum Value {
-    Unit,
-    Int(i32),
-}
-
-#[derive(Debug, Clone)]
 pub struct Located<T> {
     pub loc: Loc,
     pub inner: T,
@@ -61,24 +55,6 @@ pub enum Type {
 pub struct FuncType {
     pub params: Vec<Type>,
     pub returns: Box<Type>,
-}
-
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Value::Unit => write!(f, "()"),
-            Value::Int(n) => write!(f, "{}", n),
-        }
-    }
-}
-
-impl Value {
-    pub fn type_of(&self) -> Type {
-        match self {
-            Value::Unit => Type::Unit,
-            Value::Int(_) => Type::Int,
-        }
-    }
 }
 
 impl fmt::Display for Type {

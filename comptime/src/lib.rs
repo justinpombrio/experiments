@@ -1,11 +1,10 @@
 mod ast;
-mod heap;
 mod interp;
+mod memory;
 mod parse;
 mod pretty_print;
 mod runtime_error;
 mod show_error;
-mod stack;
 mod type_check;
 mod type_error;
 
@@ -16,7 +15,7 @@ use std::default::Default;
 use type_check::type_check;
 
 pub use ast::Prog;
-pub use ast::Value;
+pub use memory::Value;
 pub use parser_ll1::ParseError;
 pub use pretty_print::pretty_print;
 pub use runtime_error::RuntimeError;
