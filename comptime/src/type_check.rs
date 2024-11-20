@@ -92,6 +92,11 @@ impl<'a> TypeChecker<'a> {
                 }
                 Ok(Type::Int)
             }
+            Expr::Let(id_loc, binding_loc, body_loc) => {
+                let binding_ty = self.check_expr(binding_loc)?;
+                self.env.push(id_loc.inner.clone(), binding_ty);
+                self.check_expr(body_loc)
+            }
             Expr::Call(id_loc, args) => {
                 let id = &id_loc.inner;
                 let func_loc = self

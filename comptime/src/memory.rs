@@ -6,8 +6,10 @@ use thiserror::Error;
 pub enum MemoryError {
     #[error("Memory Error: overwriting addr {0} with {1}.")]
     Overwrite(u32, String),
-    #[error("Stack underflow!")]
+    #[error("Memory Error: Stack underflow!")]
     StackUnderflow,
+    #[error("Memory Error: No stack frame to bind local variable in.")]
+    NoStackFrame,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -59,7 +61,7 @@ impl Frame {
 }
 
 pub struct Memory {
-    constants: Frame,
+    globals: Frame,
     stack: Vec<Frame>,
     heap: Vec<HeapValue>,
 }
@@ -67,7 +69,7 @@ pub struct Memory {
 impl Memory {
     pub fn new() -> Memory {
         Memory {
-            constants: Frame::new(),
+            globals: Frame::new(),
             stack: Vec::new(),
             // Reserve addr 0
             heap: vec![HeapValue::Uninit],
@@ -97,8 +99,8 @@ impl Memory {
         self.write(addr, HeapValue::Array(array))
     }
 
-    pub fn push_stack_frame(&mut self, bindings: impl IntoIterator<Item = (Id, Value)>) {
-        self.stack.push(Frame(bindings.into_iter().collect()));
+    pub fn push_stack_frame(&mut self) {
+        self.stack.push(Frame::new())
     }
 
     pub fn pop_stack_frame(&mut self) -> Result<(), MemoryError> {
@@ -109,16 +111,25 @@ impl Memory {
         }
     }
 
+    pub fn bind_local(&mut self, id: &Id, val: Value) -> Result<(), MemoryError> {
+        if let Some(frame) = self.stack.last_mut() {
+            frame.push(id.clone(), val);
+            Ok(())
+        } else {
+            Err(MemoryError::NoStackFrame)
+        }
+    }
+
     pub fn lookup_stack(&self, id: &Id) -> Option<Value> {
         self.stack.last().and_then(|frame| frame.get(id))
     }
 
-    pub fn bind_constant(&mut self, id: Id, val: Value) {
-        self.constants.push(id, val);
+    pub fn bind_global(&mut self, id: Id, val: Value) {
+        self.globals.push(id, val);
     }
 
-    pub fn lookup_constant(&mut self, id: &Id) -> Option<Value> {
-        self.constants.get(id)
+    pub fn get_global(&mut self, id: &Id) -> Option<Value> {
+        self.globals.get(id)
     }
 }
 

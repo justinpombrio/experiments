@@ -30,6 +30,7 @@ fn id_parser(g: &mut Grammar) -> Result<impl Parser<Located<Id>> + Clone, Gramma
         .span(|s| located(s, s.substr.to_owned())))
 }
 
+/// (P, ..., P)
 fn parenthesized_list<T>(
     g: &mut Grammar,
     name: &'static str,
@@ -54,25 +55,35 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
     let id_p = id_parser(g)?;
     let expr_p = Recursive::<Located<Expr>>::new("expression");
 
+    // ()
     let unit_p = g.string("()")?.span(|s| located(s, Expr::Unit));
+
+    // <int>
     let int_p = g.regex("int", "[1-9][0-9]*")?.try_span(
         |s| -> Result<Located<Expr>, <i32 as FromStr>::Err> {
             Ok(located(s, Expr::Int(i32::from_str(s.substr)?)))
         },
     );
+
+    // Id
     let id_expr_p = id_p.clone().map(|id_loc| Located {
         loc: id_loc.loc,
         inner: Expr::Id(id_loc),
     });
+
+    // (Expr)
     let paren_p = tuple(
         "parenthetical expression",
         (g.string("(")?, expr_p.refn(), g.string(")")?),
     )
     .map(|(_, expr, _)| expr);
+
+    // ATOM ::= () | <int> | Id | (Expr)
     let atom_p = choice("expression", (unit_p, int_p, id_expr_p, paren_p));
 
-    // Id(Expr, ...)
+    // (Expr, ...)
     let args_p = parenthesized_list(g, "function arguments", expr_p.refn())?;
+    // Id(Expr, ...)
     let call_p = atom_p.and(args_p.opt()).try_map_span(|span, (atom, args)| {
         if let Some(args) = args {
             if let Expr::Id(id) = atom.inner {
@@ -96,7 +107,24 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
         }
     });
 
-    Ok(expr_p.define(add_p))
+    // let Id = Expr; Expr
+    let let_p = tuple(
+        "let expression",
+        (
+            g.string("let")?,
+            id_p,
+            g.string("=")?,
+            expr_p.refn(),
+            g.string(";")?,
+            expr_p.refn(),
+        ),
+    )
+    .map_span(|span, (_, id, _, binding, _, body)| {
+        located(span, Expr::Let(id, Box::new(binding), Box::new(body)))
+    });
+    let stmt_p = choice("expression", (let_p, add_p));
+
+    Ok(expr_p.define(stmt_p))
 }
 
 fn type_parser(g: &mut Grammar) -> Result<impl Parser<Type> + Clone, GrammarError> {

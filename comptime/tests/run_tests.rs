@@ -33,8 +33,18 @@ fn run_tests() {
                 test_cases.push((mem::take(&mut source), mem::take(&mut output)));
                 parse_state = ReadingSource;
             }
-            (ReadingSource, _) => source += line,
-            (ReadingOutput, _) => output += line,
+            (ReadingSource, _) => {
+                if !source.is_empty() {
+                    source += "\n";
+                }
+                source += line;
+            }
+            (ReadingOutput, _) => {
+                if !output.is_empty() {
+                    output += "\n";
+                }
+                output += line;
+            }
         }
     }
     if parse_state != Initial {
@@ -50,9 +60,7 @@ fn run_tests() {
             println!("EXPECT");
             println!("{}", expected_output);
             println!("ACTUAL");
-            for line in actual_output.lines() {
-                println!("    {}", line);
-            }
+            println!("{}", actual_output);
             assert_eq!(expected_output, actual_output);
         }
     }

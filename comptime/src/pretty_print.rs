@@ -4,7 +4,7 @@ use crate::ast::{Expr, Func, FuncType, Id, Located, Param, Prog, Type};
 use ppp::doc_examples::tree::{Tree, TreeCondition, TreeNotation, TreeStyleLabel};
 use ppp::doc_examples::BasicStyle;
 use ppp::notation_constructors::{
-    child, count, empty, flat, fold, left, lit, nl, right, style, text, Count, Fold,
+    child, count, empty, flat, fold, indent, left, lit, nl, right, style, text, Count, Fold,
 };
 use ppp::{Line, Notation};
 use std::fmt;
@@ -83,6 +83,10 @@ fn infix_sep(sep: &'static str) -> MyNotation {
     })
 }
 
+fn indented(notation: MyNotation) -> MyNotation {
+    indent("    ", None, notation)
+}
+
 static TYPE_UNIT_NOTATION: LazyLock<TreeNotation> =
     LazyLock::new(|| ty(lit("()")).validate().unwrap());
 
@@ -113,6 +117,21 @@ static ID_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| text().validate().
 
 static EXPR_SUM_NOTATION: LazyLock<TreeNotation> =
     LazyLock::new(|| infix_sep("+").validate().unwrap());
+
+static EXPR_LET_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
+    (kw(lit("let"))
+        + lit(" ")
+        + child(0)
+        + lit(" ")
+        + syn(lit("="))
+        + lit(" ")
+        + indented(child(1))
+        + syn(lit(";"))
+        + nl()
+        + indented(child(2)))
+    .validate()
+    .unwrap()
+});
 
 static EXPR_ARGS_NOTATION: LazyLock<TreeNotation> =
     LazyLock::new(|| comma_sep().validate().unwrap());
@@ -230,6 +249,9 @@ impl Show for Expr {
             Int(i) => leaf_text(&EXPR_INT_NOTATION, i.to_string()),
             Id(id) => id.show(),
             Sum(terms) => branch_seq(&EXPR_SUM_NOTATION, terms),
+            Let(id, binding, body) => {
+                branch(&EXPR_LET_NOTATION, [id.show(), binding.show(), body.show()])
+            }
             Call(func, args) => branch(
                 &EXPR_CALL_NOTATION,
                 [func.show(), branch_seq(&EXPR_ARGS_NOTATION, args)],

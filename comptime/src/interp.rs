@@ -1,5 +1,5 @@
-use crate::ast::{Expr, Func, Id, Located, Prog};
-use crate::memory::{Memory, Value};
+use crate::ast::{Expr, Func, Id, Loc, Located, Prog};
+use crate::memory::{Memory, MemoryError, Value};
 use crate::runtime_error::RuntimeError;
 use std::collections::HashMap;
 
@@ -32,16 +32,14 @@ impl<'a> Interpreter<'a> {
                     actual: args.len(),
                 });
             }
-            let params = func.params.iter().map(|param| param.id.clone());
+            self.memory.push_stack_frame();
+            let params = func.params.iter().map(|param| &param.id);
             let args = args.into_iter();
-            self.memory.push_stack_frame(params.zip(args));
+            for (param, arg) in params.zip(args) {
+                try_memory(func_id.loc, self.memory.bind_local(param, arg))?;
+            }
             let result = self.eval_expr(&func.body)?;
-            self.memory
-                .pop_stack_frame()
-                .map_err(|error| RuntimeError::MemoryError {
-                    error,
-                    loc: func_id.loc,
-                })?;
+            try_memory(func_id.loc, self.memory.pop_stack_frame())?;
             Ok(result)
         } else {
             Err(RuntimeError::UnboundId(func_id.clone()))
@@ -66,6 +64,11 @@ impl<'a> Interpreter<'a> {
                 Ok(Value::Int(sum))
             }
             Expr::Id(id) => self.id(id),
+            Expr::Let(id, binding, body) => {
+                let value = self.eval_expr(binding)?;
+                try_memory(id.loc, self.memory.bind_local(&id.inner, value))?;
+                self.eval_expr(body)
+            }
             Expr::Call(func_id, exprs) => {
                 let mut args = Vec::new();
                 for expr in exprs {
@@ -75,6 +78,10 @@ impl<'a> Interpreter<'a> {
             }
         }
     }
+}
+
+fn try_memory<T>(loc: Loc, result: Result<T, MemoryError>) -> Result<T, RuntimeError> {
+    result.map_err(|error| RuntimeError::MemoryError { error, loc })
 }
 
 pub fn run_prog(prog: &Prog) -> Result<Value, RuntimeError> {

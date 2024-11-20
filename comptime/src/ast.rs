@@ -41,6 +41,7 @@ pub enum Expr {
     Int(i32),
     Id(Located<Id>),
     Sum(Vec<Located<Expr>>),
+    Let(Located<Id>, Box<Located<Expr>>, Box<Located<Expr>>),
     Call(Located<Id>, Vec<Located<Expr>>),
 }
 

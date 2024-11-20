@@ -14,3 +14,13 @@ TEST
     add_1(2)
 EXPECT
     3
+
+TEST
+    fn add_2(n: Int) -> Int {
+        let two = 1 + 1;
+        n + two
+    }
+
+    add_2(1)
+EXPECT
+    3
