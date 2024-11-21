@@ -1,5 +1,5 @@
-use crate::ast::{Expr, Func, Id, Loc, Located, ParamMode, Prog};
-use crate::eval_error::{EvalError, EvalErrorCase, Phase};
+use crate::ast::{Expr, Func, Id, Loc, Located, Phase, Prog};
+use crate::eval_error::{EvalError, EvalErrorCase};
 use crate::memory::{Addr, Memory, MemoryError, Value};
 
 struct Interpreter<'a> {
@@ -16,24 +16,6 @@ impl<'a> Interpreter<'a> {
         }
 
         Interpreter { memory }
-    }
-
-    fn call(&mut self, loc: Loc, func: Value, args: Vec<Value>) -> Result<Value, EvalError> {
-        let func = self.eval_func(loc, func)?;
-        check_num_args(loc, args.len(), func.params.len())?;
-        self.memory.push_stack_frame();
-        for (param, arg) in func.params.iter().zip(args.into_iter()) {
-            check_is_runtime_mode(param.loc, param.inner.mode)?;
-            try_memory(loc, self.memory.bind_local(&param.inner.id, arg))?;
-        }
-        let result = self.eval_expr(&func.body)?;
-        try_memory(loc, self.memory.pop_stack_frame())?;
-        Ok(result)
-    }
-
-    fn eval_func(&mut self, loc: Loc, func: Value) -> Result<&'a Func, EvalError> {
-        let addr = unwrap_ptr(loc, func)?;
-        try_memory(loc, self.memory.read_func(addr))
     }
 
     fn id(&mut self, id: &Located<Id>) -> Result<Value, EvalError> {
@@ -58,12 +40,8 @@ impl<'a> Interpreter<'a> {
                 }
                 Ok(Value::Int(sum))
             }
-            Expr::Id(mode, id) => {
-                check_is_runtime_mode(id.loc, *mode)?;
-                self.id(id)
-            }
-            Expr::Let(mode, id, binding, body) => {
-                check_is_runtime_mode(expr.loc, *mode)?;
+            Expr::Id(id) => self.id(id),
+            Expr::Let(id, binding, body) => {
                 let value = self.eval_expr(binding)?;
                 try_memory(id.loc, self.memory.bind_local(&id.inner, value))?;
                 self.eval_expr(body)
@@ -76,7 +54,29 @@ impl<'a> Interpreter<'a> {
                 }
                 self.call(func_expr.loc, func, args)
             }
+            Expr::Comptime(_) => Err(EvalError {
+                phase: Phase::Runtime,
+                error: EvalErrorCase::LeftoverComptime,
+                loc: expr.loc,
+            }),
         }
+    }
+
+    fn eval_func(&mut self, loc: Loc, func: Value) -> Result<&'a Func, EvalError> {
+        let addr = unwrap_ptr(loc, func)?;
+        try_memory(loc, self.memory.read_func(addr))
+    }
+
+    fn call(&mut self, loc: Loc, func: Value, args: Vec<Value>) -> Result<Value, EvalError> {
+        let func = self.eval_func(loc, func)?;
+        check_num_args(loc, args.len(), func.params.len())?;
+        self.memory.push_stack_frame();
+        for (param, arg) in func.params.iter().zip(args.into_iter()) {
+            try_memory(loc, self.memory.bind_local(&param.inner.id, arg))?;
+        }
+        let result = self.eval_expr(&func.body)?;
+        try_memory(loc, self.memory.pop_stack_frame())?;
+        Ok(result)
     }
 }
 
@@ -92,17 +92,6 @@ fn unwrap_int(loc: Loc, value: Value) -> Result<i32, EvalError> {
                 actual: value.type_name(),
             },
         })
-    }
-}
-
-fn check_is_runtime_mode(loc: Loc, mode: ParamMode) -> Result<(), EvalError> {
-    match mode {
-        ParamMode::Runtime => Ok(()),
-        ParamMode::Comptime => Err(EvalError {
-            phase: Phase::Runtime,
-            error: EvalErrorCase::LeftoverComptime,
-            loc,
-        }),
     }
 }
 

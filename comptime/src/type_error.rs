@@ -26,6 +26,9 @@ pub enum TypeError {
         actual: usize,
         loc: Loc,
     },
+
+    #[error("Already in #comptime.")]
+    NestedComptime(Loc),
 }
 
 impl ShowError for TypeError {
@@ -41,6 +44,7 @@ impl ShowError for TypeError {
             WrongNumArgs { loc, .. } => Some(*loc),
             TypeMismatch { loc, .. } => Some(*loc),
             ExpectedFunction { loc, .. } => Some(*loc),
+            NestedComptime(loc) => Some(*loc),
         }
     }
 
@@ -53,6 +57,7 @@ impl ShowError for TypeError {
             TypeMismatch { expected, .. } => format!("expected {expected}"),
             ExpectedFunction { .. } => format!("expected function"),
             WrongNumArgs { expected, .. } => format!("expected {expected} arguments"),
+            NestedComptime(_) => format!("nested #comptime"),
         }
     }
 

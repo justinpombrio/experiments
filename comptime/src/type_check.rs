@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Func, FuncType, Id, Located, ParamMode, Prog, Type};
+use crate::ast::{Expr, Func, FuncType, Id, Loc, Located, Phase, Prog, Type};
 use crate::type_error::TypeError;
 
 pub fn type_check(prog: &Prog) -> Result<(), TypeError> {
@@ -56,7 +56,7 @@ impl<'a> TypeChecker<'a> {
         for func in &self.prog.funcs {
             self.check_func(func)?;
         }
-        self.check_expr(&self.prog.main)?;
+        self.check_expr(Phase::Runtime, &self.prog.main)?;
         Ok(())
     }
 
@@ -65,102 +65,110 @@ impl<'a> TypeChecker<'a> {
 
         for param in &func.params {
             let param = &param.inner;
-            self.env(param.mode)
+            self.env(param.phase)
                 .push(param.id.clone(), param.ty.clone());
         }
-        self.expect_expr(&func.body, func.returns.clone())?;
+        let ty = self.check_expr(Phase::Runtime, &func.body)?;
+        expect_type(func.body.loc, &ty, &func.returns)?;
         for param in &func.params {
-            self.env(param.inner.mode).pop();
+            self.env(param.inner.phase).pop();
         }
 
         Ok(())
     }
 
-    fn check_id(&mut self, mode: ParamMode, id_loc: &Located<Id>) -> Result<Type, TypeError> {
+    fn check_id(&mut self, phase: Phase, id_loc: &Located<Id>) -> Result<Type, TypeError> {
         let id = &id_loc.inner;
-        match self.env(mode).lookup(id) {
+        match self.env(phase).lookup(id) {
             Some(ty) => Ok(ty.to_owned()),
             None => Err(TypeError::UnboundId(id_loc.clone())),
         }
     }
 
-    fn check_expr(&mut self, expr_loc: &Located<Expr>) -> Result<Type, TypeError> {
+    fn check_expr(&mut self, phase: Phase, expr_loc: &Located<Expr>) -> Result<Type, TypeError> {
         let expr = &expr_loc.inner;
 
         match expr {
             Expr::Unit => Ok(Type::Unit),
             Expr::Int(_) => Ok(Type::Int),
-            Expr::Id(mode, id) => self.check_id(*mode, id),
+            Expr::Id(id) => self.check_id(phase, id),
             Expr::Sum(exprs) => {
                 for expr in exprs {
-                    self.expect_expr(expr, Type::Int)?;
+                    let ty = self.check_expr(phase, expr)?;
+                    expect_type(expr.loc, &ty, &Type::Int)?;
                 }
                 Ok(Type::Int)
             }
-            Expr::Let(mode, id_loc, binding_loc, body_loc) => {
-                let binding_ty = self.check_expr(binding_loc)?;
-                self.env(*mode).push(id_loc.inner.clone(), binding_ty);
-                self.check_expr(body_loc)
+            Expr::Let(id_loc, binding_loc, body_loc) => {
+                let binding_ty = self.check_expr(phase, binding_loc)?;
+                self.env(phase).push(id_loc.inner.clone(), binding_ty);
+                self.check_expr(phase, body_loc)
             }
             Expr::Call(func, args) => {
-                let func_ty = self.expect_func(func)?;
-                if args.len() != func_ty.params.len() {
-                    return Err(TypeError::WrongNumArgs {
-                        loc: func.loc,
-                        expected: func_ty.params.len(),
-                        actual: args.len(),
-                    });
-                }
+                let func_ty = unwrap_func(func.loc, self.check_expr(phase, func)?)?;
+                assert_num_args(func.loc, args.len(), func_ty.params.len())?;
                 for (arg, param) in args.iter().zip(func_ty.params.iter()) {
-                    let actual_ty = self.check_expr(arg)?;
+                    let actual_ty = self.check_expr(phase, arg)?;
                     let expected_ty = param;
-                    if &actual_ty != expected_ty {
-                        return Err(TypeError::TypeMismatch {
-                            loc: func.loc,
-                            expected: expected_ty.clone(),
-                            actual: actual_ty,
-                        });
-                    }
+                    expect_type(arg.loc, &actual_ty, expected_ty)?;
                 }
                 Ok(func_ty.returns.as_ref().clone())
             }
+            Expr::Comptime(expr) => {
+                assert_not_in_comptime(expr.loc, phase)?;
+                self.check_expr(Phase::Comptime, expr)
+            }
         }
     }
 
-    fn expect_func(&mut self, expr_loc: &Located<Expr>) -> Result<FuncType, TypeError> {
-        let ty = self.check_expr(expr_loc)?;
-        if let Type::Func(func_ty) = ty {
-            Ok(func_ty)
-        } else {
-            Err(TypeError::ExpectedFunction {
-                actual: ty,
-                loc: expr_loc.loc,
-            })
+    fn env(&mut self, phase: Phase) -> &mut TypeEnv {
+        match phase {
+            Phase::Runtime => &mut self.rt_env,
+            Phase::Comptime => &mut self.ct_env,
         }
     }
+}
 
-    fn expect_expr(
-        &mut self,
-        expr_loc: &Located<Expr>,
-        expected_ty: Type,
-    ) -> Result<(), TypeError> {
-        let actual_ty = self.check_expr(expr_loc)?;
-        if actual_ty == expected_ty {
-            Ok(())
-        } else {
-            Err(TypeError::TypeMismatch {
-                expected: expected_ty.to_owned(),
-                actual: actual_ty.to_owned(),
-                loc: expr_loc.loc,
-            })
-        }
+fn assert_not_in_comptime(loc: Loc, phase: Phase) -> Result<(), TypeError> {
+    match phase {
+        Phase::Runtime => Ok(()),
+        Phase::Comptime => Err(TypeError::NestedComptime(loc)),
     }
+}
 
-    fn env(&mut self, mode: ParamMode) -> &mut TypeEnv {
-        match mode {
-            ParamMode::Runtime => &mut self.rt_env,
-            ParamMode::Comptime => &mut self.ct_env,
-        }
+fn assert_num_args(
+    loc: Loc,
+    actual_num_args: usize,
+    expected_num_args: usize,
+) -> Result<(), TypeError> {
+    if actual_num_args == expected_num_args {
+        Ok(())
+    } else {
+        Err(TypeError::WrongNumArgs {
+            expected: expected_num_args,
+            actual: actual_num_args,
+            loc,
+        })
+    }
+}
+
+fn unwrap_func(loc: Loc, ty: Type) -> Result<FuncType, TypeError> {
+    if let Type::Func(func_ty) = ty {
+        Ok(func_ty)
+    } else {
+        Err(TypeError::ExpectedFunction { actual: ty, loc })
+    }
+}
+
+fn expect_type(loc: Loc, actual_ty: &Type, expected_ty: &Type) -> Result<(), TypeError> {
+    if actual_ty == expected_ty {
+        Ok(())
+    } else {
+        Err(TypeError::TypeMismatch {
+            expected: expected_ty.to_owned(),
+            actual: actual_ty.to_owned(),
+            loc,
+        })
     }
 }
 

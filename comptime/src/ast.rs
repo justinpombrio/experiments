@@ -30,14 +30,14 @@ pub struct Func {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum ParamMode {
+pub enum Phase {
     Runtime,
     Comptime,
 }
 
 #[derive(Debug, Clone)]
 pub struct Param {
-    pub mode: ParamMode,
+    pub phase: Phase,
     pub id: Id,
     pub ty: Type,
 }
@@ -46,15 +46,11 @@ pub struct Param {
 pub enum Expr {
     Unit,
     Int(i32),
-    Id(ParamMode, Located<Id>),
+    Id(Located<Id>),
     Sum(Vec<Located<Expr>>),
-    Let(
-        ParamMode,
-        Located<Id>,
-        Box<Located<Expr>>,
-        Box<Located<Expr>>,
-    ),
+    Let(Located<Id>, Box<Located<Expr>>, Box<Located<Expr>>),
     Call(Box<Located<Expr>>, Vec<Located<Expr>>),
+    Comptime(Box<Located<Expr>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +58,7 @@ pub enum Type {
     Unit,
     Int,
     Func(FuncType),
+    Comptime(Box<Type>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,6 +73,7 @@ impl fmt::Display for Type {
             Type::Unit => write!(f, "()"),
             Type::Int => write!(f, "Int"),
             Type::Func(func_type) => write!(f, "{}", func_type),
+            Type::Comptime(ty) => write!(f, "#{}", ty),
         }
     }
 }

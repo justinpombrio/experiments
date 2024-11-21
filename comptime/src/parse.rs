@@ -1,9 +1,8 @@
-use crate::ast::{Expr, Func, FuncType, Id, Located, Param, ParamMode, Pos, Prog, Type};
+use crate::ast::{Expr, Func, FuncType, Id, Located, Param, Phase, Pos, Prog, Type};
 use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive, Span};
 use std::str::FromStr;
 
 const VARIABLE_REGEX: &str = "[a-zA-Z_][a-zA-Z0-9_]*";
-const VARIABLE_REGEX_COMPTIME: &str = "#[a-zA-Z_][a-zA-Z0-9_]*";
 
 pub fn make_prog_parser() -> Result<impl CompiledParser<Prog>, GrammarError> {
     let mut g = Grammar::with_whitespace("[ \t\r\n]+")?;
@@ -32,18 +31,6 @@ fn id_parser(g: &mut Grammar) -> Result<impl Parser<Located<Id>> + Clone, Gramma
         .span(|s| located(s, s.substr.to_owned())))
 }
 
-fn id_mode_parser(
-    g: &mut Grammar,
-) -> Result<impl Parser<(ParamMode, Located<Id>)> + Clone, GrammarError> {
-    let rt_id = g
-        .regex("variable", VARIABLE_REGEX)?
-        .span(|s| (ParamMode::Runtime, located(s, s.substr.to_owned())));
-    let ct_id = g
-        .regex("variable", VARIABLE_REGEX_COMPTIME)?
-        .span(|s| (ParamMode::Comptime, located(s, s.substr.to_owned())));
-    Ok(choice("variable", (rt_id, ct_id)))
-}
-
 /// (P, ..., P)
 fn parenthesized_list<T>(
     g: &mut Grammar,
@@ -60,7 +47,6 @@ where
 }
 
 fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, GrammarError> {
-    let id_mode_p = id_mode_parser(g)?;
     let id_p = id_parser(g)?;
     let expr_p = Recursive::<Located<Expr>>::new("expression");
 
@@ -75,9 +61,9 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
     );
 
     // Id
-    let id_expr_p = id_mode_p.clone().map(|(mode, id_loc)| Located {
+    let id_expr_p = id_p.clone().map(|id_loc| Located {
         loc: id_loc.loc,
-        inner: Expr::Id(mode, id_loc),
+        inner: Expr::Id(id_loc),
     });
 
     // (Expr)
@@ -113,13 +99,10 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
     });
 
     // let Id = Expr; Expr
-    let let_runtime_p = g.string("let")?.constant(ParamMode::Runtime);
-    let let_comptime_p = g.string("#let")?.constant(ParamMode::Comptime);
-    let let_mode_p = choice("let expression", (let_runtime_p, let_comptime_p));
     let let_p = tuple(
         "let expression",
         (
-            let_mode_p,
+            g.string("let")?,
             id_p,
             g.string("=")?,
             expr_p.refn(),
@@ -127,12 +110,17 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
             expr_p.refn(),
         ),
     )
-    .map_span(|span, (mode, id, _, binding, _, body)| {
-        located(span, Expr::Let(mode, id, Box::new(binding), Box::new(body)))
+    .map_span(|span, (_, id, _, binding, _, body)| {
+        located(span, Expr::Let(id, Box::new(binding), Box::new(body)))
     });
-    let stmt_p = choice("expression", (let_p, add_p));
+    let expr_let_p = choice("expression", (let_p, add_p));
 
-    Ok(expr_p.define(stmt_p))
+    // #Expr
+    let comptime_p = tuple("comptime expression", (g.string("#")?, expr_let_p.clone()))
+        .map_span(|span, (_, expr)| located(span, Expr::Comptime(Box::new(expr))));
+    let expr_comptime_p = choice("expression", (comptime_p, expr_let_p));
+
+    Ok(expr_p.define(expr_comptime_p))
 }
 
 fn type_parser(g: &mut Grammar) -> Result<impl Parser<Type> + Clone, GrammarError> {
@@ -154,7 +142,14 @@ fn type_parser(g: &mut Grammar) -> Result<impl Parser<Type> + Clone, GrammarErro
         })
     });
 
-    Ok(type_p.define(choice("type", (unit_p, int_p, func_p))))
+    let atom_type_p = choice("type", (unit_p, int_p, func_p));
+
+    // #Type
+    let comptime_p = tuple("comptime type", (g.string("#")?, atom_type_p.clone()))
+        .map(|(_, ty)| Type::Comptime(Box::new(ty)));
+    let type_comptime_p = choice("type", (comptime_p, atom_type_p));
+
+    Ok(type_p.define(type_comptime_p))
 }
 
 fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarError> {
@@ -164,23 +159,23 @@ fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarErro
 
     // Id: Type
     // #Id: Type
-    let param_mode = g.string("#")?.opt().map(|opt| {
+    let param_phase = g.string("#")?.opt().map(|opt| {
         if opt.is_some() {
-            ParamMode::Comptime
+            Phase::Comptime
         } else {
-            ParamMode::Runtime
+            Phase::Runtime
         }
     });
     let param_p = tuple(
         "function parameter",
-        (param_mode, id_p.clone(), g.string(":")?, type_p.clone()),
+        (param_phase, id_p.clone(), g.string(":")?, type_p.clone()),
     )
-    .map_span(|span, (mode, param, _, ty)| {
+    .map_span(|span, (phase, param, _, ty)| {
         located(
             span,
             Param {
                 id: param.inner,
-                mode,
+                phase,
                 ty,
             },
         )

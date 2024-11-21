@@ -1,4 +1,4 @@
-use crate::ast::{Id, Loc};
+use crate::ast::{Id, Loc, Phase};
 use crate::memory::MemoryError;
 use crate::show_error::ShowError;
 use thiserror::Error;
@@ -44,12 +44,6 @@ impl EvalErrorCase {
             LeftoverComptime => "leftover comptime code".to_owned(),
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Phase {
-    Runtime,
-    Comptime,
 }
 
 #[derive(Error, Debug)]
