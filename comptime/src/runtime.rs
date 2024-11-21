@@ -1,6 +1,6 @@
 use crate::ast::{Expr, Func, Id, Loc, Located, Phase, Prog};
 use crate::eval_error::{EvalError, EvalErrorCase};
-use crate::memory::{Addr, Memory, MemoryError, Value};
+use crate::memory::{Memory, MemoryError, Value};
 
 struct Interpreter<'a> {
     memory: Memory<'a>,
@@ -12,7 +12,7 @@ impl<'a> Interpreter<'a> {
         for func in &prog.funcs {
             let addr = memory.alloc();
             try_memory(func.loc, memory.write_func(addr, &func.inner)).unwrap();
-            memory.bind_global(func.inner.name.inner.clone(), Value::Ptr(addr));
+            memory.bind_global(func.inner.name.inner.clone(), Value::ptr(addr));
         }
 
         Interpreter { memory }
@@ -31,14 +31,14 @@ impl<'a> Interpreter<'a> {
 
     fn eval_expr(&mut self, expr: &Located<Expr>) -> Result<Value, EvalError> {
         match &expr.inner {
-            Expr::Unit => Ok(Value::Unit),
-            Expr::Int(n) => Ok(Value::Int(*n)),
+            Expr::Unit => Ok(Value::unit()),
+            Expr::Int(n) => Ok(Value::int(*n)),
             Expr::Sum(exprs) => {
                 let mut sum = 0;
                 for expr in exprs {
-                    sum += unwrap_int(expr.loc, self.eval_expr(expr)?)?;
+                    sum += self.eval_expr(expr)?.unwrap_int(Phase::Runtime, expr.loc)?;
                 }
-                Ok(Value::Int(sum))
+                Ok(Value::int(sum))
             }
             Expr::Id(id) => self.id(id),
             Expr::Let(id, binding, body) => {
@@ -54,7 +54,7 @@ impl<'a> Interpreter<'a> {
                 }
                 self.call(func_expr.loc, func, args)
             }
-            Expr::Comptime(_) => Err(EvalError {
+            Expr::Comptime(_, _) => Err(EvalError {
                 phase: Phase::Runtime,
                 error: EvalErrorCase::LeftoverComptime,
                 loc: expr.loc,
@@ -63,7 +63,7 @@ impl<'a> Interpreter<'a> {
     }
 
     fn eval_func(&mut self, loc: Loc, func: Value) -> Result<&'a Func, EvalError> {
-        let addr = unwrap_ptr(loc, func)?;
+        let addr = func.unwrap_ptr(Phase::Runtime, loc)?;
         try_memory(loc, self.memory.read_func(addr))
     }
 
@@ -80,21 +80,6 @@ impl<'a> Interpreter<'a> {
     }
 }
 
-fn unwrap_int(loc: Loc, value: Value) -> Result<i32, EvalError> {
-    if let Value::Int(n) = value {
-        Ok(n)
-    } else {
-        Err(EvalError {
-            phase: Phase::Runtime,
-            loc,
-            error: EvalErrorCase::TypeMismatch {
-                expected: "Int",
-                actual: value.type_name(),
-            },
-        })
-    }
-}
-
 fn check_num_args(loc: Loc, num_args: usize, num_params: usize) -> Result<(), EvalError> {
     if num_args != num_params {
         Err(EvalError {
@@ -107,21 +92,6 @@ fn check_num_args(loc: Loc, num_args: usize, num_params: usize) -> Result<(), Ev
         })
     } else {
         Ok(())
-    }
-}
-
-fn unwrap_ptr(loc: Loc, value: Value) -> Result<Addr, EvalError> {
-    if let Value::Ptr(addr) = value {
-        Ok(addr)
-    } else {
-        Err(EvalError {
-            phase: Phase::Runtime,
-            error: EvalErrorCase::TypeMismatch {
-                expected: "Pointer",
-                actual: value.type_name(),
-            },
-            loc,
-        })
     }
 }
 

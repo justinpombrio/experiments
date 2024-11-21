@@ -1,4 +1,5 @@
-use crate::ast::{Func, Id};
+use crate::ast::{Func, Id, Loc, Phase};
+use crate::eval_error::{EvalError, EvalErrorCase};
 use std::fmt;
 use thiserror::Error;
 
@@ -22,18 +23,63 @@ pub enum MemoryError {
 pub struct Addr(u32);
 
 #[derive(Debug, Clone, Copy)]
-pub enum Value {
+pub struct Value(ValuePriv);
+
+#[derive(Debug, Clone, Copy)]
+pub enum ValuePriv {
     Unit,
     Int(i32),
     Ptr(Addr),
 }
 
 impl Value {
-    pub fn type_name(&self) -> &'static str {
-        match self {
-            Value::Unit => "()",
-            Value::Int(_) => "Int",
-            Value::Ptr(_) => "Ptr",
+    pub fn unit() -> Value {
+        Value(ValuePriv::Unit)
+    }
+
+    pub fn int(n: i32) -> Value {
+        Value(ValuePriv::Int(n))
+    }
+
+    pub fn ptr(addr: Addr) -> Value {
+        Value(ValuePriv::Ptr(addr))
+    }
+
+    pub fn unwrap_int(self, phase: Phase, loc: Loc) -> Result<i32, EvalError> {
+        if let Value(ValuePriv::Int(n)) = self {
+            Ok(n)
+        } else {
+            Err(EvalError {
+                phase,
+                loc,
+                error: EvalErrorCase::TypeMismatch {
+                    expected: "Int",
+                    actual: self.type_name(),
+                },
+            })
+        }
+    }
+
+    pub fn unwrap_ptr(self, phase: Phase, loc: Loc) -> Result<Addr, EvalError> {
+        if let Value(ValuePriv::Ptr(addr)) = self {
+            Ok(addr)
+        } else {
+            Err(EvalError {
+                phase,
+                loc,
+                error: EvalErrorCase::TypeMismatch {
+                    expected: "Ptr",
+                    actual: self.type_name(),
+                },
+            })
+        }
+    }
+
+    fn type_name(&self) -> &'static str {
+        match self.0 {
+            ValuePriv::Unit => "()",
+            ValuePriv::Int(_) => "Int",
+            ValuePriv::Ptr(_) => "Ptr",
         }
     }
 }
@@ -176,10 +222,10 @@ impl<'a> Memory<'a> {
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Value::Unit => write!(f, "()"),
-            Value::Int(n) => write!(f, "{}", n),
-            Value::Ptr(addr) => write!(f, "{:#x}", addr.0),
+        match &self.0 {
+            ValuePriv::Unit => write!(f, "()"),
+            ValuePriv::Int(n) => write!(f, "{}", n),
+            ValuePriv::Ptr(addr) => write!(f, "{:#x}", addr.0),
         }
     }
 }

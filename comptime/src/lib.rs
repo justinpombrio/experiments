@@ -1,4 +1,5 @@
 mod ast;
+// mod comptime;
 mod eval_error;
 mod memory;
 mod parse;
@@ -57,14 +58,14 @@ impl Language {
     }
 
     pub fn run(&mut self, source: &str) -> RunResult {
-        let prog = match self.parser.parse("stdin", source) {
+        let mut prog = match self.parser.parse("stdin", source) {
             Ok(prog) => prog,
             Err(err) => {
                 return RunResult::ParseError(err);
             }
         };
 
-        if let Err(type_err) = type_check(&prog) {
+        if let Err(type_err) = type_check(&mut prog) {
             return RunResult::TypeError(prog, type_err);
         }
 

@@ -269,7 +269,7 @@ impl Show for Expr {
                 &EXPR_CALL_NOTATION,
                 [func.show(), branch_seq(&EXPR_ARGS_NOTATION, args)],
             ),
-            Comptime(expr) => branch(&COMPTIME_NOTATION, [expr.show()]),
+            Comptime(expr, _) => branch(&COMPTIME_NOTATION, [expr.show()]),
         }
     }
 }

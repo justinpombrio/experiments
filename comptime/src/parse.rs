@@ -117,7 +117,7 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
 
     // #Expr
     let comptime_p = tuple("comptime expression", (g.string("#")?, expr_let_p.clone()))
-        .map_span(|span, (_, expr)| located(span, Expr::Comptime(Box::new(expr))));
+        .map_span(|span, (_, expr)| located(span, Expr::Comptime(Box::new(expr), None)));
     let expr_comptime_p = choice("expression", (comptime_p, expr_let_p));
 
     Ok(expr_p.define(expr_comptime_p))

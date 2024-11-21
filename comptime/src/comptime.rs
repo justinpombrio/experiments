@@ -1,8 +1,8 @@
 // TODO: temporary
 #![allow(unused)]
 
-use crate::ast::{Id, Loc, Located, Prog};
-use crate::eval_error::{EvalError, EvalErrorCase, Phase};
+use crate::ast::{Expr, Id, Loc, Located, Phase, Prog};
+use crate::eval_error::{EvalError, EvalErrorCase};
 use crate::memory::{Addr, Memory, MemoryError, Value};
 
 struct Compiler<'a> {
@@ -21,7 +21,7 @@ impl<'a> Compiler<'a> {
         Compiler { memory }
     }
 
-    fn comp_id(&mut self, id: &Located<Id>) -> Result<Value, EvalError> {
+    fn ct_id(&mut self, id: &Located<Id>) -> Result<Value, EvalError> {
         self.memory
             .get_local(&id.inner)
             .or_else(|| self.memory.get_global(&id.inner))
@@ -30,6 +30,100 @@ impl<'a> Compiler<'a> {
                 error: EvalErrorCase::UnboundId(id.inner.clone()),
                 loc: id.loc,
             })
+    }
+
+    fn rt_expr(&mut self, expr: &mut Located<Expr>) -> Result<(), EvalError> {
+        match &mut expr.inner {
+            Expr::Unit | Expr::Int(_) | Expr::Id(_) => Ok(()),
+            Expr::Sum(exprs) => {
+                for expr in exprs {
+                    self.rt_expr(expr)?;
+                }
+                Ok(())
+            }
+            Expr::Let(_id, binding, body) => {
+                self.rt_expr(binding)?;
+                self.rt_expr(body)
+            }
+            Expr::Call(func, args) => {
+                self.rt_expr(func)?;
+                for arg in args {
+                    self.rt_expr(arg)?;
+                }
+                Ok(())
+            }
+            Expr::Comptime(expr) => {
+                let value = self.ct_expr(expr)?;
+                *expr = self.lower(value)?;
+                Ok(())
+            }
+        }
+    }
+
+    fn ct_expr(&mut self, expr: &mut Located<Expr>) -> Result<Value, EvalError> {}
+
+    fn run_expr(&mut self, expr: Located<Expr>) -> Result<Expr, EvalError> {
+        match expr.inner {
+            Expr::Unit => Ok(Expr::Unit),
+            Expr::Int(n) => Ok(Expr::Int(n)),
+            Expr::Sum(exprs) => {
+                let compiled_exprs = Vec::new();
+                for expr in exprs {
+                    compiled_exprs.push(self.run_expr(expr)?);
+                }
+                Ok(Expr::Sum(compiled_exprs))
+            }
+            Expr::Id(mode, id) => {
+                check_is_runtime_mode(id.loc, *mode)?;
+                self.id(id)
+            }
+            Expr::Let(mode, id, binding, body) => {
+                check_is_runtime_mode(expr.loc, *mode)?;
+                let value = self.eval_expr(binding)?;
+                try_memory(id.loc, self.memory.bind_local(&id.inner, value))?;
+                self.eval_expr(body)
+            }
+            Expr::Call(func_expr, exprs) => {
+                let func = self.eval_expr(func_expr)?;
+                let mut args = Vec::new();
+                for expr in exprs {
+                    args.push(self.eval_expr(expr)?);
+                }
+                self.call(func_expr.loc, func, args)
+            }
+        }
+    }
+
+    fn comp_expr(&mut self, expr: &Located<Expr>) -> Result<Value, EvalError> {
+        match &expr.inner {
+            Expr::Unit => Ok(Value::Unit),
+            Expr::Int(n) => Ok(Value::Int(*n)),
+            Expr::Sum(exprs) => {
+                let mut sum = 0;
+                for expr in exprs {
+                    sum += unwrap_int(expr.loc, self.eval_expr(expr)?)?;
+                }
+                Ok(Value::Int(sum))
+            }
+            Expr::Id(mode, id) => {
+                check_is_runtime_mode(id.loc, *mode)?;
+                self.id(id)
+            }
+            Expr::Let(mode, id, binding, body) => {
+                check_is_runtime_mode(expr.loc, *mode)?;
+                let value = self.eval_expr(binding)?;
+                try_memory(id.loc, self.memory.bind_local(&id.inner, value))?;
+                self.eval_expr(body)
+            }
+            Expr::Call(func_expr, exprs) => {
+                let func = self.eval_expr(func_expr)?;
+                let mut args = Vec::new();
+                for expr in exprs {
+                    args.push(self.eval_expr(expr)?);
+                }
+                self.call(func_expr.loc, func, args)
+            }
+        }
     }
 }
 

@@ -1,9 +1,9 @@
 use crate::ast::{Expr, Func, FuncType, Id, Loc, Located, Phase, Prog, Type};
 use crate::type_error::TypeError;
 
-pub fn type_check(prog: &Prog) -> Result<(), TypeError> {
+pub fn type_check(prog: &mut Prog) -> Result<(), TypeError> {
     let mut type_checker = TypeChecker::new(prog);
-    type_checker.check_all()?;
+    type_checker.check_all(prog)?;
     Ok(())
 }
 
@@ -32,13 +32,12 @@ impl TypeEnv {
     }
 }
 
-struct TypeChecker<'a> {
-    prog: &'a Prog,
+struct TypeChecker {
     ct_env: TypeEnv,
     rt_env: TypeEnv,
 }
 
-impl<'a> TypeChecker<'a> {
+impl TypeChecker {
     fn new(prog: &Prog) -> TypeChecker {
         let mut rt_env = TypeEnv::new();
         for func in &prog.funcs {
@@ -46,29 +45,28 @@ impl<'a> TypeChecker<'a> {
         }
 
         TypeChecker {
-            prog,
             rt_env,
             ct_env: TypeEnv::new(),
         }
     }
 
-    fn check_all(&mut self) -> Result<(), TypeError> {
-        for func in &self.prog.funcs {
+    fn check_all(&mut self, prog: &mut Prog) -> Result<(), TypeError> {
+        for func in &mut prog.funcs {
             self.check_func(func)?;
         }
-        self.check_expr(Phase::Runtime, &self.prog.main)?;
+        self.check_expr(Phase::Runtime, &mut prog.main)?;
         Ok(())
     }
 
-    fn check_func(&mut self, func_loc: &Located<Func>) -> Result<(), TypeError> {
-        let func = &func_loc.inner;
+    fn check_func(&mut self, func_loc: &mut Located<Func>) -> Result<(), TypeError> {
+        let func = &mut func_loc.inner;
 
         for param in &func.params {
             let param = &param.inner;
             self.env(param.phase)
                 .push(param.id.clone(), param.ty.clone());
         }
-        let ty = self.check_expr(Phase::Runtime, &func.body)?;
+        let ty = self.check_expr(Phase::Runtime, &mut func.body)?;
         expect_type(func.body.loc, &ty, &func.returns)?;
         for param in &func.params {
             self.env(param.inner.phase).pop();
@@ -77,7 +75,7 @@ impl<'a> TypeChecker<'a> {
         Ok(())
     }
 
-    fn check_id(&mut self, phase: Phase, id_loc: &Located<Id>) -> Result<Type, TypeError> {
+    fn check_id(&mut self, phase: Phase, id_loc: &mut Located<Id>) -> Result<Type, TypeError> {
         let id = &id_loc.inner;
         match self.env(phase).lookup(id) {
             Some(ty) => Ok(ty.to_owned()),
@@ -85,8 +83,12 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn check_expr(&mut self, phase: Phase, expr_loc: &Located<Expr>) -> Result<Type, TypeError> {
-        let expr = &expr_loc.inner;
+    fn check_expr(
+        &mut self,
+        phase: Phase,
+        expr_loc: &mut Located<Expr>,
+    ) -> Result<Type, TypeError> {
+        let expr = &mut expr_loc.inner;
 
         match expr {
             Expr::Unit => Ok(Type::Unit),
@@ -107,16 +109,18 @@ impl<'a> TypeChecker<'a> {
             Expr::Call(func, args) => {
                 let func_ty = unwrap_func(func.loc, self.check_expr(phase, func)?)?;
                 assert_num_args(func.loc, args.len(), func_ty.params.len())?;
-                for (arg, param) in args.iter().zip(func_ty.params.iter()) {
+                for (arg, param) in args.iter_mut().zip(func_ty.params.iter()) {
                     let actual_ty = self.check_expr(phase, arg)?;
                     let expected_ty = param;
                     expect_type(arg.loc, &actual_ty, expected_ty)?;
                 }
                 Ok(func_ty.returns.as_ref().clone())
             }
-            Expr::Comptime(expr) => {
+            Expr::Comptime(expr, stored_ty) => {
                 assert_not_in_comptime(expr.loc, phase)?;
-                self.check_expr(Phase::Comptime, expr)
+                let ty = self.check_expr(Phase::Comptime, expr)?;
+                *stored_ty = Some(ty.clone());
+                Ok(ty)
             }
         }
     }
