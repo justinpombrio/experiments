@@ -41,8 +41,10 @@ impl Value {
 #[derive(Debug)]
 pub enum HeapValue<'a> {
     Uninit,
+    #[allow(unused)]
     Free,
     Func(&'a Func),
+    #[allow(unused)]
     Array(Vec<Value>),
 }
 
@@ -102,6 +104,7 @@ impl<'a> Memory<'a> {
         addr
     }
 
+    #[allow(unused)]
     pub fn free(&mut self, addr: Addr) {
         self.heap[addr.0 as usize] = HeapValue::Free;
     }
@@ -115,6 +118,7 @@ impl<'a> Memory<'a> {
         Ok(())
     }
 
+    #[allow(unused)]
     pub fn write_array(&mut self, addr: Addr, array: Vec<Value>) -> Result<(), MemoryError> {
         self.write(addr, HeapValue::Array(array))
     }
