@@ -1,6 +1,6 @@
 #![allow(clippy::precedence)]
 
-use crate::ast::{Expr, Func, FuncType, Id, Located, Param, Prog, Type};
+use crate::ast::{Expr, Func, FuncType, Id, Located, Param, ParamMode, Prog, Type};
 use ppp::doc_examples::tree::{Tree, TreeCondition, TreeNotation, TreeStyleLabel};
 use ppp::doc_examples::BasicStyle;
 use ppp::notation_constructors::{
@@ -113,22 +113,26 @@ static EXPR_UNIT_NOTATION: LazyLock<TreeNotation> =
 static EXPR_INT_NOTATION: LazyLock<TreeNotation> =
     LazyLock::new(|| cst(text()).validate().unwrap());
 
+static ID_MODE_NOTATION: LazyLock<TreeNotation> =
+    LazyLock::new(|| (child(0) + child(1)).validate().unwrap());
+
 static ID_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| text().validate().unwrap());
 
 static EXPR_SUM_NOTATION: LazyLock<TreeNotation> =
     LazyLock::new(|| infix_sep("+").validate().unwrap());
 
 static EXPR_LET_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
-    (kw(lit("let"))
+    (child(0)
+        + kw(lit("let"))
         + lit(" ")
-        + child(0)
+        + child(1)
         + lit(" ")
         + syn(lit("="))
         + lit(" ")
-        + indented(child(1))
+        + indented(child(2))
         + syn(lit(";"))
         + nl()
-        + indented(child(2)))
+        + indented(child(3)))
     .validate()
     .unwrap()
 });
@@ -144,8 +148,17 @@ static EXPR_CALL_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
     options.validate().unwrap()
 });
 
-static PARAM_NOTATION: LazyLock<TreeNotation> =
-    LazyLock::new(|| (child(0) + syn(lit(": ")) + child(1)).validate().unwrap());
+static PARAM_MODE_RUNTIME_NOTATION: LazyLock<TreeNotation> =
+    LazyLock::new(|| empty().validate().unwrap());
+
+static PARAM_MODE_COMPTIME_NOTATION: LazyLock<TreeNotation> =
+    LazyLock::new(|| syn(lit("#")).validate().unwrap());
+
+static PARAM_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| {
+    (child(0) + child(1) + syn(lit(": ")) + child(2))
+        .validate()
+        .unwrap()
+});
 
 static PARAMS_NOTATION: LazyLock<TreeNotation> = LazyLock::new(|| comma_sep().validate().unwrap());
 
@@ -247,11 +260,12 @@ impl Show for Expr {
         match self {
             Unit => leaf(&EXPR_UNIT_NOTATION),
             Int(i) => leaf_text(&EXPR_INT_NOTATION, i.to_string()),
-            Id(id) => id.show(),
+            Id(mode, id) => branch(&ID_MODE_NOTATION, [mode.show(), id.show()]),
             Sum(terms) => branch_seq(&EXPR_SUM_NOTATION, terms),
-            Let(id, binding, body) => {
-                branch(&EXPR_LET_NOTATION, [id.show(), binding.show(), body.show()])
-            }
+            Let(mode, id, binding, body) => branch(
+                &EXPR_LET_NOTATION,
+                [mode.show(), id.show(), binding.show(), body.show()],
+            ),
             Call(func, args) => branch(
                 &EXPR_CALL_NOTATION,
                 [func.show(), branch_seq(&EXPR_ARGS_NOTATION, args)],
@@ -260,9 +274,21 @@ impl Show for Expr {
     }
 }
 
+impl Show for ParamMode {
+    fn show(&self) -> Tree<BasicStyle> {
+        match self {
+            ParamMode::Runtime => leaf(&PARAM_MODE_RUNTIME_NOTATION),
+            ParamMode::Comptime => leaf(&PARAM_MODE_COMPTIME_NOTATION),
+        }
+    }
+}
+
 impl Show for Param {
     fn show(&self) -> Tree<BasicStyle> {
-        branch(&PARAM_NOTATION, [self.id.show(), self.ty.show()])
+        branch(
+            &PARAM_NOTATION,
+            [self.mode.show(), self.id.show(), self.ty.show()],
+        )
     }
 }
 

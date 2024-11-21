@@ -17,12 +17,14 @@ pub enum TypeError {
         loc: Loc,
     },
 
-    #[error("Wrong number of arguments passed to {}. Expected {expected} args, but received {actual}.", defsite.inner)]
+    #[error("Expected function type but found {actual}")]
+    ExpectedFunction { actual: Type, loc: Loc },
+
+    #[error("Expected {expected} args, but got {actual}.")]
     WrongNumArgs {
-        callsite: Located<Id>,
-        defsite: Located<Id>,
         expected: usize,
         actual: usize,
+        loc: Loc,
     },
 }
 
@@ -36,8 +38,9 @@ impl ShowError for TypeError {
 
         match self {
             UnboundId(id) | UnboundFunc(id) => Some(id.loc),
-            WrongNumArgs { callsite, .. } => Some(callsite.loc),
+            WrongNumArgs { loc, .. } => Some(*loc),
             TypeMismatch { loc, .. } => Some(*loc),
+            ExpectedFunction { loc, .. } => Some(*loc),
         }
     }
 
@@ -48,6 +51,7 @@ impl ShowError for TypeError {
             UnboundId { .. } => "variable not found".to_owned(),
             UnboundFunc { .. } => "function not found".to_owned(),
             TypeMismatch { expected, .. } => format!("expected {expected}"),
+            ExpectedFunction { .. } => format!("expected function"),
             WrongNumArgs { expected, .. } => format!("expected {expected} arguments"),
         }
     }

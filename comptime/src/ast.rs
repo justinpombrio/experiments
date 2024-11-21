@@ -24,13 +24,20 @@ pub struct Prog {
 #[derive(Debug, Clone)]
 pub struct Func {
     pub name: Located<Id>,
-    pub params: Vec<Param>,
+    pub params: Vec<Located<Param>>,
     pub returns: Type,
     pub body: Located<Expr>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ParamMode {
+    Runtime,
+    Comptime,
+}
+
 #[derive(Debug, Clone)]
 pub struct Param {
+    pub mode: ParamMode,
     pub id: Id,
     pub ty: Type,
 }
@@ -39,10 +46,15 @@ pub struct Param {
 pub enum Expr {
     Unit,
     Int(i32),
-    Id(Located<Id>),
+    Id(ParamMode, Located<Id>),
     Sum(Vec<Located<Expr>>),
-    Let(Located<Id>, Box<Located<Expr>>, Box<Located<Expr>>),
-    Call(Located<Id>, Vec<Located<Expr>>),
+    Let(
+        ParamMode,
+        Located<Id>,
+        Box<Located<Expr>>,
+        Box<Located<Expr>>,
+    ),
+    Call(Box<Located<Expr>>, Vec<Located<Expr>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -11,17 +11,18 @@ pub enum RuntimeError {
         actual: &'static str,
         loc: Loc,
     },
-    #[error("Bug in TC! Wrong number of arguments to function {}. Expected {expected}, found {actual}.", defsite.inner)]
+    #[error("Bug in TC! Expected {expected} args, but got {actual}.")]
     WrongNumArgs {
-        callsite: Located<Id>,
-        defsite: Located<Id>,
         expected: usize,
         actual: usize,
+        loc: Loc,
     },
     #[error("Bug in TC! Variable '{}' not found.", .0.inner)]
     UnboundId(Located<Id>),
     #[error("{error}")]
     MemoryError { error: MemoryError, loc: Loc },
+    #[error("Bug in Comptime! Encountered leftover comptime code at runtime.")]
+    LeftoverComptime(Loc),
 }
 
 impl RuntimeError {
@@ -55,6 +56,7 @@ impl ShowError for RuntimeError {
         match self {
             TypeMismatch { .. } | WrongNumArgs { .. } | UnboundId(_) => "bug in type checker",
             MemoryError { .. } => "memory error",
+            LeftoverComptime(_) => "leftover comptime code",
         }
     }
 
@@ -63,9 +65,10 @@ impl ShowError for RuntimeError {
 
         match self {
             TypeMismatch { loc, .. } => Some(*loc),
-            WrongNumArgs { callsite, .. } => Some(callsite.loc),
+            WrongNumArgs { loc, .. } => Some(*loc),
             MemoryError { loc, .. } => Some(*loc),
             UnboundId(id) => Some(id.loc),
+            LeftoverComptime(loc) => Some(*loc),
         }
     }
 
@@ -79,6 +82,7 @@ impl ShowError for RuntimeError {
             WrongNumArgs { expected, .. } => format!("expected {expected} args"),
             MemoryError { error, .. } => error.to_string(),
             UnboundId(id) => format!("var {} not found", id.inner),
+            LeftoverComptime(_) => "leftover comptime code".to_owned(),
         }
     }
 

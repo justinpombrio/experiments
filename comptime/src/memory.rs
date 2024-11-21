@@ -1,15 +1,21 @@
-use crate::ast::Id;
+use crate::ast::{Func, Id};
 use std::fmt;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum MemoryError {
-    #[error("Memory Error: overwriting addr {0} with {1}.")]
+    #[error("Memory Error: overwriting addr {0:0x} with {1}.")]
     Overwrite(u32, String),
     #[error("Memory Error: Stack underflow!")]
     StackUnderflow,
     #[error("Memory Error: No stack frame to bind local variable in.")]
     NoStackFrame,
+    #[error("Memory Error: addr {addr:0x} contains {actual}, not {expected}")]
+    InvalidRead {
+        addr: u32,
+        actual: &'static str,
+        expected: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -33,10 +39,24 @@ impl Value {
 }
 
 #[derive(Debug)]
-pub enum HeapValue {
+pub enum HeapValue<'a> {
     Uninit,
     Free,
+    Func(&'a Func),
     Array(Vec<Value>),
+}
+
+impl<'a> HeapValue<'a> {
+    fn type_name(&self) -> &'static str {
+        use HeapValue::*;
+
+        match self {
+            Uninit => "UninitializedMemory",
+            Free => "FreedMemory",
+            Func(_) => "Function",
+            Array(_) => "Array",
+        }
+    }
 }
 
 struct Frame(Vec<(Id, Value)>);
@@ -60,14 +80,14 @@ impl Frame {
     }
 }
 
-pub struct Memory {
+pub struct Memory<'a> {
     globals: Frame,
     stack: Vec<Frame>,
-    heap: Vec<HeapValue>,
+    heap: Vec<HeapValue<'a>>,
 }
 
-impl Memory {
-    pub fn new() -> Memory {
+impl<'a> Memory<'a> {
+    pub fn new() -> Memory<'a> {
         Memory {
             globals: Frame::new(),
             stack: Vec::new(),
@@ -86,7 +106,7 @@ impl Memory {
         self.heap[addr.0 as usize] = HeapValue::Free;
     }
 
-    fn write(&mut self, addr: Addr, value: HeapValue) -> Result<(), MemoryError> {
+    fn write(&mut self, addr: Addr, value: HeapValue<'a>) -> Result<(), MemoryError> {
         let old_value = &mut self.heap[addr.0 as usize];
         if !matches!(old_value, HeapValue::Uninit) {
             return Err(MemoryError::Overwrite(addr.0, format!("{:?}", value)));
@@ -97,6 +117,23 @@ impl Memory {
 
     pub fn write_array(&mut self, addr: Addr, array: Vec<Value>) -> Result<(), MemoryError> {
         self.write(addr, HeapValue::Array(array))
+    }
+
+    pub fn write_func(&mut self, addr: Addr, func: &'a Func) -> Result<(), MemoryError> {
+        self.write(addr, HeapValue::Func(func))
+    }
+
+    pub fn read_func(&self, addr: Addr) -> Result<&'a Func, MemoryError> {
+        let val = &self.heap[addr.0 as usize];
+        if let HeapValue::Func(func) = val {
+            Ok(func)
+        } else {
+            Err(MemoryError::InvalidRead {
+                addr: addr.0,
+                expected: "Function",
+                actual: val.type_name(),
+            })
+        }
     }
 
     pub fn push_stack_frame(&mut self) {
@@ -120,7 +157,7 @@ impl Memory {
         }
     }
 
-    pub fn lookup_stack(&self, id: &Id) -> Option<Value> {
+    pub fn get_local(&self, id: &Id) -> Option<Value> {
         self.stack.last().and_then(|frame| frame.get(id))
     }
 

@@ -1,7 +1,9 @@
-use crate::ast::{Expr, Func, FuncType, Id, Located, Param, Pos, Prog, Type};
+use crate::ast::{Expr, Func, FuncType, Id, Located, Param, ParamMode, Pos, Prog, Type};
 use parser_ll1::{choice, tuple, CompiledParser, Grammar, GrammarError, Parser, Recursive, Span};
 use std::str::FromStr;
-use thiserror::Error;
+
+const VARIABLE_REGEX: &str = "[a-zA-Z_][a-zA-Z0-9_]*";
+const VARIABLE_REGEX_COMPTIME: &str = "#[a-zA-Z_][a-zA-Z0-9_]*";
 
 pub fn make_prog_parser() -> Result<impl CompiledParser<Prog>, GrammarError> {
     let mut g = Grammar::with_whitespace("[ \t\r\n]+")?;
@@ -26,8 +28,20 @@ fn located<T>(span: Span, inner: T) -> Located<T> {
 }
 
 fn id_parser(g: &mut Grammar) -> Result<impl Parser<Located<Id>> + Clone, GrammarError> {
-    Ok(g.regex("variable", "[a-zA-Z_][a-zA-Z0-9_]*")?
+    Ok(g.regex("variable", VARIABLE_REGEX)?
         .span(|s| located(s, s.substr.to_owned())))
+}
+
+fn id_mode_parser(
+    g: &mut Grammar,
+) -> Result<impl Parser<(ParamMode, Located<Id>)> + Clone, GrammarError> {
+    let rt_id = g
+        .regex("variable", VARIABLE_REGEX)?
+        .span(|s| (ParamMode::Runtime, located(s, s.substr.to_owned())));
+    let ct_id = g
+        .regex("variable", VARIABLE_REGEX_COMPTIME)?
+        .span(|s| (ParamMode::Comptime, located(s, s.substr.to_owned())));
+    Ok(choice("variable", (rt_id, ct_id)))
 }
 
 /// (P, ..., P)
@@ -45,13 +59,8 @@ where
     Ok(choice(name, (none_p, some_p)))
 }
 
-#[derive(Error, Debug)]
-enum ExprParseError {
-    #[error("Function name must be an identifier.")]
-    FuncIsNotId,
-}
-
 fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, GrammarError> {
+    let id_mode_p = id_mode_parser(g)?;
     let id_p = id_parser(g)?;
     let expr_p = Recursive::<Located<Expr>>::new("expression");
 
@@ -66,9 +75,9 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
     );
 
     // Id
-    let id_expr_p = id_p.clone().map(|id_loc| Located {
+    let id_expr_p = id_mode_p.clone().map(|(mode, id_loc)| Located {
         loc: id_loc.loc,
-        inner: Expr::Id(id_loc),
+        inner: Expr::Id(mode, id_loc),
     });
 
     // (Expr)
@@ -84,15 +93,11 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
     // (Expr, ...)
     let args_p = parenthesized_list(g, "function arguments", expr_p.refn())?;
     // Id(Expr, ...)
-    let call_p = atom_p.and(args_p.opt()).try_map_span(|span, (atom, args)| {
+    let call_p = atom_p.and(args_p.opt()).map_span(|span, (atom, args)| {
         if let Some(args) = args {
-            if let Expr::Id(id) = atom.inner {
-                Ok(located(span, Expr::Call(id, args)))
-            } else {
-                Err(ExprParseError::FuncIsNotId)
-            }
+            located(span, Expr::Call(Box::new(atom), args))
         } else {
-            Ok(atom)
+            atom
         }
     });
 
@@ -108,10 +113,13 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
     });
 
     // let Id = Expr; Expr
+    let let_runtime_p = g.string("let")?.constant(ParamMode::Runtime);
+    let let_comptime_p = g.string("#let")?.constant(ParamMode::Comptime);
+    let let_mode_p = choice("let expression", (let_runtime_p, let_comptime_p));
     let let_p = tuple(
         "let expression",
         (
-            g.string("let")?,
+            let_mode_p,
             id_p,
             g.string("=")?,
             expr_p.refn(),
@@ -119,8 +127,8 @@ fn expr_parser(g: &mut Grammar) -> Result<impl Parser<Located<Expr>> + Clone, Gr
             expr_p.refn(),
         ),
     )
-    .map_span(|span, (_, id, _, binding, _, body)| {
-        located(span, Expr::Let(id, Box::new(binding), Box::new(body)))
+    .map_span(|span, (mode, id, _, binding, _, body)| {
+        located(span, Expr::Let(mode, id, Box::new(binding), Box::new(body)))
     });
     let stmt_p = choice("expression", (let_p, add_p));
 
@@ -154,15 +162,31 @@ fn prog_parser(g: &mut Grammar) -> Result<impl Parser<Prog> + Clone, GrammarErro
     let expr_p = expr_parser(g)?;
     let type_p = type_parser(g)?;
 
-    // fn Id(Id: Type, ...) -> Type { Expr }
+    // Id: Type
+    // #Id: Type
+    let param_mode = g.string("#")?.opt().map(|opt| {
+        if opt.is_some() {
+            ParamMode::Comptime
+        } else {
+            ParamMode::Runtime
+        }
+    });
     let param_p = tuple(
         "function parameter",
-        (id_p.clone(), g.string(":")?, type_p.clone()),
+        (param_mode, id_p.clone(), g.string(":")?, type_p.clone()),
     )
-    .map(|(param, _, ty)| Param {
-        id: param.inner,
-        ty,
+    .map_span(|span, (mode, param, _, ty)| {
+        located(
+            span,
+            Param {
+                id: param.inner,
+                mode,
+                ty,
+            },
+        )
     });
+
+    // fn Id(Param, ...) -> Type { Expr }
     let params_p = parenthesized_list(g, "function parameters", param_p)?;
     let func_p = tuple(
         "function",
