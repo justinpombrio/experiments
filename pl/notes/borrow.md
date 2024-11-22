@@ -62,3 +62,15 @@ statement invokes a callback[...]
     }
 
     // Can't do anything with opt_name
+
+### Conclusions
+
+Function arguments can be passed:
+
+- by value (T)
+- by shared reference (&T), or
+- by mutable reference (*T)
+
+References can't be stored in variables or returned from functions.
+
+This will make callbacks much more common; they'll need a shorthand.

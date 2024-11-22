@@ -12,3 +12,5 @@ interface is a value of that type. For example:
 See:
 
     https://lobste.rs/s/kvgb5f/all_you_need_is_data_functions#c_wl7vt7
+
+See also comptime.md.

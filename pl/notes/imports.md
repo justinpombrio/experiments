@@ -110,4 +110,3 @@ To use items in a module:
     -- Per file loader
     importChain : Vec<Path> -- detects cycles
     curmod      : Module
-
