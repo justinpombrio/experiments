@@ -29,9 +29,9 @@ impl Number for f64 {}
 impl Number for u32 {}
 impl<N: Number> Number for Point<N> {}
 
-pub fn interpolate<N: Number>(f: f64, start: N, end: N) -> N
+pub fn interpolate<N>(f: f64, start: N, end: N) -> N
 where
-    N: Mul<f64, Output = N>,
+    N: Number + Mul<f64, Output = N>,
 {
     start + (end - start) * f
 }

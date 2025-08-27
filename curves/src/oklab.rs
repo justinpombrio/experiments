@@ -1,6 +1,8 @@
 /// 16-bit SRGB colors.
 pub type Color = [u16; 3];
 
+// TODO: rename value -> lightness, hsv -> hsl for correctness
+
 /// Convert from HSV OkLab to SRGB.
 ///
 /// The input is HSV components that describe a point in the OkLab color space using polar

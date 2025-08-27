@@ -1,11 +1,13 @@
 mod arith;
 mod canvas;
 mod curve;
+mod hilbert_colors;
 mod oklab;
 
 use arith::{interpolate, Bounds, Point};
 use canvas::Canvas;
 use curve::LindenmayerSystem;
+use hilbert_colors::hilbert_color;
 use oklab::{oklab_hsv_to_srgb, Color};
 
 /*********************
@@ -22,104 +24,117 @@ const CHECKERBOARD_COLOR_2: Color = [180 * 256, 200 * 256, 240 * 256];
  * Color Scales *
  ****************/
 
-type ColorScale = fn(f64) -> [f64; 3];
+type ColorScale = fn(f64) -> Color;
 
 const COLOR_SCALES: &[(&str, ColorScale)] = &[
-    ("bw", hsv_bw),
-    ("bw2", hsv_bw2),
-    ("bw3", hsv_bw3),
-    ("1", hsv_1),
-    ("2", hsv_2),
-    ("3", hsv_3),
-    ("4", hsv_4),
-    ("6", hsv_6),
-    ("7", hsv_7),
-    ("8", hsv_8),
-    ("9", hsv_9),
-    ("o4", hsv_o4),
+    ("bw", rgb_bw),
+    ("bw2", rgb_bw2),
+    ("bw3", rgb_bw3),
+    ("1", rgb_1),
+    ("2", rgb_2),
+    ("3", rgb_3),
+    ("4", rgb_4),
+    ("6", rgb_6),
+    ("7", rgb_7),
+    ("8", rgb_8),
+    ("9", rgb_9),
+    ("o4", rgb_o4),
+    ("h", rgb_hilbert),
 ];
 
-fn hsv_bw(f: f64) -> [f64; 3] {
+fn to_color(oklab_hsv: [f64; 3]) -> Color {
+    match oklab_hsv_to_srgb(oklab_hsv) {
+        Some(color) => color,
+        None => panic!("Color out of bounds: {:?}", oklab_hsv),
+    }
+}
+
+fn rgb_bw(f: f64) -> Color {
     let hue = 0.0;
     let sat = 0.0;
     let val = linear_cycle(f, (0.5, 1.0), (0.25, 0.95));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_bw2(f: f64) -> [f64; 3] {
+fn rgb_bw2(f: f64) -> Color {
     let hue = 0.0;
     let sat = 0.0;
     let val = linear_cycle(f, (0.375, 1.375), (0.25, 0.95));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_bw3(f: f64) -> [f64; 3] {
+fn rgb_bw3(f: f64) -> Color {
     let hue = 0.0;
     let sat = 0.0;
     let val = linear_cycle(f, (0.0, 1.0), (0.25, 0.95));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_1(f: f64) -> [f64; 3] {
+fn rgb_1(f: f64) -> Color {
     let hue = cycle(f, 0.0, 1.0);
     let sat = 0.176;
     let val = 0.75;
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_2(f: f64) -> [f64; 3] {
+fn rgb_2(f: f64) -> Color {
     let hue = cycle(f, 0.0, 1.0);
     let sat = 0.175;
     let val = linear_cycle(f, (0.5, 2.0), (0.25, 0.75));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_3(f: f64) -> [f64; 3] {
+fn rgb_3(f: f64) -> Color {
     let hue = cycle(f, 0.0, 1.0);
     let sat = 0.175;
     let val = linear_cycle(f, (0.0, 6.0), (0.30, 0.70));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_4(f: f64) -> [f64; 3] {
+fn rgb_4(f: f64) -> Color {
     let hue = cycle(f, -0.125, 0.875);
     let sat = 0.175;
     let val = linear_cycle(f, (0.375, 1.375), (0.25, 0.75));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_6(f: f64) -> [f64; 3] {
+fn rgb_6(f: f64) -> Color {
     let hue = cycle(f, 0.0, 1.0);
     let sat = 0.175 * linear_cycle(f, (0.5, 32.5), (0.75, 1.0)).powf(1.0 / 2.0);
     let val = linear_cycle(f, (0.0, 6.0), (0.30, 0.70));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_8(f: f64) -> [f64; 3] {
+fn rgb_8(f: f64) -> Color {
     let hue = cycle(f, 0.0, 1.0);
     let sat = 0.175;
     let val = 0.75 * linear_cycle(f, (0.5, 4.5), (0.003, 1.0)).powf(1.0 / 3.0);
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_9(f: f64) -> [f64; 3] {
+fn rgb_9(f: f64) -> Color {
     let hue = cycle(f, 0.0, 1.0);
     let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.3, 1.0)).powf(1.0 / 2.0);
     let val = linear_cycle(f, (0.5, 5.5), (0.40, 0.75));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_7(f: f64) -> [f64; 3] {
+fn rgb_7(f: f64) -> Color {
     let hue = cycle(f, 0.2, 2.7);
     let sat = 0.175;
     let val = linear_cycle(f, (0.5, 6.5), (0.40, 0.75));
-    [hue, sat, val]
+    to_color([hue, sat, val])
 }
 
-fn hsv_o4(f: f64) -> [f64; 3] {
+fn rgb_o4(f: f64) -> Color {
     let (val, hue) = orbit(f, (0.0, 1.0, 0.6), (0.0, 4.0, 0.15));
     let sat = 0.175;
-    [hue, sat, val]
+    to_color([hue, sat, val])
+}
+
+fn rgb_hilbert(f: f64) -> Color {
+    hilbert_color(f)
+    //hilbert_color_srgb(f)
 }
 
 /// As `f` scales from 0.0 to 1.0, the result scales from `start` to `end`.
@@ -433,8 +448,7 @@ fn main() {
     if curve_width == 0.0 {
         // If curve_width=0, draw just the points
         for (i, point) in points.enumerate() {
-            let color = oklab_hsv_to_srgb(color_scale(i as f64 / curve_len as f64))
-                .expect("Color out of bounds");
+            let color = color_scale(i as f64 / curve_len as f64);
             canvas.draw_point(point, color);
         }
     } else {
@@ -444,7 +458,7 @@ fn main() {
         canvas.draw_curve(
             |f| interpolate(f, (start * 3.0 - middle) / 2.0, (start + middle) / 2.0),
             curve_width,
-            oklab_hsv_to_srgb(color_scale(0.0)).expect("Color out of bounds"),
+            color_scale(0.0),
         );
         for (i, end) in points.enumerate() {
             // middle segments
@@ -455,15 +469,14 @@ fn main() {
                         + (middle + end) * (1.0 - f) * (1.0 - f) / 2.0
                 },
                 curve_width,
-                oklab_hsv_to_srgb(color_scale((i + 1) as f64 / curve_len as f64))
-                    .expect("Color out of bounds"),
+                color_scale((i + 1) as f64 / curve_len as f64),
             );
             if i == curve_len - 2 {
                 // last segment
                 canvas.draw_curve(
                     |f| interpolate(f, (middle + end) / 2.0, (end * 3.0 - middle) / 2.0),
                     curve_width,
-                    oklab_hsv_to_srgb(color_scale(1.0)).expect("Color out of bounds"),
+                    color_scale(1.0),
                 );
             }
             start = middle;
