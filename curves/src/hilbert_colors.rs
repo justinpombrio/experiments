@@ -159,15 +159,3 @@ fn test_hilbert_3d_coords() {
         assert_eq!(hilbert_3d_coords(2, i), *coords);
     }
 }
-
-#[test]
-fn test_stuff() {
-    for f in [0.0, 0.1, 0.25, 0.5, 0.9] {
-        let depth = 16usize;
-        let index = (f * 2usize.pow(depth as u32).pow(3) as f64).round() as usize;
-        let (x, y, z) = hilbert_3d_coords(depth, index);
-        let n = u16::MAX;
-        println!("? {depth} {index} {n} ({x}, {y}, {z})");
-    }
-    panic!()
-}

@@ -1,8 +1,6 @@
 /// 16-bit SRGB colors.
 pub type Color = [u16; 3];
 
-// TODO: rename value -> lightness, hsv -> hsl for correctness
-
 /// Convert from HSV OkLab to SRGB.
 ///
 /// The input is HSV components that describe a point in the OkLab color space using polar
@@ -11,14 +9,13 @@ pub type Color = [u16; 3];
 /// - `hue` determines the horizontal angle of the point, where 0 is yellow, 0.1 is orangeish, and
 ///   1 wraps around to yellow again.
 /// - `sat` is how colorful the point is: 0 is pure gray, and higher numbers are more colorful.
-///   To be precise, `sat * val` is the distance from the white/black line.
-/// - `val` determines the height of the point, where 0 is black and 1 is white.
+///   To be precise, `sat * l` is the distance from the white/black line.
+/// - `l` determines the height of the point, where 0 is black and 1 is white.
 ///
 /// The output is 16-bit `[r, g, b]` components in the SRGB color space.
-pub fn oklab_hsv_to_srgb([hue, sat, val]: [f64; 3]) -> Option<Color> {
+pub fn oklab_hsl_to_srgb([hue, sat, l]: [f64; 3]) -> Option<Color> {
     const RADS_PER_TURN: f64 = 2.0 * std::f64::consts::PI;
-    let l = val;
-    let rad = sat * val;
+    let rad = sat * l;
     let a = rad * (RADS_PER_TURN * hue).sin();
     let b = rad * (RADS_PER_TURN * hue).cos();
     oklab_to_srgb([l, a, b])
@@ -85,23 +82,23 @@ fn clamp(component: f64) -> (u16, bool) {
 
 #[test]
 fn test_oklab() {
-    // Note: greatest saturation available at val=0.75
+    // Note: greatest saturation available at l=0.75
 
-    assert_eq!(oklab_hsv_to_srgb([0.0, 0.0, 0.0]), Some([0, 0, 0]));
+    assert_eq!(oklab_hsl_to_srgb([0.0, 0.0, 0.0]), Some([0, 0, 0]));
     assert_eq!(
-        oklab_hsv_to_srgb([0.0, 0.0, 1.0]),
+        oklab_hsl_to_srgb([0.0, 0.0, 1.0]),
         Some([65485, 65485, 65485])
     );
     assert_eq!(
-        oklab_hsv_to_srgb([0.0, 0.175, 0.75]),
+        oklab_hsl_to_srgb([0.0, 0.175, 0.75]),
         Some([52629, 43619, 17165])
     );
     assert_eq!(
-        oklab_hsv_to_srgb([1.0, 0.175, 0.75]),
+        oklab_hsl_to_srgb([1.0, 0.175, 0.75]),
         Some([52629, 43619, 17165])
     );
     assert_eq!(
-        oklab_hsv_to_srgb([0.25, 0.175, 0.75]),
+        oklab_hsl_to_srgb([0.25, 0.175, 0.75]),
         Some([61232, 35563, 43801])
     );
 }
