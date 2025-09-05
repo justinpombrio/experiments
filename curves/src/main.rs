@@ -27,6 +27,7 @@ const CHECKERBOARD_COLOR_2: Color = [180 * 256, 200 * 256, 240 * 256];
 type ColorScale = fn(f64) -> Color;
 
 const COLOR_SCALES: &[(&str, ColorScale)] = &[
+    ("b", rgb_b),
     ("bw", rgb_bw),
     ("bw2", rgb_bw2),
     ("bw3", rgb_bw3),
@@ -47,6 +48,10 @@ fn to_color(oklab_hsl: [f64; 3]) -> Color {
         Some(color) => color,
         None => panic!("Color out of bounds: {:?}", oklab_hsl),
     }
+}
+
+fn rgb_b(_f: f64) -> Color {
+    to_color([0.0, 0.0, 0.25])
 }
 
 fn rgb_bw(f: f64) -> Color {
@@ -134,7 +139,6 @@ fn rgb_o4(f: f64) -> Color {
 
 fn rgb_hilbert(f: f64) -> Color {
     hilbert_color(f)
-    //hilbert_color_srgb(f)
 }
 
 /// As `f` scales from 0.0 to 1.0, the result scales from `start` to `end`.
@@ -223,7 +227,25 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
         },
     ),
     (
+        "wunderlich",
+        LindenmayerSystem {
+            start: "S",
+            rules: &[('S', "S+fSf-Sf-Sf-S+fS+fS+fSf-S")],
+            angle: 90.0,
+            implicit_f: false,
+        },
+    ),
+    (
         "sierpinski",
+        LindenmayerSystem {
+            start: "A",
+            rules: &[('A', "B-A-B"), ('B', "A+B+A")],
+            angle: 60.0,
+            implicit_f: true,
+        },
+    ),
+    (
+        "square",
         LindenmayerSystem {
             start: "-f++Xf++f++Xf",
             rules: &[('X', "Xf--f++f--Xf++f++Xf--f++f--X")],
@@ -249,8 +271,8 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
             implicit_f: true,
         },
     ),
-    // Improper. Self intersects.
     (
+        // Improper. Self intersects.
         "triangle",
         LindenmayerSystem {
             start: "L",
@@ -260,12 +282,46 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
         },
     ),
     (
+        // Improper. Self intersects.
         "fivefold",
         LindenmayerSystem {
             start: "X",
             rules: &[('X', "+X-X--XX++X+X-")],
             angle: 60.0,
             implicit_f: true,
+        },
+    ),
+    (
+        "s",
+        LindenmayerSystem {
+            start: "++S",
+            rules: &[('S', "+S----S++++S-")],
+            angle: 30.0,
+            implicit_f: true,
+        },
+    ),
+    (
+        // A Plane Filling Curve for the Year 2017
+        // https://www.cut-the-knot.org/do_you_know/SpaceFillingArioni.shtml
+        "arioni",
+        LindenmayerSystem {
+            start: "R",
+            rules: &[('R', "-QR+R+Q-R"), ('Q', "Q+R-Q-QR+")],
+            angle: 90.0,
+            implicit_f: true,
+        },
+    ),
+    (
+        // https://cl.pinterest.com/pin/pin-auf-spacefilling-curves-2--418201515408899768/
+        "steemann",
+        LindenmayerSystem {
+            start: "R",
+            rules: &[
+                ('R', "RfL++fLfR--fRfLfR--fRfL++"),
+                ('L', "LfR--fRfL++fLfRfL++fLfR--"),
+            ],
+            angle: 60.0,
+            implicit_f: false,
         },
     ),
 ];
