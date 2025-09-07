@@ -1,48 +1,8 @@
-use crate::oklab::{oklab_to_srgb, Color};
-
-/// Given a fraction `f` between 0 and 1 along the 3D Hilbert curve, return the color when its
-/// coordinates are interpreted as (r, g, b) in srgb space.
-#[allow(unused)]
-pub fn hilbert_color_srgb(f: f64) -> Color {
-    let depth = 16usize; // 16-bit color
-    let index = (f * 2usize.pow(depth as u32).pow(3) as f64).round() as usize;
-    let (r, g, b) = hilbert_3d_coords(depth, index);
-    [r as u16, g as u16, b as u16]
-}
-
-/// Given a fraction `f` between 0 and 1 along the 3D Hilbert curve, return the color when its
-/// coordinates are interpreted as (red, green, blue) in oklab space.
-pub fn hilbert_color(f: f64) -> Color {
-    let f = (f + 0.0) % 1.0;
-    let depth = 16usize; // 16-bit color
-    let index = (f * 2usize.pow(depth as u32).pow(3) as f64).round() as usize;
-    let (r, g, b) = hilbert_3d_coords(depth, index);
-    let (r, g, b) = (
-        r as f64 / u16::MAX as f64,
-        g as f64 / u16::MAX as f64,
-        b as f64 / u16::MAX as f64,
-    );
-
-    // (l, a, b)
-    // = r * (1/3,  sqrt(3)/2, 1/2)
-    // + g * (1/3, -sqrt(3)/2, 1/2)
-    // + b * (1/3,  0,         -1)
-    let s = 0.13;
-    let [l, a, b] = [
-        0.3 + 0.6 * (r + g + b) / 3.0,
-        s * 3.0f64.sqrt() / 2.0 * (r - g),
-        s * (r / 2.0 + g / 2.0 - b),
-    ];
-    oklab_to_srgb([l, -a, b]).unwrap_or_else(|| {
-        panic!("Color out of bounds:\n  LAB = {l}, {a}, {b}\n  RGB = {r}, {g}, {b}")
-    })
-}
-
 // This function is transliterated from John Burkardt's Python implementation of the same, which is
 // MIT licensed.
 // https://people.sc.fsu.edu/~jburkardt//py_src/hilbert_curve_3d/hilbert_curve_3d.html
 /// Find the (x, y, z) position of the `index`th point along the 3D Hilbert Curve of order `depth`.
-fn hilbert_3d_coords(depth: usize, index: usize) -> (usize, usize, usize) {
+pub fn hilbert_3d_coords(depth: usize, index: usize) -> (usize, usize, usize) {
     let mut i = index;
 
     let (mut x, mut y, mut z): (usize, usize, usize) = match i % 8 {

@@ -1,14 +1,14 @@
 mod arith;
 mod canvas;
+mod color_scale;
 mod curve;
-mod hilbert_colors;
+mod hilbert_3d;
 mod oklab;
 
 use arith::{interpolate, Bounds, Point};
 use canvas::Canvas;
+use color_scale::{hilbert_color, hsl, orbit, rgb, sawtooth, scale, Color};
 use curve::LindenmayerSystem;
-use hilbert_colors::hilbert_color;
-use oklab::{oklab_hsl_to_srgb, Color};
 
 /*********************
  * Background Colors *
@@ -39,129 +39,115 @@ const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("7", rgb_7),
     ("8", rgb_8),
     ("9", rgb_9),
-    ("o4", rgb_o4),
+    ("o6", rgb_o6),
     ("h", rgb_hilbert),
+    ("rgy", rgb_rgy),
+    ("m", rgb_m),
 ];
 
-fn to_color(oklab_hsl: [f64; 3]) -> Color {
-    match oklab_hsl_to_srgb(oklab_hsl) {
-        Some(color) => color,
-        None => panic!("Color out of bounds: {:?}", oklab_hsl),
-    }
-}
-
 fn rgb_b(_f: f64) -> Color {
-    to_color([0.0, 0.0, 0.25])
+    hsl([0.0, 0.0, 0.25])
 }
 
 fn rgb_bw(f: f64) -> Color {
     let hue = 0.0;
     let sat = 0.0;
-    let lit = linear_cycle(f, (0.5, 1.0), (0.25, 0.95));
-    to_color([hue, sat, lit])
+    let lit = scale(sawtooth(scale(f, 0.5, 1.0)), 0.25, 0.95);
+    hsl([hue, sat, lit])
 }
 
 fn rgb_bw2(f: f64) -> Color {
     let hue = 0.0;
     let sat = 0.0;
-    let lit = linear_cycle(f, (0.375, 1.375), (0.25, 0.95));
-    to_color([hue, sat, lit])
+    let lit = scale(sawtooth(scale(f, 0.375, 1.375)), 0.25, 0.95);
+    hsl([hue, sat, lit])
 }
 
 fn rgb_bw3(f: f64) -> Color {
     let hue = 0.0;
     let sat = 0.0;
-    let lit = linear_cycle(f, (0.0, 1.0), (0.25, 0.95));
-    to_color([hue, sat, lit])
+    let lit = scale(sawtooth(scale(f, 0.0, 1.0)), 0.25, 0.95);
+    hsl([hue, sat, lit])
 }
 
 fn rgb_1(f: f64) -> Color {
-    let hue = cycle(f, 0.0, 1.0);
+    let hue = f;
     let sat = 0.176;
     let lit = 0.75;
-    to_color([hue, sat, lit])
+    hsl([hue, sat, lit])
 }
 
 fn rgb_2(f: f64) -> Color {
-    let hue = cycle(f, 0.0, 1.0);
+    let hue = f;
     let sat = 0.175;
-    let lit = linear_cycle(f, (0.5, 2.0), (0.25, 0.75));
-    to_color([hue, sat, lit])
+    let lit = scale(sawtooth(scale(f, 0.5, 2.0)), 0.25, 0.75);
+    hsl([hue, sat, lit])
 }
 
 fn rgb_3(f: f64) -> Color {
-    let hue = cycle(f, 0.0, 1.0);
+    let hue = f;
     let sat = 0.175;
-    let lit = linear_cycle(f, (0.0, 6.0), (0.30, 0.70));
-    to_color([hue, sat, lit])
+    let lit = scale(sawtooth(scale(f, 0.0, 6.0)), 0.30, 0.70);
+    hsl([hue, sat, lit])
 }
 
 fn rgb_4(f: f64) -> Color {
-    let hue = cycle(f, -0.125, 0.875);
+    let hue = scale(f, -0.125, 0.875);
     let sat = 0.175;
-    let lit = linear_cycle(f, (0.375, 1.375), (0.25, 0.75));
-    to_color([hue, sat, lit])
+    let lit = scale(sawtooth(scale(f, 0.375, 1.375)), 0.25, 0.75);
+    hsl([hue, sat, lit])
 }
 
 fn rgb_6(f: f64) -> Color {
-    let hue = cycle(f, 0.0, 1.0);
-    let sat = 0.175 * linear_cycle(f, (0.5, 32.5), (0.75, 1.0)).powf(1.0 / 2.0);
-    let lit = linear_cycle(f, (0.0, 6.0), (0.30, 0.70));
-    to_color([hue, sat, lit])
-}
-
-fn rgb_8(f: f64) -> Color {
-    let hue = cycle(f, 0.0, 1.0);
-    let sat = 0.175;
-    let lit = 0.75 * linear_cycle(f, (0.5, 4.5), (0.003, 1.0)).powf(1.0 / 3.0);
-    to_color([hue, sat, lit])
-}
-
-fn rgb_9(f: f64) -> Color {
-    let hue = cycle(f, 0.0, 1.0);
-    let sat = 0.175 * linear_cycle(f, (0.0, 9.0), (0.3, 1.0)).powf(1.0 / 2.0);
-    let lit = linear_cycle(f, (0.5, 5.5), (0.40, 0.75));
-    to_color([hue, sat, lit])
+    let hue = f;
+    let sat = 0.175 * scale(sawtooth(scale(f, 0.5, 32.5)), 0.75, 1.0).powf(1.0 / 2.0);
+    let lit = scale(sawtooth(scale(f, 0.0, 6.0)), 0.30, 0.70);
+    hsl([hue, sat, lit])
 }
 
 fn rgb_7(f: f64) -> Color {
-    let hue = cycle(f, 0.2, 2.7);
+    let hue = scale(f, 0.2, 2.7);
     let sat = 0.175;
-    let lit = linear_cycle(f, (0.5, 6.5), (0.40, 0.75));
-    to_color([hue, sat, lit])
+    let lit = scale(sawtooth(scale(f, 0.5, 6.5)), 0.40, 0.75);
+    hsl([hue, sat, lit])
 }
 
-fn rgb_o4(f: f64) -> Color {
-    let (lit, hue) = orbit(f, (0.0, 1.0, 0.6), (0.0, 4.0, 0.15));
+fn rgb_8(f: f64) -> Color {
+    let hue = f;
     let sat = 0.175;
-    to_color([hue, sat, lit])
+    let lit = 0.75 * scale(sawtooth(scale(f, 0.5, 4.5)), 0.003, 1.0).powf(1.0 / 3.0);
+    hsl([hue, sat, lit])
+}
+
+fn rgb_9(f: f64) -> Color {
+    let hue = f;
+    let sat = 0.175 * scale(sawtooth(scale(f, 0.0, 9.0)), 0.3, 1.0).powf(1.0 / 2.0);
+    let lit = scale(sawtooth(scale(f, 0.5, 5.5)), 0.40, 0.75);
+    hsl([hue, sat, lit])
+}
+
+fn rgb_o6(f: f64) -> Color {
+    let (lit, hue) = orbit(f, (0.0, 1.0, 0.6), (0.0, 6.0, 0.15));
+    let sat = 0.175;
+    hsl([hue, sat, lit])
 }
 
 fn rgb_hilbert(f: f64) -> Color {
     hilbert_color(f)
 }
 
-/// As `f` scales from 0.0 to 1.0, the result scales from `start` to `end`.
-fn cycle(f: f64, start: f64, end: f64) -> f64 {
-    (start + f * (end - start)) % 1.0
+fn rgb_rgy(f: f64) -> Color {
+    let r = sawtooth(scale(f, 0.0, 0.5));
+    let g = sawtooth(scale(f, 0.5, 1.5));
+    let b = scale(sawtooth(scale(f, 0.0, 4.0)), 0.0, 0.4);
+    rgb([r, g, b])
 }
 
-/// As `f` scales from 0.0 to 1.0, the result varies between `c(start)` and `c(end)`,
-/// where `c` is a cyclic linear function varying between 0.0 at `0, 1, 2, ...` and 1.0 at
-/// `0.5, 1.5, 2.5, ...`.
-fn linear_cycle(f: f64, (start, end): (f64, f64), (min, max): (f64, f64)) -> f64 {
-    min + (1.0 - (2.0 * cycle(f, start, end) - 1.0).abs()) * (max - min)
-}
-
-fn orbit(
-    f: f64,
-    (big_start, big_end, big_rad): (f64, f64, f64),
-    (little_start, little_end, little_rad): (f64, f64, f64),
-) -> (f64, f64) {
-    let big_vec = Point::cis(interpolate(f, big_start, big_end)) * big_rad;
-    let little_vec = Point::cis(interpolate(f, little_start, little_end)) * little_rad;
-    let vector = big_vec + little_vec;
-    (vector.abs(), vector.angle())
+fn rgb_m(f: f64) -> Color {
+    let r = scale(sawtooth(scale(f, 0.0, 2.5)), 0.0, 0.6);
+    let g = scale(sawtooth(scale(f, 0.0, 3.5)), 0.0, 1.0);
+    let b = scale(sawtooth(scale(f, 0.0, 1.5)), 0.0, 1.0);
+    rgb([r, g, b])
 }
 
 /**********
@@ -238,7 +224,7 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
     (
         "sierpinski",
         LindenmayerSystem {
-            start: "A",
+            start: "--A",
             rules: &[('A', "B-A-B"), ('B', "A+B+A")],
             angle: 60.0,
             implicit_f: true,
@@ -292,7 +278,7 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
         },
     ),
     (
-        "s",
+        "s-curve",
         LindenmayerSystem {
             start: "++S",
             rules: &[('S', "+S----S++++S-")],
@@ -324,6 +310,8 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
             implicit_f: false,
         },
     ),
+    // TODO: Pentaflake
+    // https://mathworld.wolfram.com/Pentaflake.html
 ];
 
 /********
