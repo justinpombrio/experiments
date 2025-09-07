@@ -74,6 +74,10 @@
         ...
     } else { ... }
 
+    while input.chars().next() is Some(ch) and ch.to_digit() is Some(digit) {
+        ...
+    }
+
 /////////////////////////////////////
 // Now with significant whitespace //
 /////////////////////////////////////
