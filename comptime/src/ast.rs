@@ -50,7 +50,7 @@ pub enum Expr {
     Sum(Vec<Located<Expr>>),
     Let(Located<Id>, Box<Located<Expr>>, Box<Located<Expr>>),
     Call(Box<Located<Expr>>, Vec<Located<Expr>>),
-    Comptime(Box<Located<Expr>>, Option<Type>),
+    Comptime(Box<Located<Expr>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

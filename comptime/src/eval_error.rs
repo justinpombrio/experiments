@@ -18,6 +18,8 @@ pub enum EvalErrorCase {
     MemoryError(MemoryError),
     #[error("Bug in Comptime! Encountered leftover comptime code at runtime.")]
     LeftoverComptime,
+    #[error("Bug in TC! Encountered nested comptime code at comptime.")]
+    NestedComptime,
 }
 
 impl EvalErrorCase {
@@ -28,6 +30,7 @@ impl EvalErrorCase {
             TypeMismatch { .. } | WrongNumArgs { .. } | UnboundId(_) => "bug in type checker",
             MemoryError { .. } => "memory error",
             LeftoverComptime => "leftover comptime code",
+            NestedComptime => "nested comptime code",
         }
     }
 
@@ -42,6 +45,7 @@ impl EvalErrorCase {
             MemoryError(error) => error.to_string(),
             UnboundId(id) => format!("var {} not found", id),
             LeftoverComptime => "leftover comptime code".to_owned(),
+            NestedComptime => "nested comptime code".to_owned(),
         }
     }
 }

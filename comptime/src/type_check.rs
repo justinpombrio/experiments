@@ -116,11 +116,9 @@ impl TypeChecker {
                 }
                 Ok(func_ty.returns.as_ref().clone())
             }
-            Expr::Comptime(expr, stored_ty) => {
+            Expr::Comptime(expr) => {
                 assert_not_in_comptime(expr.loc, phase)?;
-                let ty = self.check_expr(Phase::Comptime, expr)?;
-                *stored_ty = Some(ty.clone());
-                Ok(ty)
+                self.check_expr(Phase::Comptime, expr)
             }
         }
     }

@@ -54,7 +54,7 @@ impl<'a> Interpreter<'a> {
                 }
                 self.call(func_expr.loc, func, args)
             }
-            Expr::Comptime(_, _) => Err(EvalError {
+            Expr::Comptime(_) => Err(EvalError {
                 phase: Phase::Runtime,
                 error: EvalErrorCase::LeftoverComptime,
                 loc: expr.loc,

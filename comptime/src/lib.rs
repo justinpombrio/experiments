@@ -1,5 +1,5 @@
 mod ast;
-// mod comptime;
+mod comptime;
 mod eval_error;
 mod memory;
 mod parse;
