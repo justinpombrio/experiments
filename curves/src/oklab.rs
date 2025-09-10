@@ -1,5 +1,4 @@
-/// 16-bit SRGB colors.
-pub type Color = [u16; 3];
+use crate::srgb::Color;
 
 /// Convert from HSV OkLab to SRGB.
 ///
@@ -57,7 +56,7 @@ fn try_oklab_to_srgb(mut lab: [f64; 3]) -> (Color, bool) {
     let (g, clamped_g) = to_gamma(g);
     let (b, clamped_b) = to_gamma(b);
 
-    ([r, g, b], clamped_r || clamped_g || clamped_b)
+    (Color([r, g, b]), clamped_r || clamped_g || clamped_b)
 }
 
 fn to_gamma(u: f64) -> (u16, bool) {

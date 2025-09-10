@@ -2,7 +2,8 @@ use crate::arith::{interpolate, Point};
 use crate::hilbert_3d::hilbert_3d_coords;
 use crate::oklab::{oklab_hsl_to_srgb, oklab_to_srgb};
 
-pub use crate::oklab::Color;
+pub use crate::color_data::{CET_L16, CET_L17, CET_RAINBOW};
+pub use crate::srgb::Color;
 
 /// The sawtooth function which starts at 0.0, progresses linearly to 1.0 at f=0.5, returns to 0.0
 /// at f=1.0, and cycles indefinitely.
@@ -71,4 +72,25 @@ pub fn hilbert_color(f: f64) -> Color {
         b16 as f64 / u16::MAX as f64,
     ];
     rgb(rgb1)
+}
+
+pub fn color_scale_from_data<const N: usize>(f: f64, data: [[f64; 3]; N]) -> Color {
+    let g = f * (N - 1) as f64;
+    let (i, m) = if f == 1.0 {
+        (N - 2, 1.0)
+    } else {
+        (g as usize, g % 1.0)
+    };
+    let [r0, g0, b0] = data[i];
+    let [r1, g1, b1] = data[i + 1];
+    let [r, g, b] = [
+        interpolate(m, r0, r1),
+        interpolate(m, g0, g1),
+        interpolate(m, b0, b1),
+    ];
+    Color([
+        (r * u16::MAX as f64) as u16,
+        (g * u16::MAX as f64) as u16,
+        (b * u16::MAX as f64) as u16,
+    ])
 }

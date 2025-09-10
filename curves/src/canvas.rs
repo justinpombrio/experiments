@@ -1,8 +1,8 @@
 use crate::arith::{interpolate, Bounds, Point};
+use crate::srgb::Color;
 use image::{ImageBuffer, Rgb};
 
 type Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
-type Color = [u16; 3];
 
 const LINE_DENSITY: f64 = 2.0;
 const SEGMENT_DENSITY: f64 = 10.0;
@@ -49,7 +49,7 @@ impl Canvas {
         assert!(bounds.min.y < bounds.max.y);
         for x in bounds.min.x..bounds.max.x {
             for y in bounds.min.y..bounds.max.y {
-                self.image.get_pixel_mut(x, y).0 = color;
+                self.image.get_pixel_mut(x, y).0 = color.0;
             }
         }
     }
@@ -73,7 +73,7 @@ impl Canvas {
                 } else {
                     color_2
                 };
-                self.image.get_pixel_mut(x, y).0 = color;
+                self.image.get_pixel_mut(x, y).0 = color.0;
             }
         }
     }
@@ -118,6 +118,6 @@ impl Canvas {
         if p.x < 0.0 || p.y < 0.0 || p.x >= self.size.x as f64 || p.y >= self.size.y as f64 {
             return;
         }
-        self.image.get_pixel_mut(p.x as u32, p.y as u32).0 = color;
+        self.image.get_pixel_mut(p.x as u32, p.y as u32).0 = color.0;
     }
 }

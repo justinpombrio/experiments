@@ -1,24 +1,20 @@
 mod arith;
 mod canvas;
+mod color_data;
 mod color_scale;
 mod curve;
 mod hilbert_3d;
 mod oklab;
+mod srgb;
 
+use argparse::FromCommandLine;
 use arith::{interpolate, Bounds, Point};
 use canvas::Canvas;
-use color_scale::{hilbert_color, hsl, orbit, rgb, sawtooth, scale, Color};
+use color_scale::{
+    color_scale_from_data, hilbert_color, hsl, orbit, rgb, sawtooth, scale, Color, CET_L16,
+    CET_L17, CET_RAINBOW,
+};
 use curve::LindenmayerSystem;
-
-/*********************
- * Background Colors *
- *********************/
-
-const BORDER_COLOR: Color = [210 * 256, 210 * 256, 210 * 256];
-const BACKGROUND_COLOR: Color = [210 * 256, 210 * 256, 210 * 256];
-const BACKGROUND_COLOR_BW: Color = [170 * 256, 200 * 256, 250 * 256];
-const CHECKERBOARD_COLOR_1: Color = [220 * 256, 220 * 256, 170 * 256];
-const CHECKERBOARD_COLOR_2: Color = [180 * 256, 200 * 256, 240 * 256];
 
 /****************
  * Color Scales *
@@ -43,6 +39,9 @@ const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("h", rgb_hilbert),
     ("rgy", rgb_rgy),
     ("m", rgb_m),
+    ("CET_L16", rgb_cet_l16),
+    ("CET_L17", rgb_cet_l17),
+    ("CET_rainbow", rgb_cet_rainbow),
 ];
 
 fn rgb_b(_f: f64) -> Color {
@@ -148,6 +147,18 @@ fn rgb_m(f: f64) -> Color {
     let g = scale(sawtooth(scale(f, 0.0, 3.5)), 0.0, 1.0);
     let b = scale(sawtooth(scale(f, 0.0, 1.5)), 0.0, 1.0);
     rgb([r, g, b])
+}
+
+fn rgb_cet_l16(f: f64) -> Color {
+    color_scale_from_data(f, CET_L16)
+}
+
+fn rgb_cet_l17(f: f64) -> Color {
+    color_scale_from_data(sawtooth(f), CET_L17)
+}
+
+fn rgb_cet_rainbow(f: f64) -> Color {
+    color_scale_from_data(f, CET_RAINBOW)
 }
 
 /**********
@@ -319,7 +330,7 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
  ********/
 
 fn main() {
-    use argparse::{ArgumentParser, Store};
+    use argparse::{ArgumentParser, Parse, Store};
     let curve_name_options = CURVES
         .iter()
         .map(|(name, _)| *name)
@@ -337,9 +348,15 @@ fn main() {
     let mut curve_width = 0.5;
     let mut color_scale_name = "bw".to_owned();
     let mut image_size = 1024;
-    let mut border_width = 0;
     let mut image_name = "curve.png".to_owned();
+    // background
+    let mut background = Color::from_argument("d2d2d2").unwrap();
     let mut checkers = 0;
+    let mut checkers_color_1 = Color::from_argument("dcdcaa").unwrap();
+    let mut checkers_color_2 = Color::from_argument("b4c8f0").unwrap();
+    // border
+    let mut border_width = 0;
+    let mut border_color = Color::from_argument("d2d2d2").unwrap();
 
     // Parse command line args (sets the above options)
     {
@@ -370,16 +387,6 @@ fn main() {
             Store,
             &color_scale_description,
         );
-        args.refer(&mut border_width).add_option(
-            &["-b", "--border"],
-            Store,
-            "Width of the border (default 0)",
-        );
-        args.refer(&mut checkers).add_option(
-            &["-h", "--checkerboard"],
-            Store,
-            "Make the background an 2^N x 2^N checkerboard (default 0, which is off)",
-        );
         args.refer(&mut image_size).add_option(
             &["-s", "--size"],
             Store,
@@ -390,10 +397,40 @@ fn main() {
             Store,
             "File name of output image (default 'curve.png')",
         );
+        // Background
+        args.refer(&mut background).add_option(
+            &["--bg", "--background-color"],
+            Parse,
+            "Make the background color this hex color (default #d2d2d2)",
+        );
+        args.refer(&mut checkers).add_option(
+            &["--checkerboard"],
+            Store,
+            "Make the background an 2^N x 2^N checkerboard (default 0, which is off)",
+        );
+        args.refer(&mut checkers_color_1).add_option(
+            &["--checkers-foreground"],
+            Parse,
+            "The color of half the checker squares, if --checkerboard is set",
+        );
+        args.refer(&mut checkers_color_2).add_option(
+            &["--checkers-foreground"],
+            Parse,
+            "The color of half the checker squares, if --checkerboard is set",
+        );
+        // Border
+        args.refer(&mut border_width).add_option(
+            &["--border"],
+            Store,
+            "Width of the border (default 0)",
+        );
+        args.refer(&mut border_color).add_option(
+            &["--border-color"],
+            Parse,
+            "Color of the border (default 'd2d2d2'). You must set border_width to have a border.",
+        );
         args.parse_args_or_exit();
     }
-
-    println!("Drawing {} iterations of {} curve.", depth, curve_name);
 
     // Look up color scale, or error
     let color_scale = {
@@ -429,6 +466,8 @@ fn main() {
         }
     };
 
+    println!("Determining bounds of curve.");
+
     // Determine bounds of the curve by walking it
     let bounds = {
         let bounds = curve.bounds(depth);
@@ -453,11 +492,13 @@ fn main() {
         },
     };
 
+    println!("Drawing {} iterations of {} curve.", depth, curve_name);
+
     // Start drawing! Make a canvas.
     let mut canvas = Canvas::new(image_size, image_size);
 
     // Draw background
-    canvas.fill(BORDER_COLOR);
+    canvas.fill(border_color);
     if checkers > 0 {
         canvas.draw_checkerboard(
             image_bounds,
@@ -465,16 +506,11 @@ fn main() {
                 x: 2_u32.pow(checkers),
                 y: 2_u32.pow(checkers),
             },
-            CHECKERBOARD_COLOR_1,
-            CHECKERBOARD_COLOR_2,
+            checkers_color_1,
+            checkers_color_2,
         );
     } else {
-        let background_color = if color_scale_name == "bw" {
-            BACKGROUND_COLOR_BW
-        } else {
-            BACKGROUND_COLOR
-        };
-        canvas.draw_rect(image_bounds, background_color);
+        canvas.draw_rect(image_bounds, background);
     }
 
     // Draw the curve itself
