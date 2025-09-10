@@ -2,7 +2,6 @@ use crate::arith::{interpolate, Point};
 use crate::hilbert_3d::hilbert_3d_coords;
 use crate::oklab::{oklab_hsl_to_srgb, oklab_to_srgb};
 
-pub use crate::color_data::{CET_L16, CET_L17, CET_RAINBOW};
 pub use crate::srgb::Color;
 
 /// The sawtooth function which starts at 0.0, progresses linearly to 1.0 at f=0.5, returns to 0.0

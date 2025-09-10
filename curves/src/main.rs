@@ -7,13 +7,11 @@ mod hilbert_3d;
 mod oklab;
 mod srgb;
 
+use crate::color_data::{CET_L08, CET_L16, CET_L17, CET_L19, CET_RAINBOW};
 use argparse::FromCommandLine;
 use arith::{interpolate, Bounds, Point};
 use canvas::Canvas;
-use color_scale::{
-    color_scale_from_data, hilbert_color, hsl, orbit, rgb, sawtooth, scale, Color, CET_L16,
-    CET_L17, CET_RAINBOW,
-};
+use color_scale::{color_scale_from_data, hilbert_color, hsl, orbit, rgb, sawtooth, scale, Color};
 use curve::LindenmayerSystem;
 
 /****************
@@ -29,19 +27,22 @@ const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("bw3", rgb_bw3),
     ("1", rgb_1),
     ("2", rgb_2),
+    ("2s", rgb_2s),
     ("3", rgb_3),
     ("4", rgb_4),
-    ("6", rgb_6),
     ("7", rgb_7),
     ("8", rgb_8),
     ("9", rgb_9),
     ("o6", rgb_o6),
     ("h", rgb_hilbert),
-    ("rgy", rgb_rgy),
+    ("ry", rgb_ry),
+    ("bg", rgb_bg),
     ("m", rgb_m),
-    ("CET_L16", rgb_cet_l16),
-    ("CET_L17", rgb_cet_l17),
-    ("CET_rainbow", rgb_cet_rainbow),
+    ("cet-l08", rgb_cet_l08),
+    ("cet-l16", rgb_cet_l16),
+    ("cet-l17", rgb_cet_l17),
+    ("cet-l19", rgb_cet_l19),
+    ("cet-rainbow", rgb_cet_rainbow),
 ];
 
 fn rgb_b(_f: f64) -> Color {
@@ -83,6 +84,13 @@ fn rgb_2(f: f64) -> Color {
     hsl([hue, sat, lit])
 }
 
+fn rgb_2s(f: f64) -> Color {
+    let hue = f;
+    let sat = 0.175;
+    let lit = scale(sawtooth(scale(sawtooth(f), 0.5, 2.0)), 0.25, 0.75);
+    hsl([hue, sat, lit])
+}
+
 fn rgb_3(f: f64) -> Color {
     let hue = f;
     let sat = 0.175;
@@ -94,13 +102,6 @@ fn rgb_4(f: f64) -> Color {
     let hue = scale(f, -0.125, 0.875);
     let sat = 0.175;
     let lit = scale(sawtooth(scale(f, 0.375, 1.375)), 0.25, 0.75);
-    hsl([hue, sat, lit])
-}
-
-fn rgb_6(f: f64) -> Color {
-    let hue = f;
-    let sat = 0.175 * scale(sawtooth(scale(f, 0.5, 32.5)), 0.75, 1.0).powf(1.0 / 2.0);
-    let lit = scale(sawtooth(scale(f, 0.0, 6.0)), 0.30, 0.70);
     hsl([hue, sat, lit])
 }
 
@@ -135,10 +136,17 @@ fn rgb_hilbert(f: f64) -> Color {
     hilbert_color(f)
 }
 
-fn rgb_rgy(f: f64) -> Color {
+fn rgb_ry(f: f64) -> Color {
     let r = sawtooth(scale(f, 0.0, 0.5));
     let g = sawtooth(scale(f, 0.5, 1.5));
     let b = scale(sawtooth(scale(f, 0.0, 4.0)), 0.0, 0.4);
+    rgb([r, g, b])
+}
+
+fn rgb_bg(f: f64) -> Color {
+    let r = scale(sawtooth(scale(f, 0.0, 4.0)), 0.0, 0.4);
+    let g = sawtooth(scale(f, 0.0, 0.5));
+    let b = sawtooth(scale(f, 0.5, 1.5));
     rgb([r, g, b])
 }
 
@@ -149,12 +157,20 @@ fn rgb_m(f: f64) -> Color {
     rgb([r, g, b])
 }
 
+fn rgb_cet_l08(f: f64) -> Color {
+    color_scale_from_data(f, CET_L08)
+}
+
 fn rgb_cet_l16(f: f64) -> Color {
     color_scale_from_data(f, CET_L16)
 }
 
 fn rgb_cet_l17(f: f64) -> Color {
     color_scale_from_data(sawtooth(f), CET_L17)
+}
+
+fn rgb_cet_l19(f: f64) -> Color {
+    color_scale_from_data(f, CET_L19)
 }
 
 fn rgb_cet_rainbow(f: f64) -> Color {
@@ -466,7 +482,8 @@ fn main() {
         }
     };
 
-    println!("Determining bounds of curve.");
+    let num_points = curve.expand(depth).size_hint().0;
+    println!("Drawing {depth} iterations of {curve_name} curve ({num_points} points).");
 
     // Determine bounds of the curve by walking it
     let bounds = {
@@ -491,8 +508,6 @@ fn main() {
             y: image_size - border_width,
         },
     };
-
-    println!("Drawing {} iterations of {} curve.", depth, curve_name);
 
     // Start drawing! Make a canvas.
     let mut canvas = Canvas::new(image_size, image_size);
