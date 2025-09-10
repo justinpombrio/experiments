@@ -13,15 +13,15 @@ impl FromCommandLine for Color {
         fn parse_component(component: &str) -> Result<u16, String> {
             u16::from_str_radix(component, 16).map_err(|_| "color -- invalid hex digit".to_owned())
         }
+
         if s.len() != 6 && s.len() != 3 {
             return Err("color -- wrong length (expected 3 or 6 hex digits)".to_owned());
         }
         let components = if s.len() == 3 {
-            [
-                4096 * parse_component(&s[0..1])?,
-                4096 * parse_component(&s[1..2])?,
-                4096 * parse_component(&s[2..3])?,
-            ]
+            let r = parse_component(&s[0..1])?;
+            let g = parse_component(&s[1..2])?;
+            let b = parse_component(&s[2..3])?;
+            [256 * 17 * r, 256 * 17 * g, 256 * 17 * b]
         } else {
             [
                 256 * parse_component(&s[0..2])?,
