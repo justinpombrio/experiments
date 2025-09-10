@@ -387,7 +387,7 @@ fn main() {
     let mut curve_name = "hilbert".to_owned();
     let mut depth = 3;
     let mut curve_width = 0.5;
-    let mut curve_style = CurveStyle::Curvy;
+    let mut curve_style = CurveStyle::Straight;
     let mut color_scale_name = "bw".to_owned();
     let mut start_angle = 0.0;
     let mut image_size = 1024;
