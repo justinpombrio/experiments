@@ -41,14 +41,14 @@ struct CurveIter {
 }
 
 impl CurveIter {
-    fn new(system: LindenmayerSystem, depth: usize) -> CurveIter {
+    fn new(system: LindenmayerSystem, depth: usize, direction: f64) -> CurveIter {
         CurveIter {
             stack: vec![system.start],
             system,
             depth,
             at_start: true,
             point: Point { x: 0.0, y: 0.0 },
-            direction: 0.0,
+            direction,
             z_index: 0,
         }
     }
@@ -116,13 +116,17 @@ impl ExactSizeIterator for CurveIter {}
 
 impl LindenmayerSystem {
     /// Return the sequence of (x, y) points in the `n`th iteration of this fractal curve.
-    pub fn expand(&self, depth: usize) -> impl ExactSizeIterator<Item = Point<f64>> {
-        CurveIter::new(*self, depth)
+    pub fn expand(
+        &self,
+        depth: usize,
+        start_angle: f64,
+    ) -> impl ExactSizeIterator<Item = Point<f64>> {
+        CurveIter::new(*self, depth, start_angle)
     }
 
     /// Determine the bounds of this curve. Walks the whole curve!
-    pub fn bounds(&self, depth: usize) -> Bounds<f64> {
-        let mut points = self.expand(depth);
+    pub fn bounds(&self, depth: usize, start_angle: f64) -> Bounds<f64> {
+        let mut points = self.expand(depth, start_angle);
         let first_point = points.next().unwrap();
         let mut bounds = Bounds {
             min: first_point,
@@ -200,7 +204,7 @@ fn test_curves() {
 
     assert_eq!(
         hilbert_curve
-            .expand(2)
+            .expand(2, 0.0)
             .map(|point| (point.x.round() as i32, point.y.round() as i32))
             .collect::<Vec<_>>(),
         vec![

@@ -30,6 +30,7 @@ const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("2s", rgb_2s),
     ("3", rgb_3),
     ("4", rgb_4),
+    ("6", rgb_6),
     ("7", rgb_7),
     ("8", rgb_8),
     ("9", rgb_9),
@@ -84,6 +85,13 @@ fn rgb_2(f: f64) -> Color {
     hsl([hue, sat, lit])
 }
 
+fn rgb_3(f: f64) -> Color {
+    let hue = f + 0.5;
+    let sat = 0.175;
+    let lit = scale(sawtooth(scale(f, 0.0, 1.0)), 0.25, 0.75);
+    hsl([hue, sat, lit])
+}
+
 fn rgb_2s(f: f64) -> Color {
     let hue = f;
     let sat = 0.175;
@@ -91,7 +99,7 @@ fn rgb_2s(f: f64) -> Color {
     hsl([hue, sat, lit])
 }
 
-fn rgb_3(f: f64) -> Color {
+fn rgb_6(f: f64) -> Color {
     let hue = f;
     let sat = 0.175;
     let lit = scale(sawtooth(scale(f, 0.0, 6.0)), 0.30, 0.70);
@@ -269,7 +277,7 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
     (
         "koch",
         LindenmayerSystem {
-            start: "X",
+            start: "X-X-X-X-X-X",
             rules: &[('X', "X-X++X-X")],
             angle: 60.0,
             implicit_f: true,
@@ -341,6 +349,23 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
     // https://mathworld.wolfram.com/Pentaflake.html
 ];
 
+enum CurveStyle {
+    Points,
+    Curvy,
+    Straight,
+}
+
+impl FromCommandLine for CurveStyle {
+    fn from_argument(s: &str) -> Result<CurveStyle, String> {
+        match s {
+            "points" => Ok(CurveStyle::Points),
+            "curvy" => Ok(CurveStyle::Curvy),
+            "straight" => Ok(CurveStyle::Straight),
+            _ => Err("curve style must be 'points', 'curvy', or 'straight'".to_owned()),
+        }
+    }
+}
+
 /********
  * Main *
  ********/
@@ -362,14 +387,18 @@ fn main() {
     let mut curve_name = "hilbert".to_owned();
     let mut depth = 3;
     let mut curve_width = 0.5;
+    let mut curve_style = CurveStyle::Curvy;
     let mut color_scale_name = "bw".to_owned();
+    let mut start_angle = 0.0;
     let mut image_size = 1024;
     let mut image_name = "curve.png".to_owned();
     // background
+    let mut foreground = Color::sentinel();
     let mut background = Color::from_argument("d2d2d2").unwrap();
     let mut checkers = 0;
     let mut checkers_color_1 = Color::from_argument("dcdcaa").unwrap();
     let mut checkers_color_2 = Color::from_argument("b4c8f0").unwrap();
+    let mut fill_color = Color::sentinel();
     // border
     let mut border_width = 0;
     let mut border_color = Color::from_argument("d2d2d2").unwrap();
@@ -392,16 +421,26 @@ fn main() {
             .add_argument(
                 "iterations",
                 Store,
-                "How many iterations to repeat the curve for.",
+                "How many iterations to repeat the curve for",
             )
             .required();
         args.refer(&mut curve_width)
             .add_option(&["-t", "--thickness"], Store,
                 "How wide the curve should be, where 1.0 is thick enought to touch itself (default 0.5). Exactly 0 draws individual points.");
+        args.refer(&mut curve_style).add_option(
+            &["--style"],
+            Parse,
+            "Curve style ('points', 'curvy', or 'straight')",
+        );
         args.refer(&mut color_scale_name).add_option(
             &["-c", "--colors"],
             Store,
             &color_scale_description,
+        );
+        args.refer(&mut start_angle).add_option(
+            &["-a", "--angle"],
+            Store,
+            "The angle to begin drawing the curve at",
         );
         args.refer(&mut image_size).add_option(
             &["-s", "--size"],
@@ -414,8 +453,13 @@ fn main() {
             "File name of output image (default 'curve.png')",
         );
         // Background
+        args.refer(&mut foreground).add_option(
+            &["--fg", "--foreground"],
+            Parse,
+            "Make the foreground color this hex color (default #d2d2d2)",
+        );
         args.refer(&mut background).add_option(
-            &["--bg", "--background-color"],
+            &["--bg", "--background"],
             Parse,
             "Make the background color this hex color (default #d2d2d2)",
         );
@@ -425,14 +469,19 @@ fn main() {
             "Make the background an 2^N x 2^N checkerboard (default 0, which is off)",
         );
         args.refer(&mut checkers_color_1).add_option(
-            &["--checkers-foreground"],
+            &["--checkers-color-1"],
             Parse,
             "The color of half the checker squares, if --checkerboard is set",
         );
         args.refer(&mut checkers_color_2).add_option(
-            &["--checkers-foreground"],
+            &["--checkers-color-2"],
             Parse,
             "The color of half the checker squares, if --checkerboard is set",
+        );
+        args.refer(&mut fill_color).add_option(
+            &["--fill"],
+            Parse,
+            "Fill the curve with this color",
         );
         // Border
         args.refer(&mut border_width).add_option(
@@ -482,12 +531,12 @@ fn main() {
         }
     };
 
-    let num_points = curve.expand(depth).size_hint().0;
+    let num_points = curve.expand(depth, start_angle).size_hint().0;
     println!("Drawing {depth} iterations of {curve_name} curve ({num_points} points).");
 
     // Determine bounds of the curve by walking it
     let bounds = {
-        let bounds = curve.bounds(depth);
+        let bounds = curve.bounds(depth, start_angle);
         let center = (bounds.min + bounds.max) / 2.0;
         let dimensions = bounds.max - bounds.min;
         let new_dimensions = Point::zero() + dimensions.x.max(dimensions.y);
@@ -524,13 +573,22 @@ fn main() {
             checkers_color_1,
             checkers_color_2,
         );
+    } else if foreground == Color::sentinel() {
+        canvas.fill_rect(image_bounds, background);
     } else {
-        canvas.draw_rect(image_bounds, background);
+        canvas.paint_rect(image_bounds, |pt| {
+            let center = (image_bounds.max + image_bounds.min) / 2;
+            let radius = (image_bounds.max - image_bounds.min) / 2;
+            let x = (pt.x as f64 - center.x as f64) / radius.x as f64;
+            let y = (pt.y as f64 - center.y as f64) / radius.y as f64;
+            let r = Point { x, y }.abs() / 2.0f64.sqrt();
+            foreground * r + background * (1.0 - r)
+        });
     }
 
     // Draw the curve itself
     let drawing_size = bounds.max - bounds.min;
-    let points = curve.expand(depth);
+    let points = curve.expand(depth, start_angle);
     let curve_len = points.len() - 1;
     let canvas_size = Point {
         x: (image_size - 2 * border_width) as f64,
@@ -541,42 +599,68 @@ fn main() {
         .map(move |point| (point - bounds.min) / drawing_size * canvas_size + border_width as f64);
 
     if curve_width == 0.0 {
-        // If curve_width=0, draw just the points
-        for (i, point) in points.enumerate() {
-            let color = color_scale(i as f64 / curve_len as f64);
-            canvas.draw_point(point, color);
-        }
-    } else {
-        let mut start = points.next().unwrap();
-        let mut middle = points.next().unwrap();
-        // first segment
-        canvas.draw_curve(
-            |f| interpolate(f, (start * 3.0 - middle) / 2.0, (start + middle) / 2.0),
-            curve_width,
-            color_scale(0.0),
-        );
-        for (i, end) in points.enumerate() {
-            // middle segments
-            canvas.draw_curve(
-                |f| {
-                    middle * 2.0 * f * (1.0 - f)
-                        + (start + middle) * f * f / 2.0
-                        + (middle + end) * (1.0 - f) * (1.0 - f) / 2.0
-                },
-                curve_width,
-                color_scale((i + 1) as f64 / curve_len as f64),
-            );
-            if i == curve_len - 2 {
-                // last segment
-                canvas.draw_curve(
-                    |f| interpolate(f, (middle + end) / 2.0, (end * 3.0 - middle) / 2.0),
-                    curve_width,
-                    color_scale(1.0),
-                );
+        curve_style = CurveStyle::Points;
+    }
+    match curve_style {
+        CurveStyle::Points => {
+            for (i, point) in points.enumerate() {
+                let color = color_scale(i as f64 / curve_len as f64);
+                canvas.draw_point(point, color);
             }
-            start = middle;
-            middle = end;
         }
+        CurveStyle::Straight => {
+            let mut start = points.next().unwrap();
+            canvas.draw_circle(start, curve_width, color_scale(0.0));
+            for (i, end) in points.enumerate() {
+                canvas.draw_curve(
+                    |f| interpolate(f, start, end),
+                    curve_width,
+                    color_scale((i + 1) as f64 / curve_len as f64),
+                );
+                canvas.draw_circle(
+                    end,
+                    curve_width,
+                    color_scale((i + 1) as f64 / curve_len as f64),
+                );
+                start = end;
+            }
+        }
+        CurveStyle::Curvy => {
+            let mut start = points.next().unwrap();
+            let mut middle = points.next().unwrap();
+            // first segment
+            canvas.draw_curve(
+                |f| interpolate(f, (start * 3.0 - middle) / 2.0, (start + middle) / 2.0),
+                curve_width,
+                color_scale(0.0),
+            );
+            for (i, end) in points.enumerate() {
+                // middle segments
+                canvas.draw_curve(
+                    |f| {
+                        middle * 2.0 * f * (1.0 - f)
+                            + (start + middle) * f * f / 2.0
+                            + (middle + end) * (1.0 - f) * (1.0 - f) / 2.0
+                    },
+                    curve_width,
+                    color_scale((i + 1) as f64 / curve_len as f64),
+                );
+                if i == curve_len - 2 {
+                    // last segment
+                    canvas.draw_curve(
+                        |f| interpolate(f, (middle + end) / 2.0, (end * 3.0 - middle) / 2.0),
+                        curve_width,
+                        color_scale(1.0),
+                    );
+                }
+                start = middle;
+                middle = end;
+            }
+        }
+    }
+
+    if fill_color != Color::sentinel() {
+        canvas.bucket_fill(fill_color, background);
     }
 
     println!("Saving to '{}'.", image_name);

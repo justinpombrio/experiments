@@ -6,6 +6,7 @@ type Image = ImageBuffer<Rgb<u16>, Vec<u16>>;
 
 const LINE_DENSITY: f64 = 2.0;
 const SEGMENT_DENSITY: f64 = 10.0;
+const CIRCLE_DENSITY: f64 = 4.0;
 
 /// Draw to a PNG
 pub struct Canvas {
@@ -31,7 +32,7 @@ impl Canvas {
 
     /// Fill the entire canvas with a background color.
     pub fn fill(&mut self, color: Color) {
-        self.draw_rect(
+        self.fill_rect(
             Bounds {
                 min: Point { x: 0, y: 0 },
                 max: Point {
@@ -44,12 +45,24 @@ impl Canvas {
     }
 
     /// Fill a rectangle with the given color.
-    pub fn draw_rect(&mut self, bounds: Bounds<u32>, color: Color) {
+    pub fn fill_rect(&mut self, bounds: Bounds<u32>, color: Color) {
         assert!(bounds.min.x < bounds.max.x);
         assert!(bounds.min.y < bounds.max.y);
         for x in bounds.min.x..bounds.max.x {
             for y in bounds.min.y..bounds.max.y {
                 self.image.get_pixel_mut(x, y).0 = color.0;
+            }
+        }
+    }
+
+    /// Paint a rectangle with the given color function.
+    pub fn paint_rect(&mut self, bounds: Bounds<u32>, paint: impl Fn(Point<u32>) -> Color) {
+        assert!(bounds.min.x < bounds.max.x);
+        assert!(bounds.min.y < bounds.max.y);
+        for x in bounds.min.x..bounds.max.x {
+            for y in bounds.min.y..bounds.max.y {
+                let point = Point { x, y };
+                self.image.get_pixel_mut(x, y).0 = paint(point).0;
             }
         }
     }
@@ -100,6 +113,52 @@ impl Canvas {
             let left = p0 + ortho * width;
             let right = p0 - ortho * width;
             self.draw_line(left, right, color);
+        }
+    }
+
+    pub fn draw_circle(&mut self, point: Point<f64>, radius: f64, color: Color) {
+        // What is a circle but a bunch of lines
+        let num_lines = (CIRCLE_DENSITY * radius) as usize;
+        for i in 0..num_lines {
+            let angle = i as f64 / num_lines as f64 / 2.0;
+            let delta = Point::cis(angle) * radius;
+            self.draw_line(point - delta, point + delta, color);
+        }
+    }
+
+    /// Fill the canvas with `fill_color` starting from the center, so long as the pixels have
+    /// `background` color.
+    pub fn bucket_fill(&mut self, fill_color: Color, background: Color) {
+        let mut frontier = vec![self.size / 2];
+        while let Some(point) = frontier.pop() {
+            if self.image.get_pixel(point.x, point.y).0 != background.0 {
+                continue;
+            }
+            self.image.get_pixel_mut(point.x, point.y).0 = fill_color.0;
+            if point.x > 0 {
+                frontier.push(Point {
+                    x: point.x - 1,
+                    y: point.y,
+                });
+            }
+            if point.y > 0 {
+                frontier.push(Point {
+                    x: point.x,
+                    y: point.y - 1,
+                });
+            }
+            if point.x < self.size.x - 1 {
+                frontier.push(Point {
+                    x: point.x + 1,
+                    y: point.y,
+                });
+            }
+            if point.y < self.size.y - 1 {
+                frontier.push(Point {
+                    x: point.x,
+                    y: point.y + 1,
+                });
+            }
         }
     }
 
