@@ -7,7 +7,7 @@ mod hilbert_3d;
 mod oklab;
 mod srgb;
 
-use crate::color_data::{CET_L08, CET_L16, CET_L17, CET_L19, CET_RAINBOW};
+use crate::color_data::{CET_L08, CET_L10, CET_L16, CET_L17, CET_L19, CET_RAINBOW};
 use argparse::FromCommandLine;
 use arith::{interpolate, Bounds, Point};
 use canvas::Canvas;
@@ -40,6 +40,7 @@ const COLOR_SCALES: &[(&str, ColorScale)] = &[
     ("bg", rgb_bg),
     ("m", rgb_m),
     ("cet-l08", rgb_cet_l08),
+    ("cet-l10", rgb_cet_l10),
     ("cet-l16", rgb_cet_l16),
     ("cet-l17", rgb_cet_l17),
     ("cet-l19", rgb_cet_l19),
@@ -169,6 +170,10 @@ fn rgb_cet_l08(f: f64) -> Color {
     color_scale_from_data(f, CET_L08)
 }
 
+fn rgb_cet_l10(f: f64) -> Color {
+    color_scale_from_data(f, CET_L10)
+}
+
 fn rgb_cet_l16(f: f64) -> Color {
     color_scale_from_data(f, CET_L16)
 }
@@ -257,7 +262,31 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
         },
     ),
     (
-        "sierpinski",
+        "zigzag",
+        LindenmayerSystem {
+            start: "S",
+            rules: &[
+                ('S', "Sf+S-f-ZfS-fSf+SfZ+f+S-fS"),
+                ('Z', "Zf-Z+f+SfZ+fZf-ZfS-f-Z+fZ"),
+            ],
+            angle: 90.0,
+            implicit_f: false,
+        },
+    ),
+    (
+        "aztec",
+        LindenmayerSystem {
+            start: "Q",
+            rules: &[
+                ('P', "-QfQf+PfPfP+f+Pf-QfQ-fP"),
+                ('Q', "Qf+PfP+fQ-f-QfQfQ-fPfP+"),
+            ],
+            angle: 90.0,
+            implicit_f: false,
+        },
+    ),
+    (
+        "sierpinski-triangle",
         LindenmayerSystem {
             start: "--A",
             rules: &[('A', "B-A-B"), ('B', "A+B+A")],
@@ -266,7 +295,7 @@ const CURVES: &[(&str, LindenmayerSystem)] = &[
         },
     ),
     (
-        "square",
+        "sierpinski-curve",
         LindenmayerSystem {
             start: "-f++Xf++f++Xf",
             rules: &[('X', "Xf--f++f--Xf++f++Xf--f++f--X")],
@@ -629,8 +658,9 @@ fn main() {
             let mut start = points.next().unwrap();
             let mut middle = points.next().unwrap();
             // first segment
+            canvas.draw_circle(start, curve_width, color_scale(0.0));
             canvas.draw_curve(
-                |f| interpolate(f, (start * 3.0 - middle) / 2.0, (start + middle) / 2.0),
+                |f| interpolate(f, start, (start + middle) / 2.0),
                 curve_width,
                 color_scale(0.0),
             );
@@ -648,10 +678,11 @@ fn main() {
                 if i == curve_len - 2 {
                     // last segment
                     canvas.draw_curve(
-                        |f| interpolate(f, (middle + end) / 2.0, (end * 3.0 - middle) / 2.0),
+                        |f| interpolate(f, (middle + end) / 2.0, end),
                         curve_width,
                         color_scale(1.0),
                     );
+                    canvas.draw_circle(end, curve_width, color_scale(1.0));
                 }
                 start = middle;
                 middle = end;

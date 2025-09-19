@@ -1,14 +1,19 @@
+run() {
+    cargo run --release -- -s 2048 "$@"
+}
+
 mkdir images -p
-cargo run --release moore      11 -s 2048 -t 0     -c 3   -o images/moore.png
-cargo run --release zorder     11 -s 2048 -t 0     -c 4   -o images/z-order.png
-cargo run --release dragon     22 -s 2048 -t 0 -c cet-l19 -o images/dragon.png --bg 636 --fg 525 -a 0.075 
-cargo run --release gosper      8 -s 2048 -t 0     -c h   -o images/gosper.png --bg def --fg 999
-cargo run --release sierpinski 13 -s 2048 -t 0 -c cet-l17 -o images/sierpinski.png --bg 000a00
-cargo run --release square     11 -s 2048 -t 0     -c h   -o images/square.png
-cargo run --release koch        6 -s 2048 -t 0.75 -c b    -o images/koch.png --bg ddd --fill abc -a 0.25
-cargo run --release triangle   11 -s 2048 -t 0     -c 6   -o images/triangle.png   --bg fff
-cargo run --release s-curve     5 -s 2048 -t 0.275 -c ry  -o images/s.png          --bg ddc --style curvy
-cargo run --release wunderlich  3 -s 2048 -t 0.65  -c m   -o images/wunderlich.png --bg 222
-cargo run --release arioni      5 -s 2048 -t 0.7   -c o6  -o images/arioni.png -a -0.078 --bg 222
-cargo run --release steemann    3 -s 2048 -t 0.45  -c cet-l08 -o images/steemann.png --bg 111 --style curvy
-cargo run --release fivefold   11 -s 2048 -t 0     -c h   -o images/fivefold.png --bg def --fg 999
+run moore               11 -t 0     -c 3                   -o images/moore.png
+run zorder              11 -t 0     -c 4                   -o images/z-order.png
+run dragon              22 -t 0     -c cet-l19 --bg 636    -o images/dragon.png   --fg 525 -a 0.075 
+run gosper               8 -t 0     -c h       --bg ddd    -o images/gosper.png
+run gosper               8 -t 0     -c h       --bg eee    -o images/gosper.png --fg 080808 
+run sierpinski-triangle 13 -t 0     -c cet-l17 --bg 000a00 -o images/sierpinski-triangle.png
+run sierpinski-curve    11 -t 0     -c h                   -o images/sierpinski-curve.png
+run koch                 6 -t 0.75  -c b       --bg ddd    -o images/koch.png     --fill abc -a 0.25
+run triangle            11 -t 0     -c 6       --bg fff    -o images/triangle.png
+run s-curve              5 -t 0.275 -c ry      --bg 181812 -o images/s.png        --style curvy
+run aztec                3 -t 0.65  -c m       --bg 181818 -o images/aztec.png
+run arioni               5 -t 0.7   -c o6      --bg 222    -o images/arioni.png   -a -0.078
+run steemann             3 -t 0.45  -c cet-l08 --bg 111    -o images/steemann.png --style curvy
+run fivefold            10 -t 0     -c h       --bg fff    -o images/fivefold.png -a 0.6667 -s 1024

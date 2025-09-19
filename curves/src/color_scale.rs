@@ -41,11 +41,13 @@ pub fn rgb([r, g, b]: [f64; 3]) -> Color {
     // = r * (1/3,  sqrt(3)/2, 1/2)
     // + g * (1/3, -sqrt(3)/2, 1/2)
     // + b * (1/3,  0,         -1)
-    let s = 0.13;
+
+    let max_sat = 0.141;
+    let min_lit = 0.3;
     let [l, a, b] = [
-        0.3 + 0.6 * (r + g + b) / 3.0,
-        s * 3.0f64.sqrt() / 2.0 * (r - g),
-        s * (r / 2.0 + g / 2.0 - b),
+        min_lit + (1.0 - min_lit) * (r + g + b) / 3.0,
+        max_sat * 3.0f64.sqrt() / 2.0 * (r - g),
+        max_sat * (r / 2.0 + g / 2.0 - b),
     ];
     oklab_to_srgb([l, a, b]).unwrap_or_else(|| {
         panic!("Color out of bounds:\n  LAB = {l}, {a}, {b}\n  RGB = {r}, {g}, {b}")
