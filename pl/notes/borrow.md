@@ -18,10 +18,12 @@ iteration:
 
     collection.each_mut(|item| *item += 1);
 
+Or have an extra layer of indirection:
+
 Likewise, if you want a method to return a reference to a `name: String` function, it needs to take
 a callback instead:
 
-    fn with_name<R>(&self: Person, callback: Fn(&str) => R) => R {
+    fn with_name<R>(&self: Person, callback: Fn(&str) -> R) -> R {
         callback(&self.name)
     }
 
@@ -29,10 +31,10 @@ a callback instead:
         print("Hello {}", name)
     })
 
-    fn with_opt_name(&self: Person, callback: *Fn(&str) => ()) => () {
+    fn with_opt_name(&self: Person, callback: *Fn(&str) -> ()) -> () {
         match &self.name {
-            None => None,
-            Some(&name) => Some(callback(&name))
+            None -> None,
+            Some(&name) -> Some(callback(&name))
         }
     }
 
@@ -44,8 +46,9 @@ a callback instead:
         print("Hello, anonymous")
     }
 
-This is a sufficiently common pattern that it warrents a language feature to make it easier:
-borrowing functions (Hylo's "subscripts").
+This is a sufficiently common pattern that it warrents a language feature to make it easier.
+One option is borrowing functions (Hylo's "subscripts"). Another is Gleam's
+"use".
 
 ## Borrowing Functions
 
@@ -53,7 +56,7 @@ A _borrowing function_ is a function that "yields" a value instead of returning 
 statement invokes a callback[...]
 
     // equivalent to with_name above
-    borrowing fn name[&self: Person] => &str {
+    borrowing fn name(&self: Person) -> &str {
         yield &self.name
     }
 
@@ -63,7 +66,63 @@ statement invokes a callback[...]
 
     // Can't do anything with opt_name
 
-### Conclusions
+## Use
+
+    use &name = person.with_name();
+    print("Hello {name}");
+
+    // equivalent to
+    print.with_name(fn(&name) {
+        print("Hello {name}");
+    });
+
+## Nested shares/mutables
+
+Another more expressive option is to allow `&` and `*` inside other types, _so
+long as they're in a binding_. Then you can write:
+
+    fn with_opt_name<R>(&self: Person, callback: fn(Option<&str>) -> R) -> R {
+        match &self.name {
+            None => callback(None),
+            Some(&name) => callback(Some(&name)),
+        }
+    }
+
+    use name = person.with_opt_name();
+    if (name is Some(name))
+        print("Hello {name}");
+
+## Combined
+
+Combining these, we can get:
+
+    borrowing fn opt_name(self: &Person) -> Option<&str> {
+        match &self.name {
+            None => yield None,
+            Some(&name) => yield Some(&name),
+        }
+    }
+
+    // equivalent to
+    fn opt_name<R>(self: &Person, callback: fn(Option<&str>) -> R) -> R {
+        match &self.name {
+            None => callback(None),
+            Some(&name) => callback(Some(&name)),
+        }
+    }
+
+    borrow name = person.opt_name();
+    if (name is Some(name)))
+        print("Hello {name}");
+
+    // equivalent to
+    person.opt_name(fn(&name) {
+        if (name is Some(name)) {
+            print("Hello {name}");
+        }
+    });
+
+### Summary
 
 Function arguments can be passed:
 

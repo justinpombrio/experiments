@@ -1,5 +1,28 @@
 ## With
 
+### With solves
+
+- Methods:
+    ```
+    x: T with fn f(T, U) -> V
+    y: U
+    -------------------------
+    x.f(y): V
+    ```
+
+- Hiding:
+    ```
+    let T' = T without U
+    ```
+- Overriding:
+    ```
+    int with fn __lt__(x, y) { x > y }
+    ```
+- Implicit methods:
+    ```
+    fn f(infer #Elem: Type with ...)
+    ```
+
 ### Overlapping Interfaces in Rust
 
 The maintainer of Rust's `iter-tools` has an issue, that Rust keeps breaking the library. Here's
@@ -22,4 +45,22 @@ can be, by making interfaces lexically scoped like most other things in a langua
 
 ### The With Feature
 
+    struct Add(Self: #type) {
+        Result: type;
+        Zero: Self;
+        fn add(self: Self, other: Self) -> Self;
+    }
 
+    let rec Int = BUILTIN_INT with Add(Int) {
+        Result: Int,
+        Zero: 0,
+        fn add(self: Int, other: Int) -> Int {
+            BUILTIN_INT_ADD(self, other)
+        }
+    };
+
+    type ::= ... | type with { S, ... }
+        where S has the form `struct _(Self: #type) { ... }`
+
+    T with U with V  ===  T with (U union V)
+    T with S_1 with S_2  ===  T with S2  // this solves the itertools issue

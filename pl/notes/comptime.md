@@ -37,7 +37,7 @@ fn dist_sq_2(y: i32) -> i32 {
 }
 ...
 
-2 * dist_sq_2(y)
+7 * dist_sq_2(y)
 ```
 
 Monomorphization requires you to be able to hash the comptime args so that you can memoize them.
