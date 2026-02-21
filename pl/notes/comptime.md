@@ -1,5 +1,33 @@
 ## Comptime
 
+**Challenge:** When are two types equal?
+
+**Answer:** When they have the same expression.
+    No hidden mutation -> (same expr -> same type).
+
+**Challenge:** How can the compiler avoid re-computing the same type-related
+info multiple times? E.g. info associated with the type; specialization.
+
+**Answer:** `struct` caches its output based on its inputs. They're guaranteed
+to be simple bulitin types (Type, Usize), so hashing them is easy. (Maybe also
+cache based on the srcloc.
+
+Although... we also want arbitrary comptime associated data, which will need a
+user-supplied hash function.
+
+**Challenge:** Isn't type equality really hard?
+What about `Array(T, n + m)` vs. `Array(T, m + n)`?
+
+**Answer:**
+```
+let x: Array(T, n + m) = ...;
+let y: Array(T, m + n) = cast x as Array(T, m + n);
+```
+`cast` checks _at comptime_ that the two types are the same. (Not merely that
+they have the same layout, that they're literally the same type.)
+
+### Inlining vs. Monomorphizing
+
 There are two things you can do with functions with comptime args:
 
 - Inlining
